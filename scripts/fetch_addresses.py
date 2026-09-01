@@ -102,7 +102,7 @@ def _run_overpass_query(query: str) -> dict:
 
 # ── Address extraction ────────────────────────────────────────────────────────
 
-def _element_lat_lon(element: dict) -> tuple[float, float] | None:
+def _element_lat_lon(element: dict) -> tuple[float | None, float | None]:
     """
     Return (lat, lon) for an OSM element.
     Nodes have 'lat'/'lon' directly; ways/relations expose 'center'.
