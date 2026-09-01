@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PMC CERT Map</title>
 
+  <!-- Font Awesome 6 Free (CDN) -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
   <!-- Leaflet CSS -->
   <link
     rel="stylesheet"
@@ -143,8 +152,25 @@
     .badge-open   { background: #e74c3c; }
     .badge-closed { background: #7f8c8d; }
 
-    /* ── Incident icon SVG markers ───────────────────────────── */
-    .incident-marker-icon { font-size: 22px; line-height: 1; text-align: center; }
+    /* ── Incident icon FA markers ────────────────────────────── */
+    .incident-marker-icon {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: #e74c3c;
+      color: #fff;
+      font-size: 15px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .incident-marker-icon.closed {
+      background: #7f8c8d;
+      opacity: 0.55;
+    }
+    /* Icon picker buttons show FA icons */
+    .icon-option { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
   </style>
 </head>
 <body>
@@ -194,8 +220,8 @@
 
 <!-- Toolbar -->
 <div id="toolbar">
-  <button class="toolbar-btn" id="btn-change-sheet">⚙ Change Sheet</button>
-  <button class="toolbar-btn" id="btn-change-icon">🔣 Change Icon</button>
+  <button class="toolbar-btn" id="btn-change-sheet"><i class="fa-solid fa-gear"></i> Change Sheet</button>
+  <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-icons"></i> Change Icon</button>
 </div>
 
 <!-- Status bar -->
@@ -218,18 +244,18 @@
   const PMC_LNG = -119.155;
   const POLL_INTERVAL_MS = 10000;
 
-  // Available incident icons: { emoji, label }
+  // Available incident icons: { fa: FA classes, label }
   const ICON_OPTIONS = [
-    { emoji: '🚨', label: 'Emergency' },
-    { emoji: '🔥', label: 'Fire' },
-    { emoji: '🏥', label: 'Medical' },
-    { emoji: '🚗', label: 'Vehicle' },
-    { emoji: '⚠️', label: 'Hazard' },
-    { emoji: '🔍', label: 'Search' },
-    { emoji: '🐻', label: 'Wildlife' },
-    { emoji: '⛑️', label: 'Rescue' },
-    { emoji: '📍', label: 'Pin' },
-    { emoji: '⭐', label: 'Star' },
+    { fa: 'fa-solid fa-bell-concierge', label: 'Emergency' },
+    { fa: 'fa-solid fa-fire',           label: 'Fire' },
+    { fa: 'fa-solid fa-kit-medical',    label: 'Medical' },
+    { fa: 'fa-solid fa-car-burst',      label: 'Vehicle' },
+    { fa: 'fa-solid fa-triangle-exclamation', label: 'Hazard' },
+    { fa: 'fa-solid fa-magnifying-glass', label: 'Search' },
+    { fa: 'fa-solid fa-paw',            label: 'Wildlife' },
+    { fa: 'fa-solid fa-person-falling', label: 'Rescue' },
+    { fa: 'fa-solid fa-location-dot',   label: 'Pin' },
+    { fa: 'fa-solid fa-star',           label: 'Star' },
   ];
 
   // ── Map setup ────────────────────────────────────────────────────────────────
@@ -322,16 +348,17 @@
   // ── Incident marker helpers ───────────────────────────────────────────────────
 
   /**
-   * Build a Leaflet DivIcon using the currently selected emoji and open/closed
-   * state for opacity styling.
+   * Build a Leaflet DivIcon using the currently selected Font Awesome icon and
+   * open/closed state for colour/opacity styling.
    */
   function buildDivIcon(isOpen) {
+    const closedClass = isOpen ? '' : ' closed';
     return L.divIcon({
       className: '',
-      html: `<div class="incident-marker-icon" style="opacity:${isOpen ? '1' : '0.4'};filter:${isOpen ? 'none' : 'grayscale(1)'}">${selectedIcon.emoji}</div>`,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-      popupAnchor: [0, -16]
+      html: `<div class="incident-marker-icon${closedClass}"><i class="${selectedIcon.fa}"></i></div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      popupAnchor: [0, -18]
     });
   }
 
@@ -454,7 +481,7 @@
       const btn = document.createElement('span');
       btn.className = 'icon-option' + (opt === selectedIcon ? ' active' : '');
       btn.title = opt.label;
-      btn.textContent = opt.emoji;
+      btn.innerHTML = `<i class="${opt.fa}"></i>`;
       btn.addEventListener('click', function () {
         container.querySelectorAll('.icon-option').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');

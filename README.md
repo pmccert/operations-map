@@ -16,9 +16,9 @@ publicly accessible Google Sheet.
   marker on the map.
 * **Open / Closed status** — incidents marked `closed` (column C) are rendered
   faded and greyscale; open incidents display in full colour.
-* **User-selectable icon** — choose from a set of emoji icons (🚨 🔥 🏥 🚗 ⚠️
-  🔍 🐻 ⛑️ 📍 ⭐) in the startup dialog or via the **Change Icon** toolbar
-  button.
+* **User-selectable icon** — choose from a set of Font Awesome vector icons
+  (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin,
+  star) in the startup dialog or via the **Change Icon** toolbar button.
 * **Basemap switcher** — choose from four tile sources via the top-right control:
   * OpenStreetMap
   * OpenTopoMap (hillshaded terrain)
