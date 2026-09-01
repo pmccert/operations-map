@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PMC CERT Map</title>
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body { font-family: Arial, sans-serif; }
+
+    #map { width: 100vw; height: 100vh; }
+
+    /* Modal overlay */
+    #sheet-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    #sheet-modal.hidden { display: none; }
+
+    #sheet-dialog {
+      background: #fff;
+      border-radius: 8px;
+      padding: 28px 32px;
+      width: min(480px, 90vw);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    }
+
+    #sheet-dialog h2 {
+      margin-bottom: 12px;
+      font-size: 1.2rem;
+    }
+
+    #sheet-dialog p {
+      font-size: 0.9rem;
+      color: #555;
+      margin-bottom: 18px;
+      line-height: 1.5;
+    }
+
+    #sheet-url {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.95rem;
+      margin-bottom: 16px;
+    }
+
+    #sheet-submit {
+      width: 100%;
+      padding: 9px;
+      background: #2c7bb6;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    #sheet-submit:hover { background: #1a5a8a; }
+
+    #error-msg {
+      color: #c0392b;
+      font-size: 0.85rem;
+      margin-top: 8px;
+      min-height: 1.2em;
+    }
+
+    /* Status bar */
+    #status-bar {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      z-index: 500;
+      pointer-events: none;
+      transition: opacity 0.4s;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Google Sheet URL prompt -->
+<div id="sheet-modal">
+  <div id="sheet-dialog">
+    <h2>PMC CERT Live Map</h2>
+    <p>
+      Enter the URL of a publicly-readable Google Sheet that contains
+      <strong>longitude (x)</strong> in the first column and
+      <strong>latitude (y)</strong> in the second column (with a header row).
+      The map will refresh the latest coordinate every 10 seconds.
+      <strong>Column A = longitude (x), Column B = latitude (y).</strong>
+    </p>
+    <input
+      id="sheet-url"
+      type="url"
+      placeholder="https://docs.google.com/spreadsheets/d/…"
+      autocomplete="off"
+    />
+    <button id="sheet-submit">Load Map</button>
+    <div id="error-msg"></div>
+  </div>
+</div>
+
+<!-- Map container -->
+<div id="map"></div>
+
+<!-- Status bar -->
+<div id="status-bar">Waiting for sheet URL…</div>
+
+<!-- Leaflet JS -->
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN2GGnk="
+  crossorigin=""
+></script>
+
+<script>
+(function () {
+  'use strict';
+
+  // Pine Mountain Club, CA
+  const PMC_LAT = 34.857;
+  const PMC_LNG = -119.155;
+  const POLL_INTERVAL_MS = 10000;
+
+  // ── Map setup ────────────────────────────────────────────────────────────────
+
+  const map = L.map('map').setView([PMC_LAT, PMC_LNG], 13);
+
+  const baseLayers = {
+    'OpenStreetMap': L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19
+      }
+    ),
+    'OpenTopoMap (hillshade)': L.tileLayer(
+      'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      {
+        attribution: '© <a href="https://opentopomap.org">OpenTopoMap</a> contributors',
+        maxZoom: 17
+      }
+    ),
+    'USGS Topo': L.tileLayer(
+      'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
+      {
+        attribution: 'USGS The National Map',
+        maxZoom: 20
+      }
+    ),
+    'USGS Imagery': L.tileLayer(
+      'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
+      {
+        attribution: 'USGS The National Map',
+        maxZoom: 20
+      }
+    )
+  };
+
+  // Start with OpenStreetMap
+  baseLayers['OpenStreetMap'].addTo(map);
+
+  // Layer control (top-right)
+  L.control.layers(baseLayers, null, { position: 'topright', collapsed: false }).addTo(map);
+
+  // ── State ────────────────────────────────────────────────────────────────────
+
+  let csvUrl = null;
+  let pollTimer = null;
+  let currentMarker = null;
+  let markerHistory = [];   // keep last MAX_HISTORY plotted points as circle markers
+  const MAX_HISTORY = 200;
+
+  const statusBar = document.getElementById('status-bar');
+
+  function setStatus(msg) {
+    statusBar.textContent = msg;
+  }
+
+  // ── Google Sheets CSV URL helper ──────────────────────────────────────────────
+
+  /**
+   * Convert a normal Google Sheets URL to its CSV export URL.
+   * Accepts:
+   *   https://docs.google.com/spreadsheets/d/SHEET_ID/edit#gid=0
+   *   https://docs.google.com/spreadsheets/d/SHEET_ID/pub?...
+   * Returns the export URL for the first (default) sheet.
+   */
+  function toCsvUrl(raw) {
+    const m = raw.match(/\/spreadsheets\/d\/([\w-]+)/);
+    if (!m) return null;
+    const sheetId = m[1];
+    // Extract gid if present
+    const gidMatch = raw.match(/[?&#]gid=(\d+)/);
+    const gid = gidMatch ? gidMatch[1] : '0';
+    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+  }
+
+  // ── CSV parsing ───────────────────────────────────────────────────────────────
+
+  /**
+   * Parse a minimal CSV string and return array of row arrays.
+   * Handles basic quoted fields.
+   */
+  function parseCsv(text) {
+    const rows = [];
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const fields = [];
+      let inQuotes = false;
+      let field = '';
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') { field += '"'; i++; }
+          else { inQuotes = !inQuotes; }
+        } else if (ch === ',' && !inQuotes) {
+          fields.push(field.trim());
+          field = '';
+        } else {
+          field += ch;
+        }
+      }
+      fields.push(field.trim());
+      rows.push(fields);
+    }
+    return rows;
+  }
+
+  // ── Polling ───────────────────────────────────────────────────────────────────
+
+  async function fetchAndPlot() {
+    if (!csvUrl) return;
+    try {
+      setStatus('Fetching data…');
+      const resp = await fetch(csvUrl, { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      const rows = parseCsv(text);
+
+      // Skip header row; use last data row
+      const dataRows = rows.slice(1).filter(r => r.length >= 2);
+      if (dataRows.length === 0) {
+        setStatus('No data rows found in sheet.');
+        return;
+      }
+
+      const lastRow = dataRows[dataRows.length - 1];
+      const x = parseFloat(lastRow[0]);   // longitude
+      const y = parseFloat(lastRow[1]);   // latitude
+
+      if (isNaN(x) || isNaN(y)) {
+        setStatus(`Could not parse coordinates from: "${lastRow[0]}", "${lastRow[1]}"`);
+        return;
+      }
+
+      plotCoordinate(x, y);
+      const now = new Date().toLocaleTimeString();
+      setStatus(`Last update: ${now} — Lon: ${x.toFixed(5)}, Lat: ${y.toFixed(5)}`);
+    } catch (err) {
+      setStatus(`Error: ${err.message}`);
+      console.error('Fetch error:', err);
+    }
+  }
+
+  function plotCoordinate(lng, lat) {
+    // Remove previous primary marker
+    if (currentMarker) {
+      map.removeLayer(currentMarker);
+    }
+
+    // Add faded history dot
+    const historyDot = L.circleMarker([lat, lng], {
+      radius: 5,
+      color: '#2c7bb6',
+      fillColor: '#2c7bb6',
+      fillOpacity: 0.3,
+      weight: 1
+    });
+    historyDot.addTo(map);
+    markerHistory.push(historyDot);
+
+    // Cap history to avoid unbounded memory / layer growth
+    if (markerHistory.length > MAX_HISTORY) {
+      const oldest = markerHistory.shift();
+      map.removeLayer(oldest);
+    }
+
+    // Current position marker (larger, opaque)
+    currentMarker = L.circleMarker([lat, lng], {
+      radius: 10,
+      color: '#c0392b',
+      fillColor: '#e74c3c',
+      fillOpacity: 0.85,
+      weight: 2
+    }).bindPopup(`Lon: ${lng.toFixed(5)}<br>Lat: ${lat.toFixed(5)}`);
+    currentMarker.addTo(map);
+    currentMarker.openPopup();
+  }
+
+  function startPolling() {
+    fetchAndPlot();
+    pollTimer = setInterval(fetchAndPlot, POLL_INTERVAL_MS);
+  }
+
+  function stopPolling() {
+    if (pollTimer !== null) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  // ── Modal handling ────────────────────────────────────────────────────────────
+
+  const modal = document.getElementById('sheet-modal');
+  const urlInput = document.getElementById('sheet-url');
+  const submitBtn = document.getElementById('sheet-submit');
+  const errorMsg = document.getElementById('error-msg');
+
+  function showError(msg) { errorMsg.textContent = msg; }
+  function clearError() { errorMsg.textContent = ''; }
+
+  function handleSubmit() {
+    const raw = urlInput.value.trim();
+    if (!raw) { showError('Please enter a Google Sheet URL.'); return; }
+
+    const converted = toCsvUrl(raw);
+    if (!converted) {
+      showError('Could not parse a Google Sheets ID from the URL. Please check the URL and try again.');
+      return;
+    }
+
+    clearError();
+    csvUrl = converted;
+    modal.classList.add('hidden');
+    setStatus('Starting…');
+    stopPolling();
+    startPolling();
+  }
+
+  submitBtn.addEventListener('click', handleSubmit);
+  urlInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') handleSubmit();
+  });
+
+})();
+</script>
+</body>
+</html>
