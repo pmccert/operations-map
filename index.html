@@ -15,13 +15,11 @@
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body { font-family: Arial, sans-serif; }
-
     #map { width: 100vw; height: 100vh; }
 
-    /* Modal overlay */
-    #sheet-modal {
+    /* ── Modal overlay ───────────────────────────────────────── */
+    .modal-overlay {
       position: fixed;
       inset: 0;
       background: rgba(0, 0, 0, 0.55);
@@ -30,39 +28,55 @@
       justify-content: center;
       z-index: 1000;
     }
+    .modal-overlay.hidden { display: none; }
 
-    #sheet-modal.hidden { display: none; }
-
-    #sheet-dialog {
+    .modal-box {
       background: #fff;
       border-radius: 8px;
       padding: 28px 32px;
-      width: min(480px, 90vw);
+      width: min(520px, 92vw);
       box-shadow: 0 8px 32px rgba(0,0,0,0.25);
     }
+    .modal-box h2 { margin-bottom: 10px; font-size: 1.2rem; }
+    .modal-box p  { font-size: 0.88rem; color: #555; margin-bottom: 14px; line-height: 1.5; }
 
-    #sheet-dialog h2 {
-      margin-bottom: 12px;
-      font-size: 1.2rem;
+    .field-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: bold;
+      margin-bottom: 4px;
+      color: #333;
     }
-
-    #sheet-dialog p {
-      font-size: 0.9rem;
-      color: #555;
-      margin-bottom: 18px;
-      line-height: 1.5;
-    }
-
-    #sheet-url {
+    .text-input {
       width: 100%;
       padding: 8px 10px;
       border: 1px solid #ccc;
       border-radius: 4px;
       font-size: 0.95rem;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
-    #sheet-submit {
+    /* ── Icon picker ─────────────────────────────────────────── */
+    #icon-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .icon-option {
+      cursor: pointer;
+      border: 2px solid #ccc;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 1.4rem;
+      line-height: 1;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+    .icon-option:hover  { border-color: #2c7bb6; background: #eaf3fb; }
+    .icon-option.active { border-color: #2c7bb6; background: #d0e8f8; }
+
+    .btn-primary {
       width: 100%;
       padding: 9px;
       background: #2c7bb6;
@@ -72,17 +86,16 @@
       font-size: 1rem;
       cursor: pointer;
     }
+    .btn-primary:hover { background: #1a5a8a; }
 
-    #sheet-submit:hover { background: #1a5a8a; }
-
-    #error-msg {
+    .error-msg {
       color: #c0392b;
       font-size: 0.85rem;
       margin-top: 8px;
       min-height: 1.2em;
     }
 
-    /* Status bar */
+    /* ── Status bar ──────────────────────────────────────────── */
     #status-bar {
       position: fixed;
       bottom: 12px;
@@ -95,36 +108,95 @@
       font-size: 0.82rem;
       z-index: 500;
       pointer-events: none;
-      transition: opacity 0.4s;
     }
+
+    /* ── Toolbar (change sheet / icon) ───────────────────────── */
+    #toolbar {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 500;
+      display: flex;
+      gap: 6px;
+    }
+    .toolbar-btn {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid #aaa;
+      border-radius: 4px;
+      padding: 5px 10px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .toolbar-btn:hover { background: #e8f0fe; }
+
+    /* ── Incident popup ──────────────────────────────────────── */
+    .incident-popup { font-size: 0.88rem; line-height: 1.6; }
+    .incident-popup .badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      font-weight: bold;
+      color: #fff;
+    }
+    .badge-open   { background: #e74c3c; }
+    .badge-closed { background: #7f8c8d; }
+
+    /* ── Incident icon SVG markers ───────────────────────────── */
+    .incident-marker-icon { font-size: 22px; line-height: 1; text-align: center; }
   </style>
 </head>
 <body>
 
-<!-- Google Sheet URL prompt -->
-<div id="sheet-modal">
-  <div id="sheet-dialog">
-    <h2>PMC CERT Live Map</h2>
+<!-- ── Sheet URL + icon picker modal ───────────────────────────── -->
+<div id="sheet-modal" class="modal-overlay">
+  <div class="modal-box">
+    <h2>PMC CERT Incident Map</h2>
     <p>
-      Enter the URL of a publicly-readable Google Sheet that contains
-      <strong>longitude (x)</strong> in the first column and
-      <strong>latitude (y)</strong> in the second column (with a header row).
-      The map will refresh the latest coordinate every 10 seconds.
-      <strong>Column A = longitude (x), Column B = latitude (y).</strong>
+      Enter the URL of a publicly-readable Google Sheet. Each data row is
+      treated as a separate incident. Expected columns (with a header row):
     </p>
+    <p>
+      <strong>A&nbsp;=&nbsp;longitude</strong> &nbsp;|&nbsp;
+      <strong>B&nbsp;=&nbsp;latitude</strong> &nbsp;|&nbsp;
+      <strong>C&nbsp;=&nbsp;status</strong> (<code>open</code> or <code>closed</code>) &nbsp;|&nbsp;
+      <strong>D&nbsp;=&nbsp;label</strong> (optional description)
+    </p>
+    <label class="field-label" for="sheet-url">Google Sheet URL</label>
     <input
       id="sheet-url"
+      class="text-input"
       type="url"
       placeholder="https://docs.google.com/spreadsheets/d/…"
       autocomplete="off"
     />
-    <button id="sheet-submit">Load Map</button>
-    <div id="error-msg"></div>
+
+    <label class="field-label">Incident icon</label>
+    <div id="icon-picker"></div>
+
+    <button id="sheet-submit" class="btn-primary">Load Map</button>
+    <div id="error-msg" class="error-msg"></div>
+  </div>
+</div>
+
+<!-- ── Icon-only change modal ──────────────────────────────────── -->
+<div id="icon-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h2>Change Incident Icon</h2>
+    <div id="icon-picker-2"></div>
+    <button id="icon-modal-close" class="btn-primary">Done</button>
   </div>
 </div>
 
 <!-- Map container -->
 <div id="map"></div>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <button class="toolbar-btn" id="btn-change-sheet">⚙ Change Sheet</button>
+  <button class="toolbar-btn" id="btn-change-icon">🔣 Change Icon</button>
+</div>
 
 <!-- Status bar -->
 <div id="status-bar">Waiting for sheet URL…</div>
@@ -140,10 +212,25 @@
 (function () {
   'use strict';
 
-  // Pine Mountain Club, CA
+  // ── Constants ───────────────────────────────────────────────────────────────
+
   const PMC_LAT = 34.857;
   const PMC_LNG = -119.155;
   const POLL_INTERVAL_MS = 10000;
+
+  // Available incident icons: { emoji, label }
+  const ICON_OPTIONS = [
+    { emoji: '🚨', label: 'Emergency' },
+    { emoji: '🔥', label: 'Fire' },
+    { emoji: '🏥', label: 'Medical' },
+    { emoji: '🚗', label: 'Vehicle' },
+    { emoji: '⚠️', label: 'Hazard' },
+    { emoji: '🔍', label: 'Search' },
+    { emoji: '🐻', label: 'Wildlife' },
+    { emoji: '⛑️', label: 'Rescue' },
+    { emoji: '📍', label: 'Pin' },
+    { emoji: '⭐', label: 'Star' },
+  ];
 
   // ── Map setup ────────────────────────────────────────────────────────────────
 
@@ -180,40 +267,25 @@
     )
   };
 
-  // Start with OpenStreetMap
   baseLayers['OpenStreetMap'].addTo(map);
-
-  // Layer control (top-right)
   L.control.layers(baseLayers, null, { position: 'topright', collapsed: false }).addTo(map);
 
   // ── State ────────────────────────────────────────────────────────────────────
 
-  let csvUrl = null;
-  let pollTimer = null;
-  let currentMarker = null;
-  let markerHistory = [];   // keep last MAX_HISTORY plotted points as circle markers
-  const MAX_HISTORY = 200;
+  let csvUrl        = null;
+  let pollTimer     = null;
+  let selectedIcon  = ICON_OPTIONS[0];   // default icon
+  let incidentMarkers = {};              // key: row index → Leaflet marker
 
   const statusBar = document.getElementById('status-bar');
-
-  function setStatus(msg) {
-    statusBar.textContent = msg;
-  }
+  function setStatus(msg) { statusBar.textContent = msg; }
 
   // ── Google Sheets CSV URL helper ──────────────────────────────────────────────
 
-  /**
-   * Convert a normal Google Sheets URL to its CSV export URL.
-   * Accepts:
-   *   https://docs.google.com/spreadsheets/d/SHEET_ID/edit#gid=0
-   *   https://docs.google.com/spreadsheets/d/SHEET_ID/pub?...
-   * Returns the export URL for the first (default) sheet.
-   */
   function toCsvUrl(raw) {
     const m = raw.match(/\/spreadsheets\/d\/([\w-]+)/);
     if (!m) return null;
     const sheetId = m[1];
-    // Extract gid if present
     const gidMatch = raw.match(/[?&#]gid=(\d+)/);
     const gid = gidMatch ? gidMatch[1] : '0';
     return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
@@ -221,10 +293,6 @@
 
   // ── CSV parsing ───────────────────────────────────────────────────────────────
 
-  /**
-   * Parse a minimal CSV string and return array of row arrays.
-   * Handles basic quoted fields.
-   */
   function parseCsv(text) {
     const rows = [];
     const lines = text.split(/\r?\n/);
@@ -251,7 +319,48 @@
     return rows;
   }
 
-  // ── Polling ───────────────────────────────────────────────────────────────────
+  // ── Incident marker helpers ───────────────────────────────────────────────────
+
+  /**
+   * Build a Leaflet DivIcon using the currently selected emoji and open/closed
+   * state for opacity styling.
+   */
+  function buildDivIcon(isOpen) {
+    return L.divIcon({
+      className: '',
+      html: `<div class="incident-marker-icon" style="opacity:${isOpen ? '1' : '0.4'};filter:${isOpen ? 'none' : 'grayscale(1)'}">${selectedIcon.emoji}</div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+      popupAnchor: [0, -16]
+    });
+  }
+
+  function popupHtml(incident) {
+    const badgeClass = incident.isOpen ? 'badge-open' : 'badge-closed';
+    const statusLabel = incident.isOpen ? 'Open' : 'Closed';
+    return `
+      <div class="incident-popup">
+        <strong>${incident.label || 'Incident #' + (incident.index + 1)}</strong><br>
+        <span class="badge ${badgeClass}">${statusLabel}</span><br>
+        Lon: ${incident.lng.toFixed(5)}<br>
+        Lat: ${incident.lat.toFixed(5)}
+      </div>`;
+  }
+
+  /** Remove all current incident markers from the map. */
+  function clearMarkers() {
+    Object.values(incidentMarkers).forEach(m => map.removeLayer(m));
+    incidentMarkers = {};
+  }
+
+  /** Re-render all markers with the current icon (called when icon changes). */
+  function refreshIcons() {
+    Object.values(incidentMarkers).forEach(m => {
+      m.setIcon(buildDivIcon(m._isOpen));
+    });
+  }
+
+  // ── Polling / plotting ────────────────────────────────────────────────────────
 
   async function fetchAndPlot() {
     if (!csvUrl) return;
@@ -262,109 +371,153 @@
       const text = await resp.text();
       const rows = parseCsv(text);
 
-      // Skip header row; use last data row
-      const dataRows = rows.slice(1).filter(r => r.length >= 2);
+      // First row is header; rest are incidents (require non-empty lon and lat)
+      const dataRows = rows.slice(1).filter(r => r.length >= 2 && r[0] !== '' && r[1] !== '');
       if (dataRows.length === 0) {
-        setStatus('No data rows found in sheet.');
+        setStatus('No incident rows found in sheet.');
         return;
       }
 
-      const lastRow = dataRows[dataRows.length - 1];
-      const x = parseFloat(lastRow[0]);   // longitude
-      const y = parseFloat(lastRow[1]);   // latitude
+      // Determine which row indices are still present
+      const currentKeys = new Set(dataRows.map((_, i) => i));
 
-      if (isNaN(x) || isNaN(y)) {
-        setStatus(`Could not parse coordinates from: "${lastRow[0]}", "${lastRow[1]}"`);
-        return;
-      }
+      // Remove markers for rows that disappeared
+      Object.keys(incidentMarkers).forEach(k => {
+        if (!currentKeys.has(Number(k))) {
+          map.removeLayer(incidentMarkers[k]);
+          delete incidentMarkers[k];
+        }
+      });
 
-      plotCoordinate(x, y);
+      let openCount = 0, closedCount = 0, plotted = 0;
+
+      dataRows.forEach(function (row, idx) {
+        const lng    = parseFloat(row[0]);
+        const lat    = parseFloat(row[1]);
+        if (isNaN(lng) || isNaN(lat)) return;
+
+        plotted++;
+
+        const statusRaw = (row[2] || '').toLowerCase().trim();
+        // Treat 'open' explicitly; anything else (including blank) defaults to open,
+        // except 'closed' which marks an incident as closed.
+        const isOpen    = statusRaw !== 'closed';
+        const label     = row[3] || '';
+        isOpen ? openCount++ : closedCount++;
+
+        const incident = { index: idx, lng, lat, isOpen, label };
+
+        if (incidentMarkers[idx]) {
+          // Update existing marker position + icon
+          incidentMarkers[idx]._isOpen = isOpen;
+          incidentMarkers[idx].setLatLng([lat, lng]);
+          incidentMarkers[idx].setIcon(buildDivIcon(isOpen));
+          incidentMarkers[idx].setPopupContent(popupHtml(incident));
+        } else {
+          // Create new marker; store _isOpen directly on the instance
+          const marker = L.marker([lat, lng], {
+            icon: buildDivIcon(isOpen)
+          }).bindPopup(popupHtml(incident));
+          marker._isOpen = isOpen;
+          marker.addTo(map);
+          incidentMarkers[idx] = marker;
+        }
+      });
+
       const now = new Date().toLocaleTimeString();
-      setStatus(`Last update: ${now} — Lon: ${x.toFixed(5)}, Lat: ${y.toFixed(5)}`);
+      setStatus(
+        `Last update: ${now} — ${plotted} incident(s): ` +
+        `${openCount} open, ${closedCount} closed`
+      );
     } catch (err) {
       setStatus(`Error: ${err.message}`);
       console.error('Fetch error:', err);
     }
   }
 
-  function plotCoordinate(lng, lat) {
-    // Remove previous primary marker
-    if (currentMarker) {
-      map.removeLayer(currentMarker);
-    }
-
-    // Add faded history dot
-    const historyDot = L.circleMarker([lat, lng], {
-      radius: 5,
-      color: '#2c7bb6',
-      fillColor: '#2c7bb6',
-      fillOpacity: 0.3,
-      weight: 1
-    });
-    historyDot.addTo(map);
-    markerHistory.push(historyDot);
-
-    // Cap history to avoid unbounded memory / layer growth
-    if (markerHistory.length > MAX_HISTORY) {
-      const oldest = markerHistory.shift();
-      map.removeLayer(oldest);
-    }
-
-    // Current position marker (larger, opaque)
-    currentMarker = L.circleMarker([lat, lng], {
-      radius: 10,
-      color: '#c0392b',
-      fillColor: '#e74c3c',
-      fillOpacity: 0.85,
-      weight: 2
-    }).bindPopup(`Lon: ${lng.toFixed(5)}<br>Lat: ${lat.toFixed(5)}`);
-    currentMarker.addTo(map);
-    currentMarker.openPopup();
-  }
-
   function startPolling() {
+    clearMarkers();
     fetchAndPlot();
+    if (pollTimer !== null) clearInterval(pollTimer);
     pollTimer = setInterval(fetchAndPlot, POLL_INTERVAL_MS);
   }
 
-  function stopPolling() {
-    if (pollTimer !== null) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
+  // ── Icon picker helper ────────────────────────────────────────────────────────
+
+  /**
+   * Build icon-picker buttons inside `container`.
+   * `onSelect(iconOption)` is called when an option is clicked.
+   */
+  function buildIconPicker(container, onSelect) {
+    container.innerHTML = '';
+    ICON_OPTIONS.forEach(function (opt) {
+      const btn = document.createElement('span');
+      btn.className = 'icon-option' + (opt === selectedIcon ? ' active' : '');
+      btn.title = opt.label;
+      btn.textContent = opt.emoji;
+      btn.addEventListener('click', function () {
+        container.querySelectorAll('.icon-option').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedIcon = opt;
+        onSelect(opt);
+      });
+      container.appendChild(btn);
+    });
   }
 
-  // ── Modal handling ────────────────────────────────────────────────────────────
+  // ── Sheet modal ───────────────────────────────────────────────────────────────
 
-  const modal = document.getElementById('sheet-modal');
-  const urlInput = document.getElementById('sheet-url');
-  const submitBtn = document.getElementById('sheet-submit');
-  const errorMsg = document.getElementById('error-msg');
+  const sheetModal  = document.getElementById('sheet-modal');
+  const urlInput    = document.getElementById('sheet-url');
+  const submitBtn   = document.getElementById('sheet-submit');
+  const errorMsgEl  = document.getElementById('error-msg');
+  const iconPicker1 = document.getElementById('icon-picker');
 
-  function showError(msg) { errorMsg.textContent = msg; }
-  function clearError() { errorMsg.textContent = ''; }
+  buildIconPicker(iconPicker1, function () { /* icon selected, no immediate action */ });
+
+  function showError(msg) { errorMsgEl.textContent = msg; }
+  function clearError()   { errorMsgEl.textContent = ''; }
 
   function handleSubmit() {
     const raw = urlInput.value.trim();
     if (!raw) { showError('Please enter a Google Sheet URL.'); return; }
-
     const converted = toCsvUrl(raw);
     if (!converted) {
-      showError('Could not parse a Google Sheets ID from the URL. Please check the URL and try again.');
+      showError('Could not parse a Google Sheets ID from the URL. Please check and try again.');
       return;
     }
-
     clearError();
     csvUrl = converted;
-    modal.classList.add('hidden');
-    setStatus('Starting…');
-    stopPolling();
+    sheetModal.classList.add('hidden');
+    setStatus('Loading…');
     startPolling();
   }
 
   submitBtn.addEventListener('click', handleSubmit);
-  urlInput.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') handleSubmit();
+  urlInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') handleSubmit(); });
+
+  // ── Icon-change modal ─────────────────────────────────────────────────────────
+
+  const iconModal   = document.getElementById('icon-modal');
+  const iconPicker2 = document.getElementById('icon-picker-2');
+  const iconClose   = document.getElementById('icon-modal-close');
+
+  iconClose.addEventListener('click', function () {
+    iconModal.classList.add('hidden');
+  });
+
+  document.getElementById('btn-change-icon').addEventListener('click', function () {
+    buildIconPicker(iconPicker2, function () { refreshIcons(); });
+    iconModal.classList.remove('hidden');
+  });
+
+  // ── Toolbar: change sheet ─────────────────────────────────────────────────────
+
+  document.getElementById('btn-change-sheet').addEventListener('click', function () {
+    if (pollTimer !== null) { clearInterval(pollTimer); pollTimer = null; }
+    clearMarkers();
+    sheetModal.classList.remove('hidden');
+    setStatus('Waiting for sheet URL…');
   });
 
 })();

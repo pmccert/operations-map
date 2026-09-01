@@ -1,8 +1,8 @@
-# PMC CERT Map — Data from Google Sheet
+# PMC CERT Incident Map — Data from Google Sheet
 
 A single-file static web application that displays a Leaflet map centered on
-**Pine Mountain Club, CA** and plots live coordinates read from a publicly
-accessible Google Sheet.
+**Pine Mountain Club, CA** and shows live emergency incidents read from a
+publicly accessible Google Sheet.
 
 ## Features
 
@@ -10,10 +10,15 @@ accessible Google Sheet.
   host it on any static file host (GitHub Pages, Netlify, etc.).
 * **Google Sheet integration** — on first load the app asks for a Google Sheets
   URL and derives the CSV export URL automatically.
-* **Auto-refresh** — the latest coordinate (last data row) is fetched every
-  **10 seconds** and plotted on the map.
-* **Trail of history** — every previously plotted position is shown as a faded
-  blue dot; the most recent position is shown as a larger red dot with a popup.
+* **Auto-refresh every 10 seconds** — all rows are re-read; markers are added,
+  updated, or removed to match the current sheet contents.
+* **Every row is a distinct incident** — each data row is plotted as its own
+  marker on the map.
+* **Open / Closed status** — incidents marked `closed` (column C) are rendered
+  faded and greyscale; open incidents display in full colour.
+* **User-selectable icon** — choose from a set of emoji icons (🚨 🔥 🏥 🚗 ⚠️
+  🔍 🐻 ⛑️ 📍 ⭐) in the startup dialog or via the **Change Icon** toolbar
+  button.
 * **Basemap switcher** — choose from four tile sources via the top-right control:
   * OpenStreetMap
   * OpenTopoMap (hillshaded terrain)
@@ -23,19 +28,24 @@ accessible Google Sheet.
 ## Google Sheet format
 
 The sheet must be **publicly readable** (File → Share → Anyone with the link →
-Viewer).  It should contain at minimum two columns:
+Viewer).  It should contain the following columns (first row = header, ignored):
 
-| Column A (x / longitude) | Column B (y / latitude) |
-|--------------------------|-------------------------|
-| -119.155                 | 34.857                  |
-| …                        | …                       |
+| Column A — longitude | Column B — latitude | Column C — status | Column D — label (optional) |
+|----------------------|---------------------|-------------------|-----------------------------|
+| -119.155             | 34.857              | open              | Structure fire on Mil Potrero |
+| -119.160             | 34.862              | closed            | Medical assist                |
 
-The first row is treated as a header and skipped.  The **last** data row is
-plotted each refresh cycle.
+* **Column C** should contain the text `open` or `closed` (case-insensitive).
+  Any value other than `closed` is treated as open.
+* **Column D** is an optional free-text description shown in the marker popup.
 
 ## Usage
 
 1. Open `index.html` in a browser.
-2. Paste your Google Sheets URL in the dialog that appears and click **Load Map**.
-3. The map will zoom to Pine Mountain Club and begin plotting the latest
-   coordinate from the sheet every 10 seconds.
+2. Paste your Google Sheets URL in the dialog, select an incident icon, then
+   click **Load Map**.
+3. All incidents from the sheet are plotted immediately and refresh every 10
+   seconds.
+4. Click any marker to see its details (label, status, coordinates).
+5. Use **Change Sheet** or **Change Icon** in the top-left toolbar at any time.
+
