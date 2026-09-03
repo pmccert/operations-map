@@ -732,12 +732,17 @@
    * Split an address string into { number, street }.
    * Handles "1234 Nesthorn Drive" → { number: "1234", street: "Nesthorn Drive" }
    * Also handles unit suffixes: "1234 Nesthorn Dr Unit 5" keeps the full street portion.
+   * Strips out ZIP codes (e.g. "1234 Nesthorn Drive 93222" or "1234 Nesthorn Drive, 93222-1234").
    * Returns null if no leading house number is found.
    */
   function parseAddress(address) {
     const m = address.trim().match(/^(\d+(?:[a-zA-Z]?)?)\s+(.+)$/);
     if (!m) return null;
-    return { number: m[1].toLowerCase(), street: m[2] };
+    const number = m[1].toLowerCase();
+    let street = m[2];
+    // Strip ZIP codes (5 digits or ZIP+4, e.g. 93222, 93222-1234)
+    street = street.replace(/,?\s*\b\d{5}(?:[-\s]\d{4})?\b/g, '').replace(/,\s*$/, '').trim();
+    return { number, street };
   }
 
   /**
@@ -926,7 +931,10 @@
         const geo = geocode(address);
         const lat = geo ? geo.lat : null;
         const lon = geo ? geo.lon : null;
-        if (!geo) unmatched++;
+        if (!geo) {
+          unmatched++;
+          console.warn(`Could not plot address: "${address}"`);
+        }
 
         const incident = {
           index: idx, address, label, isOpen,
