@@ -1,0 +1,19 @@
+{
+  "name": "pmccert-map-data-from-google-sheet",
+  "version": "1.0.0",
+  "description": "A single-file static web application that displays a Leaflet map centered on Pine Mountain Club, CA and shows live emergency incidents read from a publicly accessible Google Sheet.",
+  "scripts": {
+    "lint": "eslint index.html",
+    "test": "npm run lint"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.1",
+    "eslint-plugin-html": "^8.2.0",
+    "globals": "^17.12.0"
+  }
+}
