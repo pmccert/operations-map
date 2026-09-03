@@ -38,7 +38,7 @@ jobs:
           python-version: '3.14'
 
       - name: Build addresses json
-        run: python scripts/fetch_addresses.py
+        run: python scripts/fetch_addresses.py --bbox 34.8,-119.2,34.9,-119.1
 
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
