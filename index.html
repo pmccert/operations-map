@@ -913,7 +913,7 @@
         }
       });
 
-      let openCount = 0, closedCount = 0, plotted = 0, unmatched = 0;
+      let openCount = 0, closedCount = 0, unmatched = 0;
 
       dataRows.forEach(function (row, idx) {
         const address   = (row[addrCol] || '').trim();
@@ -936,8 +936,6 @@
           fuzzyStreet: geo ? geo.fuzzyStreet : null,
           editDist:   geo ? geo.editDist   : null,
         };
-
-        if (geo) plotted++;
 
         const shouldShow = geo && (isOpen || showClosedIncidents);
 
