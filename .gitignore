@@ -1,2 +1,4 @@
 # Generated address data (output of scripts/fetch_addresses.py)
 addresses.json
+__pycache__
+scripts/__pycache__
