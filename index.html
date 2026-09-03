@@ -234,9 +234,66 @@
     .incident-marker-icon.closed {
       background: #7f8c8d;
       opacity: 0.55;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
     }
     /* Icon picker buttons show FA icons */
     .icon-option { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+
+    /* ── Map legend ─────────────────────────────────────────── */
+    .map-legend {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid #aaa;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 0.82rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      color: #333;
+    }
+    .map-legend .legend-title {
+      font-weight: bold;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+      color: #222;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 3px;
+    }
+    .map-legend .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 5px;
+    }
+    .map-legend .legend-icon {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+    .map-legend .legend-icon-open {
+      background: #e74c3c;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .map-legend .legend-icon-closed {
+      background: #7f8c8d;
+      opacity: 0.55;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .map-legend .legend-checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .map-legend .legend-checkbox-label input[type="checkbox"] {
+      cursor: pointer;
+      margin-right: 2px;
+    }
   </style>
 </head>
 <body>
@@ -428,6 +485,33 @@
 
   baseLayers['OpenStreetMap'].addTo(map);
   L.control.layers(baseLayers, null, { position: 'topright', collapsed: false }).addTo(map);
+
+  // ── Legend control ───────────────────────────────────────────────────────────
+
+  let showClosedIncidents = true;
+
+  const legendControl = L.control({ position: 'topright' });
+  legendControl.onAdd = function () {
+    const div = L.DomUtil.create('div', 'map-legend leaflet-control');
+    div.innerHTML = `
+      <div class="legend-title">Legend</div>
+      <div class="legend-item">
+        <span class="legend-icon legend-icon-open"><i class="${selectedIcon.fa}"></i></span>
+        <span>Open</span>
+      </div>
+      <div class="legend-item">
+        <label class="legend-checkbox-label" for="toggle-closed-incidents" title="Show or hide closed incidents">
+          <input type="checkbox" id="toggle-closed-incidents" checked />
+          <span class="legend-icon legend-icon-closed"><i class="${selectedIcon.fa}"></i></span>
+          <span>Closed</span>
+        </label>
+      </div>
+    `;
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+    return div;
+  };
+  legendControl.addTo(map);
 
   // ── State ────────────────────────────────────────────────────────────────────
 
@@ -761,11 +845,38 @@
     incidentMarkers = {};
   }
 
+  function updateLegendIcons() {
+    const openIconEl = document.querySelector('.legend-icon-open i');
+    const closedIconEl = document.querySelector('.legend-icon-closed i');
+    if (openIconEl) openIconEl.className = selectedIcon.fa;
+    if (closedIconEl) closedIconEl.className = selectedIcon.fa;
+  }
+
   function refreshIcons() {
     Object.values(incidentMarkers).forEach(m => {
       m.setIcon(buildDivIcon(m._isOpen));
     });
+    updateLegendIcons();
   }
+
+  function updateClosedMarkersVisibility() {
+    Object.values(incidentMarkers).forEach(m => {
+      if (!m._isOpen) {
+        if (showClosedIncidents) {
+          if (!map.hasLayer(m)) map.addLayer(m);
+        } else {
+          if (map.hasLayer(m)) map.removeLayer(m);
+        }
+      }
+    });
+  }
+
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'toggle-closed-incidents') {
+      showClosedIncidents = e.target.checked;
+      updateClosedMarkersVisibility();
+    }
+  });
 
   // ── Polling / plotting ────────────────────────────────────────────────────────
 
@@ -829,12 +940,18 @@
 
         if (geo) plotted++;
 
+        const shouldShow = geo && (isOpen || showClosedIncidents);
+
         if (incidentMarkers[idx]) {
           const m = incidentMarkers[idx];
           m._isOpen = isOpen;
           if (geo) {
             m.setLatLng([lat, lon]);
-            if (!map.hasLayer(m)) m.addTo(map);
+            if (shouldShow) {
+              if (!map.hasLayer(m)) m.addTo(map);
+            } else {
+              if (map.hasLayer(m)) map.removeLayer(m);
+            }
           } else {
             if (map.hasLayer(m)) map.removeLayer(m);
           }
@@ -846,7 +963,9 @@
             icon: buildDivIcon(isOpen)
           }).bindPopup(popupHtml(incident));
           marker._isOpen = isOpen;
-          marker.addTo(map);
+          if (shouldShow) {
+            marker.addTo(map);
+          }
           incidentMarkers[idx] = marker;
         }
       });
@@ -976,7 +1095,7 @@
     geocoderLocalNotice.classList.remove('hidden');
   });
 
-  buildIconPicker(iconPicker1, function () { /* icon selected */ });
+  buildIconPicker(iconPicker1, function () { updateLegendIcons(); });
   populateColumnSelects(null, columnMapping);
 
   function showError(msg) { errorMsgEl.textContent = msg; }
