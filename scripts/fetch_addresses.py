@@ -38,6 +38,10 @@ import urllib.parse
 import urllib.request
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+USER_AGENT = (
+    "pmccert-map-address-fetch/1.0 "
+    "(+https://github.com/phargogh/pmccert-map-data-from-google-sheet)"
+)
 REQUEST_TIMEOUT = 120   # seconds
 RETRY_WAIT = 5          # seconds between retries on rate-limit (HTTP 429)
 MAX_RETRIES = 3
@@ -77,12 +81,15 @@ out center;
 
 
 def _run_overpass_query(query: str) -> dict:
-    """POST query to Overpass API and return parsed JSON."""
+    """POST an identified query to Overpass API and return parsed JSON."""
     data = urllib.parse.urlencode({"data": query}).encode()
     req = urllib.request.Request(
         OVERPASS_URL,
         data=data,
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": USER_AGENT,
+        },
     )
     for attempt in range(1, MAX_RETRIES + 1):
         try:
