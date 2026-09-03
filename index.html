@@ -486,9 +486,28 @@
   baseLayers['OpenStreetMap'].addTo(map);
   L.control.layers(baseLayers, null, { position: 'topright', collapsed: false }).addTo(map);
 
-  // ── Legend control ───────────────────────────────────────────────────────────
+  // ── State ────────────────────────────────────────────────────────────────────
 
+  let csvUrl        = null;
+  let pollTimer     = null;
+  let selectedIcon  = ICON_OPTIONS[0];
+  let incidentMarkers = {};   // row index → Leaflet marker
+  let sheetHeaders  = null;   // array of string header names, or null
+  let columnMapping = {
+    address: 0,
+    status: 1,
+    label: 2
+  };
   let showClosedIncidents = true;
+
+  // Geocoder index (populated from addresses.json)
+  // geocoderIndex: Map<normalizedStreet, Map<houseNumber, {lat, lon, canonicalAddress}>>
+  let geocoderIndex = null;
+
+  const statusBar = document.getElementById('status-bar');
+  function setStatus(msg) { statusBar.textContent = msg; }
+
+  // ── Legend control ───────────────────────────────────────────────────────────
 
   const legendControl = L.control({ position: 'topright' });
   legendControl.onAdd = function () {
@@ -512,26 +531,6 @@
     return div;
   };
   legendControl.addTo(map);
-
-  // ── State ────────────────────────────────────────────────────────────────────
-
-  let csvUrl        = null;
-  let pollTimer     = null;
-  let selectedIcon  = ICON_OPTIONS[0];
-  let incidentMarkers = {};   // row index → Leaflet marker
-  let sheetHeaders  = null;   // array of string header names, or null
-  let columnMapping = {
-    address: 0,
-    status: 1,
-    label: 2
-  };
-
-  // Geocoder index (populated from addresses.json)
-  // geocoderIndex: Map<normalizedStreet, Map<houseNumber, {lat, lon, canonicalAddress}>>
-  let geocoderIndex = null;
-
-  const statusBar = document.getElementById('status-bar');
-  function setStatus(msg) { statusBar.textContent = msg; }
 
   // ── Column helpers ───────────────────────────────────────────────────────────
 
