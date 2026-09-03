@@ -65,11 +65,14 @@ Viewer).  It should contain the following columns (first row = header, ignored):
 ### 3. Load the map
 
 1. Open `index.html` in a browser.
-2. Paste your **Google Sheet URL** and your **addresses.json URL** into the
-   dialog, select an incident icon, then click **Load Map**.
-3. All incidents from the sheet are plotted immediately and refresh every 10
+2. Paste your **Google Sheet URL** into the dialog. If `addresses.json` is
+   available locally alongside `index.html`, it is automatically detected and
+   used (with an option to override if needed); otherwise, enter your
+   **addresses.json URL**.
+3. Select an incident icon, then click **Load Map**.
+4. All incidents from the sheet are plotted immediately and refresh every 10
    seconds.  Unmatched addresses appear in the status bar count and show an
    error note in their popup.
-4. Click any marker to see its details (label, status, resolved address).
-5. Use **Change Sheet** or **Change Icon** in the top-left toolbar at any time.
+5. Click any marker to see its details (label, status, resolved address).
+6. Use **Change Sheet** or **Change Icon** in the top-left toolbar at any time.
 
