@@ -22,8 +22,9 @@ publicly accessible Google Sheet.
 * **Auto-refresh every 10 seconds** — all rows are re-read; markers are added,
   updated, or removed to match the current sheet contents.
 * **Every row is a distinct incident** — each data row is plotted as its own marker.
-* **Open / Closed status** — incidents marked `closed` (column B) are rendered
-  faded and greyscale; open incidents display in full colour.
+* **Open / Closed status & Legend** — incidents marked `closed` are rendered
+  faded and greyscale by default; open incidents display in full colour. An interactive
+  legend on the map includes a checkbox to show or hide closed incidents.
 * **User-selectable icon** — choose from a set of Font Awesome vector icons
   (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin,
   star) in the startup dialog or via the **Change Icon** toolbar button.
