@@ -84,8 +84,8 @@ jobs:
           import re
           with open('index.html', 'r', encoding='utf-8') as f:
               content = f.read()
-          content = re.sub(r'href=\"https://github\.com/phargogh/pmccert-map-data-from-google-sheet/commit/[^\"]*\">[^<]*</a>',
-                           f'href=\"https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/{COMMIT_HASH}\">{COMMIT_HASH}</a>',
+          content = re.sub(r'<a\s+([^>]*?)href=\"https://github\.com/phargogh/pmccert-map-data-from-google-sheet/commit/[^\"]*\"([^>]*)>[^<]*</a>',
+                           f'<a \\1href=\"https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/{COMMIT_HASH}\"\\2>{COMMIT_HASH}</a>',
                            content)
           content = re.sub(r'<span id=\"commit-date\">[^<]*</span>',
                            f'<span id=\"commit-date\">{COMMIT_TIME}</span>',
