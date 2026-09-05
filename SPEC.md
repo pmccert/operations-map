@@ -158,7 +158,7 @@ The application operates without a dedicated backend server, resolving incident 
 
 * **FR-8.1: Top-Left Toolbar**
   * A fixed floating toolbar shall provide three direct actions:
-    * **Manage Sheets:** Opens the full sheet configuration modal to add, rename, edit URLs, customize icons/colors, adjust column mappings, or delete sheets.
+    * **Manage Sheets:** Opens the full sheet configuration modal to add, rename, edit URLs, customize icons/colors, adjust column mappings, or delete sheets; includes a **Cancel** action to discard uncommitted changes and return to the active map.
     * **Change Columns:** Opens a dedicated modal to adjust column assignments for each sheet; applying changes immediately re-parses and re-plots data.
     * **Change Icons & Colors:** Opens a dedicated modal to pick new icons and colors for each sheet.
 
