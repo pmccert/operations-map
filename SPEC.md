@@ -77,11 +77,14 @@ The application operates without a dedicated backend server, resolving incident 
   * The map shall initialize centered on **Pine Mountain Club, CA** (`34.857`, `-119.155`) at zoom level `13`.
 
 * **FR-3.2: Basemap Switcher**
-  * The map shall provide an interactive basemap layer control positioned at the top-right containing four selectable basemaps:
+  * The map shall provide an interactive basemap layer control positioned at the top-right containing selectable basemaps:
     1. **OpenStreetMap** (Default basemap, max zoom 19)
     2. **OpenTopoMap** (Hillshaded terrain, max zoom 17)
     3. **USGS Topo** (USGS National Map topographic tiles, max zoom 20)
     4. **USGS Imagery** (USGS National Map aerial imagery tiles, max zoom 20)
+    5. **USGS Imagery Topo** (USGS National Map aerial imagery with topographic and road overlay, max zoom 20)
+    6. **Esri World Imagery** (Esri high-resolution satellite imagery tiles, max zoom 19)
+    7. **Esri Clarity** (Esri cloud-free archival high-resolution satellite imagery tiles, max zoom 19)
 
 ---
 
