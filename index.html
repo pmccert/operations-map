@@ -1218,10 +1218,10 @@
   let localAddressesData = null;
 
   async function tryDetectHeadersForSheet(sheet, cardEl) {
-    const statusEl = cardEl.querySelector('.column-detect-status');
-    const addrSelect = cardEl.querySelector('.col-address-select');
-    const statusSelect = cardEl.querySelector('.col-status-select');
-    const labelSelect = cardEl.querySelector('.col-label-select');
+    const statusEl = cardEl ? cardEl.querySelector('.column-detect-status') : null;
+    const addrSelect = cardEl ? cardEl.querySelector('.col-address-select') : null;
+    const statusSelect = cardEl ? cardEl.querySelector('.col-status-select') : null;
+    const labelSelect = cardEl ? cardEl.querySelector('.col-label-select') : null;
 
     const converted = toCsvUrl(sheet.rawUrl);
     if (!converted) {
@@ -1238,9 +1238,9 @@
       if (rows.length > 0 && rows[0].length > 0) {
         sheet.headers = rows[0];
         sheet.columnMapping = autoDetectColumns(sheet.headers);
-        populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
-        populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
-        populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
+        if (addrSelect) populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
+        if (statusSelect) populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
+        if (labelSelect) populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
         if (statusEl) statusEl.textContent = `Detected ${sheet.headers.length} columns`;
       }
     } catch (_) {
@@ -1326,18 +1326,37 @@
     });
 
     let debounceTimer = null;
-    urlInput.addEventListener('input', function () {
+    function triggerDetection(immediate) {
       sheet.rawUrl = urlInput.value.trim();
       sheet.csvUrl = toCsvUrl(sheet.rawUrl);
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
+      if (immediate) {
         tryDetectHeadersForSheet(sheet, card);
-      }, 600);
+      } else {
+        debounceTimer = setTimeout(() => {
+          tryDetectHeadersForSheet(sheet, card);
+        }, 300);
+      }
+    }
+
+    urlInput.addEventListener('input', function () { triggerDetection(false); });
+    urlInput.addEventListener('change', function () { triggerDetection(true); });
+    urlInput.addEventListener('paste', function () { setTimeout(() => triggerDetection(true), 20); });
+    urlInput.addEventListener('blur', function () { triggerDetection(true); });
+    urlInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        triggerDetection(true);
+        handleSubmit();
+      }
     });
 
     populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
     populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
     populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
+
+    if (sheet.rawUrl && !sheet.headers) {
+      tryDetectHeadersForSheet(sheet, card);
+    }
 
     addrSelect.addEventListener('change', function () {
       sheet.columnMapping.address = parseInt(addrSelect.value, 10);
@@ -1452,6 +1471,21 @@
         return;
       }
       s.csvUrl = converted;
+      if (!s.headers) {
+        try {
+          const resp = await fetch(converted, { cache: 'no-store' });
+          if (resp.ok) {
+            const text = await resp.text();
+            const rows = parseCsv(text);
+            if (rows.length > 0 && rows[0].length > 0) {
+              s.headers = rows[0];
+              s.columnMapping = autoDetectColumns(s.headers);
+            }
+          }
+        } catch (_) {
+          // ignore error here
+        }
+      }
       if (s.columnMapping.address === null || s.columnMapping.address === undefined || isNaN(s.columnMapping.address) || s.columnMapping.address < 0) {
         showError(`Please select a valid Address Column for "${s.name}".`);
         return;
@@ -1507,6 +1541,9 @@
   submitBtn.addEventListener('click', handleSubmit);
   sheetCancelBtn.addEventListener('click', function () {
     sheetModal.classList.add('hidden');
+  });
+  geocoderInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') handleSubmit();
   });
 
   renderSheetsModal();
