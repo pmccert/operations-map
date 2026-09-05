@@ -168,6 +168,9 @@ The application operates without a dedicated backend server, resolving incident 
     * Polling results: Timestamp of last successful fetch, total incident count, total sheets, open incident count, closed incident count, and count of unmatched addresses.
     * Error messages: Informative network and parsing error messages.
 
+* **FR-8.3: Commit Metadata Display**
+  * A discreet floating badge in the lower-left corner shall display the deployed commit ID (with a direct link to the commit on GitHub) and the commit timestamp/date for version tracking.
+
 ---
 
 ## 3. Address Extraction CLI Tool (`scripts/fetch_addresses.py`)

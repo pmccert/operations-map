@@ -28,6 +28,7 @@ publicly accessible Google Sheet.
 * **Customizable icon & color per sheet** — choose from a set of Font Awesome vector icons
   (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin,
   star) and a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Change Icons & Colors**.
+* **Commit metadata indicator** — displays the active commit ID and commit date/time in the lower-left corner of the map for version tracking.
 * **Basemap switcher** — choose from four tile sources via the top-right control:
   * OpenStreetMap
   * OpenTopoMap (hillshaded terrain)

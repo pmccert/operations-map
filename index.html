@@ -330,6 +330,35 @@
       text-overflow: ellipsis;
     }
 
+    /* ── Commit Info (lower left) ────────────────────────────── */
+    #commit-info {
+      position: fixed;
+      bottom: 8px;
+      left: 10px;
+      z-index: 500;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(2px);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #bbb;
+      font-size: 0.72rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color: #333;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+      user-select: text;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #commit-info a {
+      color: #1a5a8a;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    #commit-info a:hover {
+      text-decoration: underline;
+    }
+
     /* ── Toolbar ─────────────────────────────────────────────── */
     #toolbar {
       position: fixed;
@@ -533,6 +562,13 @@
 
 <!-- Status bar -->
 <div id="status-bar">Waiting for sheet configuration…</div>
+
+<!-- Commit info (lower left) -->
+<div id="commit-info">
+  <span id="commit-hash">Commit: <a href="https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/e3a32c5" target="_blank" rel="noopener noreferrer">e3a32c5</a></span>
+  <span style="opacity: 0.5;">•</span>
+  <span id="commit-date">Fri Sep 4 21:01:01 2026 -0700</span>
+</div>
 
 <!-- Leaflet JS -->
 <script
