@@ -42,13 +42,13 @@
     .modal-box {
       background: #fff;
       border-radius: 8px;
-      padding: 28px 32px;
-      width: min(540px, 92vw);
+      padding: 24px 28px;
+      width: min(660px, 94vw);
       max-height: 90vh;
       overflow-y: auto;
       box-shadow: 0 8px 32px rgba(0,0,0,0.25);
     }
-    .modal-box h2 { margin-bottom: 10px; font-size: 1.2rem; }
+    .modal-box h2 { margin-bottom: 8px; font-size: 1.25rem; color: #1a202c; }
     .modal-box p  { font-size: 0.88rem; color: #555; margin-bottom: 14px; line-height: 1.5; }
 
     .field-label {
@@ -63,8 +63,95 @@
       padding: 8px 10px;
       border: 1px solid #ccc;
       border-radius: 4px;
+      font-size: 0.92rem;
+      margin-bottom: 12px;
+    }
+    .text-input:focus, .select-input:focus {
+      outline: none;
+      border-color: #2c7bb6;
+      box-shadow: 0 0 0 2px rgba(44, 123, 182, 0.2);
+    }
+
+    /* ── Sheet Cards ─────────────────────────────────────────── */
+    .sheet-card {
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      background: #f8fafc;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .sheet-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 10px;
+    }
+    .sheet-card-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+    .sheet-badge-preview {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 11px;
+      flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .sheet-name-input {
       font-size: 0.95rem;
-      margin-bottom: 14px;
+      font-weight: bold;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 220px;
+      max-width: 60%;
+      margin-bottom: 0 !important;
+    }
+    .btn-remove-sheet {
+      background: none;
+      border: 1px solid #e74c3c;
+      color: #e74c3c;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 4px 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-remove-sheet:hover {
+      background: #e74c3c;
+      color: #fff;
+    }
+    .btn-add-sheet {
+      background: #eef6fc;
+      border: 1px dashed #2c7bb6;
+      color: #2c7bb6;
+      font-size: 0.92rem;
+      font-weight: bold;
+      padding: 10px;
+      border-radius: 6px;
+      width: 100%;
+      cursor: pointer;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+    .btn-add-sheet:hover {
+      background: #dbeafe;
     }
 
     /* ── Column mapping ─────────────────────────────────────── */
@@ -82,9 +169,9 @@
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 10px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
-    @media (max-width: 480px) {
+    @media (max-width: 540px) {
       .column-mapping-grid {
         grid-template-columns: 1fr;
       }
@@ -105,10 +192,6 @@
       background-color: #fff;
       color: #333;
       cursor: pointer;
-    }
-    .select-input:focus {
-      outline: none;
-      border-color: #2c7bb6;
     }
     .btn-link {
       background: none;
@@ -131,25 +214,82 @@
       justify-content: space-between;
     }
 
-    /* ── Icon picker ─────────────────────────────────────────── */
-    #icon-picker {
+    /* ── Icon & Color pickers ────────────────────────────────── */
+    .sheet-styling-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 4px;
+    }
+    @media (max-width: 540px) {
+      .sheet-styling-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .sheet-icon-picker {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 18px;
+      gap: 6px;
     }
     .icon-option {
+      width: 34px;
+      height: 34px;
       cursor: pointer;
       border: 2px solid #ccc;
       border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 1.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
       line-height: 1;
       transition: border-color 0.15s, background 0.15s;
       user-select: none;
+      background: #fff;
     }
     .icon-option:hover  { border-color: #2c7bb6; background: #eaf3fb; }
-    .icon-option.active { border-color: #2c7bb6; background: #d0e8f8; }
+    .icon-option.active { border-color: #2c7bb6; background: #d0e8f8; font-weight: bold; }
+
+    .color-picker-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .color-swatch {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      outline: none;
+      padding: 0;
+    }
+    .color-swatch:hover {
+      transform: scale(1.15);
+    }
+    .color-swatch.active {
+      border-color: #222;
+      transform: scale(1.15);
+      box-shadow: 0 0 0 2px #fff inset;
+    }
+    .custom-color-input {
+      width: 28px;
+      height: 28px;
+      border: 1px solid #ccc;
+      border-radius: 50%;
+      cursor: pointer;
+      padding: 0;
+      background: none;
+      vertical-align: middle;
+    }
+    .custom-color-input::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+    .custom-color-input::-webkit-color-swatch {
+      border: none;
+      border-radius: 50%;
+    }
 
     .btn-primary {
       width: 100%;
@@ -176,16 +316,21 @@
       bottom: 12px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0,0,0,0.65);
+      background: rgba(0,0,0,0.72);
       color: #fff;
       padding: 6px 16px;
       border-radius: 20px;
       font-size: 0.82rem;
       z-index: 500;
       pointer-events: none;
+      max-width: 90vw;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    /* ── Toolbar (change sheet / icon) ───────────────────────── */
+    /* ── Toolbar ─────────────────────────────────────────────── */
     #toolbar {
       position: fixed;
       top: 10px;
@@ -193,6 +338,7 @@
       z-index: 500;
       display: flex;
       gap: 6px;
+      flex-wrap: wrap;
     }
     .toolbar-btn {
       background: rgba(255,255,255,0.92);
@@ -202,6 +348,9 @@
       font-size: 0.8rem;
       cursor: pointer;
       box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
     }
     .toolbar-btn:hover { background: #e8f0fe; }
 
@@ -226,28 +375,26 @@
       align-items: center;
       justify-content: center;
       border-radius: 50%;
-      background: #e74c3c;
       color: #fff;
       font-size: 15px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     }
     .incident-marker-icon.closed {
-      background: #7f8c8d;
+      background-color: #7f8c8d !important;
       opacity: 0.55;
       box-shadow: 0 1px 3px rgba(0,0,0,0.25);
     }
-    /* Icon picker buttons show FA icons */
-    .icon-option { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
 
     /* ── Map legend ─────────────────────────────────────────── */
     .map-legend {
-      background: rgba(255, 255, 255, 0.92);
+      background: rgba(255, 255, 255, 0.94);
       border: 1px solid #aaa;
       border-radius: 4px;
       padding: 8px 12px;
       font-size: 0.82rem;
       box-shadow: 0 1px 4px rgba(0,0,0,0.2);
       color: #333;
+      max-width: 220px;
     }
     .map-legend .legend-title {
       font-weight: bold;
@@ -273,15 +420,18 @@
       color: #fff;
       font-size: 10px;
       flex-shrink: 0;
-    }
-    .map-legend .legend-icon-open {
-      background: #e74c3c;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
     }
     .map-legend .legend-icon-closed {
       background: #7f8c8d;
       opacity: 0.55;
       box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .map-legend .legend-sheet-name {
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .map-legend .legend-checkbox-label {
       display: inline-flex;
@@ -298,43 +448,20 @@
 </head>
 <body>
 
-<!-- ── Sheet URL + icon picker modal ───────────────────────────── -->
+<!-- ── Sheet URL + configuration modal ─────────────────────────── -->
 <div id="sheet-modal" class="modal-overlay">
   <div class="modal-box">
     <h2>PMC CERT Incident Map</h2>
     <p>
-      Enter your Google Sheet URL below. Each data row is treated as a separate
-      incident. Select the columns that contain the incident address, status,
-      and optional description.
+      Configure your Google Sheets below. You can add multiple sheets, each with
+      its own icon, color, and column mapping.
     </p>
 
-    <label class="field-label" for="sheet-url">Google Sheet URL</label>
-    <input
-      id="sheet-url"
-      class="text-input"
-      type="url"
-      placeholder="https://docs.google.com/spreadsheets/d/…"
-      autocomplete="off"
-    />
+    <div id="sheets-container"></div>
 
-    <div class="column-mapping-header">
-      <label class="field-label" style="margin-bottom: 0;">Sheet Columns</label>
-      <span id="col-detect-status" class="column-detect-status"></span>
-    </div>
-    <div class="column-mapping-grid">
-      <div>
-        <label class="sub-field-label" for="col-address">Address *</label>
-        <select id="col-address" class="select-input"></select>
-      </div>
-      <div>
-        <label class="sub-field-label" for="col-status">Status</label>
-        <select id="col-status" class="select-input"></select>
-      </div>
-      <div>
-        <label class="sub-field-label" for="col-label">Label</label>
-        <select id="col-label" class="select-input"></select>
-      </div>
-    </div>
+    <button type="button" id="btn-add-sheet" class="btn-add-sheet">
+      <i class="fa-solid fa-plus"></i> Add Another Sheet
+    </button>
 
     <div id="geocoder-local-notice" class="geocoder-status-note hidden">
       <span>Using local <code>addresses.json</code></span>
@@ -358,10 +485,10 @@
       />
     </div>
 
-    <label class="field-label">Incident icon</label>
-    <div id="icon-picker"></div>
-
-    <button id="sheet-submit" class="btn-primary">Load Map</button>
+    <div style="display: flex; gap: 8px; margin-top: 14px;">
+      <button id="sheet-submit" class="btn-primary" style="flex: 1;">Load Map</button>
+      <button id="sheet-modal-cancel" class="toolbar-btn hidden" style="padding: 9px 16px; font-size: 1rem;">Cancel</button>
+    </div>
     <div id="error-msg" class="error-msg"></div>
   </div>
 </div>
@@ -371,22 +498,9 @@
   <div class="modal-box">
     <h2>Select Sheet Columns</h2>
     <p>
-      Choose which columns in your Google Sheet contain the incident data.
+      Choose which columns in your Google Sheets contain the incident data.
     </p>
-    <div style="margin-bottom: 18px;">
-      <div style="margin-bottom: 12px;">
-        <label class="sub-field-label" for="col-address-2">Address Column * (street address to geocode)</label>
-        <select id="col-address-2" class="select-input"></select>
-      </div>
-      <div style="margin-bottom: 12px;">
-        <label class="sub-field-label" for="col-status-2">Status Column (optional, "closed" = closed)</label>
-        <select id="col-status-2" class="select-input"></select>
-      </div>
-      <div style="margin-bottom: 12px;">
-        <label class="sub-field-label" for="col-label-2">Label Column (optional description for popup)</label>
-        <select id="col-label-2" class="select-input"></select>
-      </div>
-    </div>
+    <div id="columns-modal-container" style="margin-bottom: 18px;"></div>
     <div style="display: flex; gap: 8px;">
       <button id="columns-modal-save" class="btn-primary" style="flex: 1;">Apply Changes</button>
       <button id="columns-modal-cancel" class="toolbar-btn" style="padding: 9px 16px; font-size: 1rem;">Cancel</button>
@@ -395,11 +509,14 @@
   </div>
 </div>
 
-<!-- ── Icon-only change modal ──────────────────────────────────── -->
+<!-- ── Icon & Color change modal ────────────────────────────────── -->
 <div id="icon-modal" class="modal-overlay hidden">
   <div class="modal-box">
-    <h2>Change Incident Icon</h2>
-    <div id="icon-picker-2"></div>
+    <h2>Change Sheet Icons &amp; Colors</h2>
+    <p>
+      Customize the incident icon and marker color for each sheet.
+    </p>
+    <div id="icons-modal-container" style="margin-bottom: 18px;"></div>
     <button id="icon-modal-close" class="btn-primary">Done</button>
   </div>
 </div>
@@ -409,13 +526,13 @@
 
 <!-- Toolbar -->
 <div id="toolbar">
-  <button class="toolbar-btn" id="btn-change-sheet"><i class="fa-solid fa-gear"></i> Change Sheet</button>
+  <button class="toolbar-btn" id="btn-change-sheet"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
   <button class="toolbar-btn" id="btn-change-columns"><i class="fa-solid fa-table-columns"></i> Change Columns</button>
-  <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-icons"></i> Change Icon</button>
+  <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-palette"></i> Change Icons &amp; Colors</button>
 </div>
 
 <!-- Status bar -->
-<div id="status-bar">Waiting for sheet URL…</div>
+<div id="status-bar">Waiting for sheet configuration…</div>
 
 <!-- Leaflet JS -->
 <script
@@ -436,16 +553,29 @@
 
   // Available incident icons: { fa: FA classes, label }
   const ICON_OPTIONS = [
-    { fa: 'fa-solid fa-bell-concierge', label: 'Emergency' },
-    { fa: 'fa-solid fa-fire',           label: 'Fire' },
-    { fa: 'fa-solid fa-kit-medical',    label: 'Medical' },
-    { fa: 'fa-solid fa-car-burst',      label: 'Vehicle' },
+    { fa: 'fa-solid fa-bell-concierge',       label: 'Emergency' },
+    { fa: 'fa-solid fa-fire',                 label: 'Fire' },
+    { fa: 'fa-solid fa-kit-medical',          label: 'Medical' },
+    { fa: 'fa-solid fa-car-burst',            label: 'Vehicle' },
     { fa: 'fa-solid fa-triangle-exclamation', label: 'Hazard' },
-    { fa: 'fa-solid fa-magnifying-glass', label: 'Search' },
-    { fa: 'fa-solid fa-paw',            label: 'Wildlife' },
-    { fa: 'fa-solid fa-person-falling', label: 'Rescue' },
-    { fa: 'fa-solid fa-location-dot',   label: 'Pin' },
-    { fa: 'fa-solid fa-star',           label: 'Star' },
+    { fa: 'fa-solid fa-magnifying-glass',     label: 'Search' },
+    { fa: 'fa-solid fa-paw',                  label: 'Wildlife' },
+    { fa: 'fa-solid fa-person-falling',       label: 'Rescue' },
+    { fa: 'fa-solid fa-location-dot',         label: 'Pin' },
+    { fa: 'fa-solid fa-star',                 label: 'Star' },
+  ];
+
+  const COLOR_PALETTE = [
+    '#e74c3c', // Red
+    '#2980b9', // Blue
+    '#27ae60', // Green
+    '#e67e22', // Orange
+    '#8e44ad', // Purple
+    '#16a085', // Teal
+    '#d81b60', // Magenta
+    '#34495e', // Slate
+    '#f39c12', // Amber
+    '#795548', // Brown
   ];
 
   // ── Map setup ────────────────────────────────────────────────────────────────
@@ -488,20 +618,37 @@
 
   // ── State ────────────────────────────────────────────────────────────────────
 
-  let csvUrl        = null;
-  let pollTimer     = null;
-  let selectedIcon  = ICON_OPTIONS[0];
-  let incidentMarkers = {};   // row index → Leaflet marker
-  let sheetHeaders  = null;   // array of string header names, or null
-  let columnMapping = {
-    address: 0,
-    status: 1,
-    label: 2
-  };
+  let pollTimer = null;
+  let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
   let showClosedIncidents = true;
+  let hasLoadedMap = false;
+
+  let sheetIdCounter = 1;
+  function createSheet(name, rawUrl) {
+    const defaultUrl = rawUrl || '';
+    const idx = (sheetIdCounter - 1) % ICON_OPTIONS.length;
+    const colorIdx = (sheetIdCounter - 1) % COLOR_PALETTE.length;
+    const sheet = {
+      id: 'sheet_' + sheetIdCounter,
+      name: name || ('Sheet ' + sheetIdCounter),
+      rawUrl: defaultUrl,
+      csvUrl: toCsvUrl(defaultUrl),
+      columnMapping: {
+        address: 0,
+        status: 1,
+        label: 2
+      },
+      headers: null,
+      icon: ICON_OPTIONS[idx],
+      color: COLOR_PALETTE[colorIdx]
+    };
+    sheetIdCounter++;
+    return sheet;
+  }
+
+  let sheets = [createSheet('Sheet 1')];
 
   // Geocoder index (populated from addresses.json)
-  // geocoderIndex: Map<normalizedStreet, Map<houseNumber, {lat, lon, canonicalAddress}>>
   let geocoderIndex = null;
 
   const statusBar = document.getElementById('status-bar');
@@ -512,25 +659,43 @@
   const legendControl = L.control({ position: 'topright' });
   legendControl.onAdd = function () {
     const div = L.DomUtil.create('div', 'map-legend leaflet-control');
-    div.innerHTML = `
-      <div class="legend-title">Legend</div>
-      <div class="legend-item">
-        <span class="legend-icon legend-icon-open"><i class="${selectedIcon.fa}"></i></span>
-        <span>Open</span>
-      </div>
-      <div class="legend-item">
-        <label class="legend-checkbox-label" for="toggle-closed-incidents" title="Show or hide closed incidents">
-          <input type="checkbox" id="toggle-closed-incidents" checked />
-          <span class="legend-icon legend-icon-closed"><i class="${selectedIcon.fa}"></i></span>
-          <span>Closed</span>
-        </label>
-      </div>
-    `;
+    div.id = 'map-legend-box';
     L.DomEvent.disableClickPropagation(div);
     L.DomEvent.disableScrollPropagation(div);
     return div;
   };
   legendControl.addTo(map);
+
+  function updateLegend() {
+    const div = document.getElementById('map-legend-box');
+    if (!div) return;
+
+    let itemsHtml = '';
+    sheets.forEach(sheet => {
+      itemsHtml += `
+        <div class="legend-item" title="${escHtml(sheet.name)}">
+          <span class="legend-icon" style="background-color: ${sheet.color};"><i class="${sheet.icon.fa}"></i></span>
+          <span class="legend-sheet-name">${escHtml(sheet.name)}</span>
+        </div>
+      `;
+    });
+
+    div.innerHTML = `
+      <div class="legend-title">Legend</div>
+      ${itemsHtml}
+      <div class="legend-status-section" style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #ddd;">
+        <div class="legend-item">
+          <label class="legend-checkbox-label" for="toggle-closed-incidents" title="Show or hide closed incidents">
+            <input type="checkbox" id="toggle-closed-incidents" ${showClosedIncidents ? 'checked' : ''} />
+            <span class="legend-icon legend-icon-closed"><i class="fa-solid fa-ban"></i></span>
+            <span>Closed</span>
+          </label>
+        </div>
+      </div>
+    `;
+  }
+
+  updateLegend();
 
   // ── Column helpers ───────────────────────────────────────────────────────────
 
@@ -569,49 +734,38 @@
     };
   }
 
-  function populateColumnSelects(headers, mapping) {
+  function populateSelect(selectEl, headers, currentVal, isRequired, noneLabel) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '';
     const colCount = headers && headers.length > 0 ? headers.length : 10;
 
-    const selects = [
-      { el: document.getElementById('col-address'), current: mapping.address, isRequired: true, noneLabel: null },
-      { el: document.getElementById('col-status'), current: mapping.status, isRequired: false, noneLabel: '(None — Always Open)' },
-      { el: document.getElementById('col-label'), current: mapping.label, isRequired: false, noneLabel: '(None — Default #)' },
-      { el: document.getElementById('col-address-2'), current: mapping.address, isRequired: true, noneLabel: null },
-      { el: document.getElementById('col-status-2'), current: mapping.status, isRequired: false, noneLabel: '(None — Always Open)' },
-      { el: document.getElementById('col-label-2'), current: mapping.label, isRequired: false, noneLabel: '(None — Default #)' },
-    ];
-
-    selects.forEach(({ el, current, isRequired, noneLabel }) => {
-      if (!el) return;
-      el.innerHTML = '';
-
-      if (!isRequired && noneLabel) {
-        const opt = document.createElement('option');
-        opt.value = '-1';
-        opt.textContent = noneLabel;
-        if (current === -1 || current === null || current === undefined) {
-          opt.selected = true;
-        }
-        el.appendChild(opt);
+    if (!isRequired && noneLabel) {
+      const opt = document.createElement('option');
+      opt.value = '-1';
+      opt.textContent = noneLabel;
+      if (currentVal === -1 || currentVal === null || currentVal === undefined) {
+        opt.selected = true;
       }
+      selectEl.appendChild(opt);
+    }
 
-      for (let i = 0; i < colCount; i++) {
-        const opt = document.createElement('option');
-        opt.value = String(i);
-        const letter = colLetter(i);
-        const headerText = headers && headers[i] ? `: ${headers[i]}` : '';
-        opt.textContent = `Column ${letter}${headerText}`;
-        if (current === i) {
-          opt.selected = true;
-        }
-        el.appendChild(opt);
+    for (let i = 0; i < colCount; i++) {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      const letter = colLetter(i);
+      const headerText = headers && headers[i] ? `: ${headers[i]}` : '';
+      opt.textContent = `Column ${letter}${headerText}`;
+      if (currentVal === i) {
+        opt.selected = true;
       }
-    });
+      selectEl.appendChild(opt);
+    }
   }
 
   // ── Google Sheets CSV URL helper ──────────────────────────────────────────────
 
   function toCsvUrl(raw) {
+    if (!raw) return null;
     const m = raw.match(/\/spreadsheets\/d\/([\w-]+)/);
     if (!m) return null;
     const sheetId = m[1];
@@ -650,7 +804,6 @@
 
   // ── Geocoder ─────────────────────────────────────────────────────────────────
 
-  // Street-name abbreviation expansions (both directions)
   const STREET_ABBREVS = {
     'st':    'street',
     'str':   'street',
@@ -681,21 +834,12 @@
     'w':     'west',
   };
 
-  /**
-   * Normalise a street name for comparison:
-   * lower-case, strip punctuation, collapse spaces, expand abbreviations.
-   */
   function normaliseStreet(name) {
     let s = name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-    // expand each token if it is a known abbreviation
     s = s.split(' ').map(tok => STREET_ABBREVS[tok] || tok).join(' ');
     return s;
   }
 
-  /**
-   * Levenshtein distance between two strings.
-   * Returns an integer edit distance.
-   */
   function levenshtein(a, b) {
     if (a === b) return 0;
     if (a.length === 0) return b.length;
@@ -712,10 +856,6 @@
     return dp[a.length][b.length];
   }
 
-  /**
-   * Build the geocoder index from the parsed addresses.json object.
-   * Index structure: Map<normStreet → Map<houseNumber → {lat, lon, canonical}>>
-   */
   function buildGeocoderIndex(addressesObj) {
     const idx = new Map();
     for (const [address, coords] of Object.entries(addressesObj)) {
@@ -728,35 +868,15 @@
     return idx;
   }
 
-  /**
-   * Split an address string into { number, street }.
-   * Handles "1234 Nesthorn Drive" → { number: "1234", street: "Nesthorn Drive" }
-   * Also handles unit suffixes: "1234 Nesthorn Dr Unit 5" keeps the full street portion.
-   * Strips out ZIP codes (e.g. "1234 Nesthorn Drive 93222" or "1234 Nesthorn Drive, 93222-1234").
-   * Returns null if no leading house number is found.
-   */
   function parseAddress(address) {
     const m = address.trim().match(/^(\d+(?:[a-zA-Z]?)?)\s+(.+)$/);
     if (!m) return null;
     const number = m[1].toLowerCase();
     let street = m[2];
-    // Strip ZIP codes (5 digits or ZIP+4, e.g. 93222, 93222-1234)
     street = street.replace(/,?\s*\b\d{5}(?:[-\s]\d{4})?\b/g, '').replace(/,\s*$/, '').trim();
     return { number, street };
   }
 
-  /**
-   * Geocode an address string using the geocoder index.
-   * Returns { lat, lon, canonical, matchType } or null.
-   * matchType: 'exact' | 'fuzzy' (with fuzzyStreet set) | null
-   *
-   * Strategy:
-   *   1. Parse into number + street
-   *   2. Normalise street; look up exact in index
-   *   3. If not found, find the closest street name by Levenshtein (within
-   *      a threshold relative to the length of the street name), then try
-   *      the house number against that street.
-   */
   function geocode(address) {
     if (!geocoderIndex) return null;
 
@@ -765,17 +885,12 @@
 
     const normInput = normaliseStreet(parsed.street);
 
-    // 1. Exact street match
     if (geocoderIndex.has(normInput)) {
       const byNumber = geocoderIndex.get(normInput);
       const entry = byNumber.get(parsed.number);
       if (entry) return { ...entry, matchType: 'exact' };
     }
 
-    // 2. Fuzzy street match
-    // Accept edits up to max(1, floor(street.length / 5)) — generous for short
-    // names, stricter proportionally for longer ones.
-    // Skip fuzzy matching for very short normalised street names to avoid false positives
     if (normInput.length < 5) return null;
 
     const maxEdits = Math.max(1, Math.floor(normInput.length / 5));
@@ -803,11 +918,12 @@
 
   // ── Incident marker helpers ───────────────────────────────────────────────────
 
-  function buildDivIcon(isOpen) {
+  function buildDivIcon(isOpen, iconFa, color) {
     const closedClass = isOpen ? '' : ' closed';
+    const bgStyle = isOpen ? `background-color: ${color};` : 'background-color: #7f8c8d;';
     return L.divIcon({
       className: '',
-      html: `<div class="incident-marker-icon${closedClass}"><i class="${selectedIcon.fa}"></i></div>`,
+      html: `<div class="incident-marker-icon${closedClass}" style="${bgStyle}"><i class="${iconFa}"></i></div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 16],
       popupAnchor: [0, -18]
@@ -822,9 +938,9 @@
       .replace(/"/g, '&quot;');
   }
 
-  function popupHtml(incident) {
-    const badgeClass = incident.isOpen ? 'badge-open' : 'badge-closed';
+  function popupHtml(incident, sheet) {
     const statusLabel = incident.isOpen ? 'Open' : 'Closed';
+    const badgeBg = incident.isOpen ? sheet.color : '#7f8c8d';
     let locationLine;
     if (incident.matchType === 'exact') {
       locationLine = `<span title="Exact address match">${escHtml(incident.canonical)}</span>`;
@@ -837,8 +953,12 @@
     }
     return `
       <div class="incident-popup">
+        <div style="font-size:0.75rem; font-weight:bold; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${sheet.color}; margin-right:4px;"></span>
+          ${escHtml(sheet.name)}
+        </div>
         <strong>${escHtml(incident.label || 'Incident #' + (incident.index + 1))}</strong><br>
-        <span class="badge ${badgeClass}">${statusLabel}</span><br>
+        <span class="badge" style="background-color: ${badgeBg};">${statusLabel}</span><br>
         ${locationLine}
         ${incident.lat != null ? `<br><small>Lat: ${incident.lat.toFixed(5)}, Lon: ${incident.lon.toFixed(5)}</small>` : ''}
       </div>`;
@@ -849,18 +969,14 @@
     incidentMarkers = {};
   }
 
-  function updateLegendIcons() {
-    const openIconEl = document.querySelector('.legend-icon-open i');
-    const closedIconEl = document.querySelector('.legend-icon-closed i');
-    if (openIconEl) openIconEl.className = selectedIcon.fa;
-    if (closedIconEl) closedIconEl.className = selectedIcon.fa;
-  }
-
   function refreshIcons() {
     Object.values(incidentMarkers).forEach(m => {
-      m.setIcon(buildDivIcon(m._isOpen));
+      const sheet = sheets.find(s => s.id === m._sheetId);
+      if (sheet) {
+        m.setIcon(buildDivIcon(m._isOpen, sheet.icon.fa, sheet.color));
+      }
     });
-    updateLegendIcons();
+    updateLegend();
   }
 
   function updateClosedMarkersVisibility() {
@@ -885,102 +1001,132 @@
   // ── Polling / plotting ────────────────────────────────────────────────────────
 
   async function fetchAndPlot() {
-    if (!csvUrl) return;
+    const validSheets = sheets.filter(s => s.csvUrl);
+    if (validSheets.length === 0) return;
+
     try {
       setStatus('Fetching data…');
-      const resp = await fetch(csvUrl, { cache: 'no-store' });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const text = await resp.text();
-      const rows = parseCsv(text);
+      let totalOpen = 0;
+      let totalClosed = 0;
+      let totalUnmatched = 0;
+      let totalIncidents = 0;
+      const currentKeys = new Set();
 
-      if (rows.length > 0 && (!sheetHeaders || sheetHeaders.length !== rows[0].length)) {
-        sheetHeaders = rows[0];
-        populateColumnSelects(sheetHeaders, columnMapping);
+      for (const sheet of validSheets) {
+        try {
+          const resp = await fetch(sheet.csvUrl, { cache: 'no-store' });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const text = await resp.text();
+          const rows = parseCsv(text);
+
+          if (rows.length > 0 && (!sheet.headers || sheet.headers.length !== rows[0].length)) {
+            sheet.headers = rows[0];
+          }
+
+          const addrCol   = sheet.columnMapping.address ?? 0;
+          const statusCol = sheet.columnMapping.status;
+          const labelCol  = sheet.columnMapping.label;
+
+          const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
+          let sheetOpen = 0;
+          let sheetClosed = 0;
+          let sheetUnmatched = 0;
+
+          dataRows.forEach(function (row, idx) {
+            const key = `${sheet.id}__${idx}`;
+            currentKeys.add(key);
+
+            const address   = (row[addrCol] || '').trim();
+            const statusRaw = (statusCol !== null && statusCol >= 0 && row[statusCol]) ? row[statusCol].toLowerCase().trim() : '';
+            const label     = (labelCol !== null && labelCol >= 0 && row[labelCol]) ? row[labelCol].trim() : '';
+            const isOpen    = (statusCol !== null && statusCol >= 0) ? statusRaw !== 'closed' : true;
+            if (isOpen) {
+              sheetOpen++;
+            } else {
+              sheetClosed++;
+            }
+
+            const geo = geocode(address);
+            const lat = geo ? geo.lat : null;
+            const lon = geo ? geo.lon : null;
+            if (!geo) {
+              sheetUnmatched++;
+              console.warn(`[${sheet.name}] Could not plot address: "${address}"`);
+            }
+
+            const incident = {
+              index: idx,
+              address,
+              label,
+              isOpen,
+              lat,
+              lon,
+              canonical:  geo ? geo.canonical  : null,
+              matchType:  geo ? geo.matchType  : null,
+              fuzzyStreet: geo ? geo.fuzzyStreet : null,
+              editDist:   geo ? geo.editDist   : null,
+            };
+
+            const shouldShow = geo && (isOpen || showClosedIncidents);
+
+            if (incidentMarkers[key]) {
+              const m = incidentMarkers[key];
+              m._isOpen = isOpen;
+              m._sheetId = sheet.id;
+              if (geo) {
+                m.setLatLng([lat, lon]);
+                if (shouldShow) {
+                  if (!map.hasLayer(m)) m.addTo(map);
+                } else {
+                  if (map.hasLayer(m)) map.removeLayer(m);
+                }
+              } else {
+                if (map.hasLayer(m)) map.removeLayer(m);
+              }
+              m.setIcon(buildDivIcon(isOpen, sheet.icon.fa, sheet.color));
+              m.setPopupContent(popupHtml(incident, sheet));
+            } else if (geo) {
+              const marker = L.marker([lat, lon], {
+                icon: buildDivIcon(isOpen, sheet.icon.fa, sheet.color)
+              }).bindPopup(popupHtml(incident, sheet));
+              marker._isOpen = isOpen;
+              marker._sheetId = sheet.id;
+              if (shouldShow) {
+                marker.addTo(map);
+              }
+              incidentMarkers[key] = marker;
+            }
+          });
+
+          totalOpen += sheetOpen;
+          totalClosed += sheetClosed;
+          totalUnmatched += sheetUnmatched;
+          totalIncidents += dataRows.length;
+        } catch (sheetErr) {
+          console.error(`Error fetching sheet "${sheet.name}":`, sheetErr);
+        }
       }
 
-      const addrCol   = columnMapping.address ?? 0;
-      const statusCol = columnMapping.status;
-      const labelCol  = columnMapping.label;
-
-      // First row is header; rest are incidents (require non-empty address column)
-      const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
-      if (dataRows.length === 0) {
-        clearMarkers();
-        setStatus('No incident rows found with addresses in selected column.');
-        return;
-      }
-
-      const currentKeys = new Set(dataRows.map((_, i) => i));
       Object.keys(incidentMarkers).forEach(k => {
-        if (!currentKeys.has(Number(k))) {
+        if (!currentKeys.has(k)) {
           map.removeLayer(incidentMarkers[k]);
           delete incidentMarkers[k];
         }
       });
 
-      let openCount = 0, closedCount = 0, unmatched = 0;
-
-      dataRows.forEach(function (row, idx) {
-        const address   = (row[addrCol] || '').trim();
-        const statusRaw = (statusCol !== null && statusCol >= 0 && row[statusCol]) ? row[statusCol].toLowerCase().trim() : '';
-        const label     = (labelCol !== null && labelCol >= 0 && row[labelCol]) ? row[labelCol].trim() : '';
-        const isOpen    = (statusCol !== null && statusCol >= 0) ? statusRaw !== 'closed' : true;
-        isOpen ? openCount++ : closedCount++;
-
-        // Geocode the address
-        const geo = geocode(address);
-        const lat = geo ? geo.lat : null;
-        const lon = geo ? geo.lon : null;
-        if (!geo) {
-          unmatched++;
-          console.warn(`Could not plot address: "${address}"`);
-        }
-
-        const incident = {
-          index: idx, address, label, isOpen,
-          lat, lon,
-          canonical:  geo ? geo.canonical  : null,
-          matchType:  geo ? geo.matchType  : null,
-          fuzzyStreet: geo ? geo.fuzzyStreet : null,
-          editDist:   geo ? geo.editDist   : null,
-        };
-
-        const shouldShow = geo && (isOpen || showClosedIncidents);
-
-        if (incidentMarkers[idx]) {
-          const m = incidentMarkers[idx];
-          m._isOpen = isOpen;
-          if (geo) {
-            m.setLatLng([lat, lon]);
-            if (shouldShow) {
-              if (!map.hasLayer(m)) m.addTo(map);
-            } else {
-              if (map.hasLayer(m)) map.removeLayer(m);
-            }
-          } else {
-            if (map.hasLayer(m)) map.removeLayer(m);
-          }
-          m.setIcon(buildDivIcon(isOpen));
-          m.setPopupContent(popupHtml(incident));
-        } else if (geo) {
-          // Only create a marker when the address is resolved
-          const marker = L.marker([lat, lon], {
-            icon: buildDivIcon(isOpen)
-          }).bindPopup(popupHtml(incident));
-          marker._isOpen = isOpen;
-          if (shouldShow) {
-            marker.addTo(map);
-          }
-          incidentMarkers[idx] = marker;
-        }
-      });
-
       const now = new Date().toLocaleTimeString();
-      const unmatchedNote = unmatched > 0 ? `, ${unmatched} unmatched` : '';
-      setStatus(
-        `Last update: ${now} — ${dataRows.length} incident(s): ` +
-        `${openCount} open, ${closedCount} closed${unmatchedNote}`
-      );
+      const unmatchedNote = totalUnmatched > 0 ? `, ${totalUnmatched} unmatched` : '';
+      if (validSheets.length > 1) {
+        setStatus(
+          `Last update: ${now} — ${totalIncidents} incident(s) across ${validSheets.length} sheets: ` +
+          `${totalOpen} open, ${totalClosed} closed${unmatchedNote}`
+        );
+      } else {
+        setStatus(
+          `Last update: ${now} — ${totalIncidents} incident(s): ` +
+          `${totalOpen} open, ${totalClosed} closed${unmatchedNote}`
+        );
+      }
     } catch (err) {
       setStatus(`Error: ${err.message}`);
       console.error('Fetch error:', err);
@@ -994,72 +1140,257 @@
     pollTimer = setInterval(fetchAndPlot, POLL_INTERVAL_MS);
   }
 
-  // ── Icon picker helper ────────────────────────────────────────────────────────
+  // ── Color & Icon Picker Builders ─────────────────────────────────────────────
 
-  function buildIconPicker(container, onSelect) {
+  function buildColorPicker(container, currentColor, onSelect) {
     container.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'color-picker-container';
+
+    let customInput = null;
+
+    COLOR_PALETTE.forEach(color => {
+      const swatch = document.createElement('button');
+      swatch.type = 'button';
+      swatch.className = 'color-swatch' + (color.toLowerCase() === currentColor.toLowerCase() ? ' active' : '');
+      swatch.style.backgroundColor = color;
+      swatch.title = color;
+      swatch.addEventListener('click', function () {
+        wrapper.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        if (customInput) customInput.value = color;
+        onSelect(color);
+      });
+      wrapper.appendChild(swatch);
+    });
+
+    customInput = document.createElement('input');
+    customInput.type = 'color';
+    customInput.className = 'custom-color-input';
+    customInput.value = currentColor.startsWith('#') && currentColor.length === 7 ? currentColor : '#e74c3c';
+    customInput.title = 'Custom color';
+    customInput.addEventListener('input', function (e) {
+      wrapper.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+      onSelect(e.target.value);
+    });
+    wrapper.appendChild(customInput);
+
+    container.appendChild(wrapper);
+  }
+
+  function buildIconPicker(container, currentIcon, onSelect) {
+    container.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'sheet-icon-picker';
+
     ICON_OPTIONS.forEach(function (opt) {
       const btn = document.createElement('span');
-      btn.className = 'icon-option' + (opt === selectedIcon ? ' active' : '');
+      btn.className = 'icon-option' + (opt.fa === currentIcon.fa ? ' active' : '');
       btn.title = opt.label;
       btn.innerHTML = `<i class="${opt.fa}"></i>`;
       btn.addEventListener('click', function () {
-        container.querySelectorAll('.icon-option').forEach(b => b.classList.remove('active'));
+        wrapper.querySelectorAll('.icon-option').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        selectedIcon = opt;
         onSelect(opt);
       });
-      container.appendChild(btn);
+      wrapper.appendChild(btn);
     });
+
+    container.appendChild(wrapper);
   }
 
-  // ── Sheet modal ───────────────────────────────────────────────────────────────
+  // ── Sheet Modal UI Rendering ─────────────────────────────────────────────────
 
   const sheetModal          = document.getElementById('sheet-modal');
-  const urlInput            = document.getElementById('sheet-url');
-  const colDetectStatus     = document.getElementById('col-detect-status');
+  const sheetsContainer     = document.getElementById('sheets-container');
+  const btnAddSheet         = document.getElementById('btn-add-sheet');
   const geocoderLocalNotice = document.getElementById('geocoder-local-notice');
   const geocoderFieldGroup  = document.getElementById('geocoder-field-group');
   const geocoderInput       = document.getElementById('geocoder-url');
   const btnOverrideGeocoder = document.getElementById('btn-override-geocoder');
   const btnUseLocalGeocoder = document.getElementById('btn-use-local-geocoder');
   const submitBtn           = document.getElementById('sheet-submit');
+  const sheetCancelBtn      = document.getElementById('sheet-modal-cancel');
   const errorMsgEl          = document.getElementById('error-msg');
-  const iconPicker1         = document.getElementById('icon-picker');
 
   let hasLocalAddresses  = false;
   let isOverridden       = false;
   let localAddressesData = null;
-  let detectDebounceTimer = null;
 
-  async function tryDetectHeadersFromUrl(rawUrl) {
-    const converted = toCsvUrl(rawUrl);
+  async function tryDetectHeadersForSheet(sheet, cardEl) {
+    const statusEl = cardEl.querySelector('.column-detect-status');
+    const addrSelect = cardEl.querySelector('.col-address-select');
+    const statusSelect = cardEl.querySelector('.col-status-select');
+    const labelSelect = cardEl.querySelector('.col-label-select');
+
+    const converted = toCsvUrl(sheet.rawUrl);
     if (!converted) {
-      if (colDetectStatus) colDetectStatus.textContent = '';
+      if (statusEl) statusEl.textContent = '';
       return;
     }
+    sheet.csvUrl = converted;
     try {
-      if (colDetectStatus) colDetectStatus.textContent = 'Detecting columns…';
+      if (statusEl) statusEl.textContent = 'Detecting columns…';
       const resp = await fetch(converted, { cache: 'no-store' });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const text = await resp.text();
       const rows = parseCsv(text);
       if (rows.length > 0 && rows[0].length > 0) {
-        sheetHeaders = rows[0];
-        columnMapping = autoDetectColumns(sheetHeaders);
-        populateColumnSelects(sheetHeaders, columnMapping);
-        if (colDetectStatus) colDetectStatus.textContent = `Detected ${sheetHeaders.length} columns`;
+        sheet.headers = rows[0];
+        sheet.columnMapping = autoDetectColumns(sheet.headers);
+        populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
+        populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
+        populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
+        if (statusEl) statusEl.textContent = `Detected ${sheet.headers.length} columns`;
       }
     } catch (_) {
-      if (colDetectStatus) colDetectStatus.textContent = '';
+      if (statusEl) statusEl.textContent = '';
     }
   }
 
-  urlInput.addEventListener('input', function () {
-    clearTimeout(detectDebounceTimer);
-    detectDebounceTimer = setTimeout(() => {
-      tryDetectHeadersFromUrl(urlInput.value.trim());
-    }, 600);
+  function renderSheetCard(sheet) {
+    const card = document.createElement('div');
+    card.className = 'sheet-card';
+    card.dataset.sheetId = sheet.id;
+
+    card.innerHTML = `
+      <div class="sheet-card-header">
+        <div class="sheet-card-title-group">
+          <span class="sheet-badge-preview" style="background-color: ${sheet.color};">
+            <i class="${sheet.icon.fa}"></i>
+          </span>
+          <input type="text" class="text-input sheet-name-input" value="${escHtml(sheet.name)}" placeholder="Sheet name" />
+        </div>
+        <button type="button" class="btn-remove-sheet ${sheets.length <= 1 ? 'hidden' : ''}">
+          <i class="fa-solid fa-trash"></i> Remove
+        </button>
+      </div>
+
+      <label class="field-label">Google Sheet URL</label>
+      <input
+        class="text-input sheet-url-input"
+        type="url"
+        placeholder="https://docs.google.com/spreadsheets/d/…"
+        value="${escHtml(sheet.rawUrl)}"
+        autocomplete="off"
+      />
+
+      <div class="column-mapping-header">
+        <label class="field-label" style="margin-bottom: 0;">Sheet Columns</label>
+        <span class="column-detect-status">${sheet.headers ? `Detected ${sheet.headers.length} columns` : ''}</span>
+      </div>
+      <div class="column-mapping-grid">
+        <div>
+          <label class="sub-field-label">Address *</label>
+          <select class="select-input col-address-select"></select>
+        </div>
+        <div>
+          <label class="sub-field-label">Status</label>
+          <select class="select-input col-status-select"></select>
+        </div>
+        <div>
+          <label class="sub-field-label">Label</label>
+          <select class="select-input col-label-select"></select>
+        </div>
+      </div>
+
+      <div class="sheet-styling-grid">
+        <div>
+          <label class="field-label">Icon</label>
+          <div class="sheet-icon-picker-container"></div>
+        </div>
+        <div>
+          <label class="field-label">Color</label>
+          <div class="sheet-color-picker-container"></div>
+        </div>
+      </div>
+    `;
+
+    const badgePreview   = card.querySelector('.sheet-badge-preview');
+    const nameInput      = card.querySelector('.sheet-name-input');
+    const urlInput       = card.querySelector('.sheet-url-input');
+    const removeBtn      = card.querySelector('.btn-remove-sheet');
+    const addrSelect     = card.querySelector('.col-address-select');
+    const statusSelect   = card.querySelector('.col-status-select');
+    const labelSelect    = card.querySelector('.col-label-select');
+    const iconContainer  = card.querySelector('.sheet-icon-picker-container');
+    const colorContainer = card.querySelector('.sheet-color-picker-container');
+
+    function updateBadgePreview() {
+      badgePreview.style.backgroundColor = sheet.color;
+      badgePreview.innerHTML = `<i class="${sheet.icon.fa}"></i>`;
+    }
+
+    nameInput.addEventListener('input', function () {
+      sheet.name = nameInput.value.trim() || `Sheet ${sheet.id}`;
+    });
+
+    let debounceTimer = null;
+    urlInput.addEventListener('input', function () {
+      sheet.rawUrl = urlInput.value.trim();
+      sheet.csvUrl = toCsvUrl(sheet.rawUrl);
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        tryDetectHeadersForSheet(sheet, card);
+      }, 600);
+    });
+
+    populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
+    populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
+    populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
+
+    addrSelect.addEventListener('change', function () {
+      sheet.columnMapping.address = parseInt(addrSelect.value, 10);
+    });
+    statusSelect.addEventListener('change', function () {
+      const val = parseInt(statusSelect.value, 10);
+      sheet.columnMapping.status = val >= 0 ? val : null;
+    });
+    labelSelect.addEventListener('change', function () {
+      const val = parseInt(labelSelect.value, 10);
+      sheet.columnMapping.label = val >= 0 ? val : null;
+    });
+
+    removeBtn.addEventListener('click', function () {
+      if (sheets.length <= 1) return;
+      sheets = sheets.filter(s => s.id !== sheet.id);
+      renderSheetsModal();
+    });
+
+    buildIconPicker(iconContainer, sheet.icon, function (newIcon) {
+      sheet.icon = newIcon;
+      updateBadgePreview();
+    });
+
+    buildColorPicker(colorContainer, sheet.color, function (newColor) {
+      sheet.color = newColor;
+      updateBadgePreview();
+    });
+
+    return card;
+  }
+
+  function renderSheetsModal() {
+    sheetsContainer.innerHTML = '';
+    sheets.forEach(sheet => {
+      sheetsContainer.appendChild(renderSheetCard(sheet));
+    });
+
+    // Update remove button visibility
+    const removeButtons = sheetsContainer.querySelectorAll('.btn-remove-sheet');
+    removeButtons.forEach(btn => {
+      if (sheets.length <= 1) {
+        btn.classList.add('hidden');
+      } else {
+        btn.classList.remove('hidden');
+      }
+    });
+  }
+
+  btnAddSheet.addEventListener('click', function () {
+    const newSheet = createSheet();
+    sheets.push(newSheet);
+    renderSheetsModal();
   });
 
   async function checkLocalAddresses() {
@@ -1100,32 +1431,32 @@
     geocoderLocalNotice.classList.remove('hidden');
   });
 
-  buildIconPicker(iconPicker1, function () { updateLegendIcons(); });
-  populateColumnSelects(null, columnMapping);
-
   function showError(msg) { errorMsgEl.textContent = msg; }
   function clearError()   { errorMsgEl.textContent = ''; }
 
   async function handleSubmit() {
-    const raw = urlInput.value.trim();
-    if (!raw) { showError('Please enter a Google Sheet URL.'); return; }
-    const converted = toCsvUrl(raw);
-    if (!converted) {
-      showError('Could not parse a Google Sheets ID from the URL. Please check and try again.');
+    if (sheets.length === 0) {
+      showError('Please add at least one sheet.');
       return;
     }
 
-    const addrVal = parseInt(document.getElementById('col-address').value, 10);
-    if (isNaN(addrVal) || addrVal < 0) {
-      showError('Please select a valid Address Column.');
-      return;
+    for (let i = 0; i < sheets.length; i++) {
+      const s = sheets[i];
+      if (!s.rawUrl) {
+        showError(`Please enter a Google Sheet URL for "${s.name}".`);
+        return;
+      }
+      const converted = toCsvUrl(s.rawUrl);
+      if (!converted) {
+        showError(`Could not parse Google Sheets ID from URL for "${s.name}".`);
+        return;
+      }
+      s.csvUrl = converted;
+      if (s.columnMapping.address === null || s.columnMapping.address === undefined || isNaN(s.columnMapping.address) || s.columnMapping.address < 0) {
+        showError(`Please select a valid Address Column for "${s.name}".`);
+        return;
+      }
     }
-    const statVal = parseInt(document.getElementById('col-status').value, 10);
-    const lblVal  = parseInt(document.getElementById('col-label').value, 10);
-
-    columnMapping.address = addrVal;
-    columnMapping.status  = statVal >= 0 ? statVal : null;
-    columnMapping.label   = lblVal >= 0 ? lblVal : null;
 
     const customGeocoderUrl = geocoderInput.value.trim();
     let geocoderUrl = customGeocoderUrl;
@@ -1143,48 +1474,96 @@
     submitBtn.textContent = 'Loading geocoder…';
 
     try {
-      let addressesObj;
-      if (geocoderUrl === 'addresses.json' && localAddressesData) {
-        addressesObj = localAddressesData;
-      } else {
-        const resp = await fetch(geocoderUrl, { cache: 'no-store' });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching addresses.json`);
-        addressesObj = await resp.json();
+      if (!geocoderIndex) {
+        let addressesObj;
+        if (geocoderUrl === 'addresses.json' && localAddressesData) {
+          addressesObj = localAddressesData;
+        } else {
+          const resp = await fetch(geocoderUrl, { cache: 'no-store' });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching addresses.json`);
+          addressesObj = await resp.json();
+        }
+        geocoderIndex = buildGeocoderIndex(addressesObj);
+        console.log(`Geocoder loaded: ${geocoderIndex.size} unique streets.`);
       }
-      geocoderIndex = buildGeocoderIndex(addressesObj);
-      console.log(`Geocoder loaded: ${geocoderIndex.size} unique streets.`);
     } catch (err) {
       showError(`Could not load geocoder: ${err.message}`);
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Load Map';
+      submitBtn.textContent = hasLoadedMap ? 'Save & Load Map' : 'Load Map';
       return;
     }
 
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Load Map';
+    hasLoadedMap = true;
+    submitBtn.textContent = 'Save & Load Map';
+    sheetCancelBtn.classList.remove('hidden');
 
-    csvUrl = converted;
     sheetModal.classList.add('hidden');
+    updateLegend();
     setStatus('Loading…');
     startPolling();
   }
 
   submitBtn.addEventListener('click', handleSubmit);
-  urlInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') handleSubmit(); });
-  geocoderInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') handleSubmit(); });
+  sheetCancelBtn.addEventListener('click', function () {
+    sheetModal.classList.add('hidden');
+  });
 
+  renderSheetsModal();
   checkLocalAddresses();
 
-  // ── Column-change modal ───────────────────────────────────────────────────────
+  // ── Column-only change modal ───────────────────────────────────
 
-  const columnsModal      = document.getElementById('columns-modal');
-  const columnsSaveBtn    = document.getElementById('columns-modal-save');
-  const columnsCancelBtn  = document.getElementById('columns-modal-cancel');
-  const columnsErrorMsgEl = document.getElementById('columns-error-msg');
+  const columnsModal          = document.getElementById('columns-modal');
+  const columnsContainer      = document.getElementById('columns-modal-container');
+  const columnsSaveBtn        = document.getElementById('columns-modal-save');
+  const columnsCancelBtn      = document.getElementById('columns-modal-cancel');
+  const columnsErrorMsgEl     = document.getElementById('columns-error-msg');
 
   function openColumnsModal() {
-    populateColumnSelects(sheetHeaders, columnMapping);
+    columnsContainer.innerHTML = '';
     if (columnsErrorMsgEl) columnsErrorMsgEl.textContent = '';
+
+    sheets.forEach((sheet) => {
+      const block = document.createElement('div');
+      block.className = 'sheet-card';
+      block.dataset.sheetId = sheet.id;
+      block.innerHTML = `
+        <div class="sheet-card-header" style="margin-bottom: 8px;">
+          <div class="sheet-card-title-group">
+            <span class="sheet-badge-preview" style="background-color: ${sheet.color};">
+              <i class="${sheet.icon.fa}"></i>
+            </span>
+            <strong style="font-size: 0.95rem;">${escHtml(sheet.name)}</strong>
+          </div>
+        </div>
+        <div class="column-mapping-grid">
+          <div>
+            <label class="sub-field-label">Address *</label>
+            <select class="select-input col-modal-addr"></select>
+          </div>
+          <div>
+            <label class="sub-field-label">Status</label>
+            <select class="select-input col-modal-status"></select>
+          </div>
+          <div>
+            <label class="sub-field-label">Label</label>
+            <select class="select-input col-modal-label"></select>
+          </div>
+        </div>
+      `;
+
+      const addrSel   = block.querySelector('.col-modal-addr');
+      const statusSel = block.querySelector('.col-modal-status');
+      const labelSel  = block.querySelector('.col-modal-label');
+
+      populateSelect(addrSel, sheet.headers, sheet.columnMapping.address, true, null);
+      populateSelect(statusSel, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
+      populateSelect(labelSel, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
+
+      columnsContainer.appendChild(block);
+    });
+
     columnsModal.classList.remove('hidden');
   }
 
@@ -1195,50 +1574,105 @@
   columnsCancelBtn.addEventListener('click', closeColumnsModal);
 
   columnsSaveBtn.addEventListener('click', function () {
-    const addrVal = parseInt(document.getElementById('col-address-2').value, 10);
-    if (isNaN(addrVal) || addrVal < 0) {
-      if (columnsErrorMsgEl) columnsErrorMsgEl.textContent = 'Please select a valid Address Column.';
-      return;
+    const blocks = columnsContainer.querySelectorAll('.sheet-card');
+    for (const block of blocks) {
+      const sheetId = block.dataset.sheetId;
+      const sheet = sheets.find(s => s.id === sheetId);
+      if (!sheet) continue;
+
+      const addrVal = parseInt(block.querySelector('.col-modal-addr').value, 10);
+      if (isNaN(addrVal) || addrVal < 0) {
+        if (columnsErrorMsgEl) columnsErrorMsgEl.textContent = `Please select a valid Address Column for "${sheet.name}".`;
+        return;
+      }
+      const statVal = parseInt(block.querySelector('.col-modal-status').value, 10);
+      const lblVal  = parseInt(block.querySelector('.col-modal-label').value, 10);
+
+      sheet.columnMapping.address = addrVal;
+      sheet.columnMapping.status  = statVal >= 0 ? statVal : null;
+      sheet.columnMapping.label   = lblVal >= 0 ? lblVal : null;
     }
-    const statVal = parseInt(document.getElementById('col-status-2').value, 10);
-    const lblVal  = parseInt(document.getElementById('col-label-2').value, 10);
 
-    columnMapping.address = addrVal;
-    columnMapping.status  = statVal >= 0 ? statVal : null;
-    columnMapping.label   = lblVal >= 0 ? lblVal : null;
-
-    populateColumnSelects(sheetHeaders, columnMapping);
     closeColumnsModal();
+    renderSheetsModal();
     clearMarkers();
     fetchAndPlot();
   });
 
   document.getElementById('btn-change-columns').addEventListener('click', openColumnsModal);
 
-  // ── Icon-change modal ─────────────────────────────────────────────────────────
+  // ── Icon & Color change modal ──────────────────────────────────
 
-  const iconModal   = document.getElementById('icon-modal');
-  const iconPicker2 = document.getElementById('icon-picker-2');
-  const iconClose   = document.getElementById('icon-modal-close');
+  const iconModal        = document.getElementById('icon-modal');
+  const iconsContainer   = document.getElementById('icons-modal-container');
+  const iconCloseBtn     = document.getElementById('icon-modal-close');
 
-  iconClose.addEventListener('click', function () {
-    iconModal.classList.add('hidden');
-  });
+  function openIconsModal() {
+    iconsContainer.innerHTML = '';
 
-  document.getElementById('btn-change-icon').addEventListener('click', function () {
-    buildIconPicker(iconPicker2, function () { refreshIcons(); });
+    sheets.forEach((sheet) => {
+      const block = document.createElement('div');
+      block.className = 'sheet-card';
+      block.innerHTML = `
+        <div class="sheet-card-header" style="margin-bottom: 10px;">
+          <div class="sheet-card-title-group">
+            <span class="sheet-badge-preview icon-modal-badge" style="background-color: ${sheet.color};">
+              <i class="${sheet.icon.fa}"></i>
+            </span>
+            <strong style="font-size: 0.95rem;">${escHtml(sheet.name)}</strong>
+          </div>
+        </div>
+        <div class="sheet-styling-grid">
+          <div>
+            <label class="field-label">Icon</label>
+            <div class="icon-modal-icon-picker"></div>
+          </div>
+          <div>
+            <label class="field-label">Color</label>
+            <div class="icon-modal-color-picker"></div>
+          </div>
+        </div>
+      `;
+
+      const badgePreview = block.querySelector('.icon-modal-badge');
+      const iconWrap     = block.querySelector('.icon-modal-icon-picker');
+      const colorWrap    = block.querySelector('.icon-modal-color-picker');
+
+      function updateModalBadge() {
+        badgePreview.style.backgroundColor = sheet.color;
+        badgePreview.innerHTML = `<i class="${sheet.icon.fa}"></i>`;
+      }
+
+      buildIconPicker(iconWrap, sheet.icon, function (newIcon) {
+        sheet.icon = newIcon;
+        updateModalBadge();
+        refreshIcons();
+      });
+
+      buildColorPicker(colorWrap, sheet.color, function (newColor) {
+        sheet.color = newColor;
+        updateModalBadge();
+        refreshIcons();
+      });
+
+      iconsContainer.appendChild(block);
+    });
+
     iconModal.classList.remove('hidden');
+  }
+
+  iconCloseBtn.addEventListener('click', function () {
+    iconModal.classList.add('hidden');
+    renderSheetsModal();
   });
 
-  // ── Toolbar: change sheet ─────────────────────────────────────────────────────
+  document.getElementById('btn-change-icon').addEventListener('click', openIconsModal);
+
+  // ── Toolbar: Manage Sheets ────────────────────────────────────
 
   document.getElementById('btn-change-sheet').addEventListener('click', function () {
-    if (pollTimer !== null) { clearInterval(pollTimer); pollTimer = null; }
-    clearMarkers();
-    geocoderIndex = null;
-    populateColumnSelects(sheetHeaders, columnMapping);
+    renderSheetsModal();
     sheetModal.classList.remove('hidden');
-    setStatus('Waiting for sheet URL…');
   });
 
 })();
