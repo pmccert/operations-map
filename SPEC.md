@@ -77,11 +77,14 @@ The application operates without a dedicated backend server, resolving incident 
   * The map shall initialize centered on **Pine Mountain Club, CA** (`34.857`, `-119.155`) at zoom level `13`.
 
 * **FR-3.2: Basemap Switcher**
-  * The map shall provide an interactive basemap layer control positioned at the top-right containing four selectable basemaps:
+  * The map shall provide an interactive basemap layer control positioned at the top-right containing selectable basemaps:
     1. **OpenStreetMap** (Default basemap, max zoom 19)
     2. **OpenTopoMap** (Hillshaded terrain, max zoom 17)
     3. **USGS Topo** (USGS National Map topographic tiles, max zoom 20)
     4. **USGS Imagery** (USGS National Map aerial imagery tiles, max zoom 20)
+    5. **USGS Imagery Topo** (USGS National Map aerial imagery with topographic and road overlay, max zoom 20)
+    6. **Esri World Imagery** (Esri high-resolution satellite imagery tiles, max zoom 19)
+    7. **Esri Clarity** (Esri cloud-free archival high-resolution satellite imagery tiles, max zoom 19)
 
 ---
 
@@ -146,7 +149,7 @@ The application operates without a dedicated backend server, resolving incident 
     9. **Pin** (`fa-solid fa-location-dot`)
     10. **Star** (`fa-solid fa-star`)
   * The application shall provide an interactive Font Awesome icon picker dialog allowing users to browse, search (by keyword/name), filter by category (Emergency, Medical, Transport, Warning, Maps, Nature, All), switch styles (Solid, Regular, Brands), or input any custom Font Awesome icon class with live preview.
-  * The application shall provide a color selection palette (with custom color input) allowing each sheet to have a distinct badge color.
+  * The application shall provide an integrated color picker, direct hex code input, and preset color palette allowing each sheet to have any custom badge color.
 
 * **FR-7.2: Icon & Color Updates Across Components**
   * Selecting an icon or color for any sheet shall immediately update:
