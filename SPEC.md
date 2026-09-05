@@ -145,7 +145,7 @@ The application operates without a dedicated backend server, resolving incident 
     8. **Rescue** (`fa-solid fa-person-falling`)
     9. **Pin** (`fa-solid fa-location-dot`)
     10. **Star** (`fa-solid fa-star`)
-  * The application shall provide a color selection palette (with custom color input) allowing each sheet to have a distinct badge color.
+  * The application shall provide an integrated color picker, direct hex code input, and preset color palette allowing each sheet to have any custom badge color.
 
 * **FR-7.2: Icon & Color Updates Across Components**
   * Selecting an icon or color for any sheet shall immediately update:
