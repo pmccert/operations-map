@@ -25,9 +25,8 @@ publicly accessible Google Sheet.
 * **Open / Closed status & Legend** — incidents marked `closed` are rendered
   faded and greyscale by default; open incidents display in the sheet's chosen colour. An interactive
   legend on the map displays entries for every configured sheet with its icon and color, along with a checkbox to show or hide closed incidents.
-* **Customizable icon & color per sheet** — choose from a set of Font Awesome vector icons
-  (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin,
-  star) and a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Change Icons & Colors**.
+* **Customizable icon & color per sheet** — choose from preset Font Awesome vector icons
+  (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin, star) or browse/search the full Font Awesome icon library in the icon picker dialog, and pick from a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Change Icons & Colors**.
 * **Commit metadata indicator** — displays the active commit ID and commit date/time in the lower-left corner of the map for version tracking.
 * **Basemap switcher** — choose from selectable tile sources via the top-right control:
   * OpenStreetMap

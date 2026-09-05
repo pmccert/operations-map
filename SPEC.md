@@ -137,7 +137,7 @@ The application operates without a dedicated backend server, resolving incident 
 ### 2.7 Icon and Color Customization System
 
 * **FR-7.1: Selectable Font Awesome Incident Icons & Colors**
-  * The application shall support selecting an active incident icon from 10 Font Awesome 6 vector icons for each sheet:
+  * The application shall support selecting an active incident icon from 10 Font Awesome 6 vector quick presets for each sheet:
     1. **Emergency** (`fa-solid fa-bell-concierge`) — *Default*
     2. **Fire** (`fa-solid fa-fire`)
     3. **Medical** (`fa-solid fa-kit-medical`)
@@ -148,6 +148,7 @@ The application operates without a dedicated backend server, resolving incident 
     8. **Rescue** (`fa-solid fa-person-falling`)
     9. **Pin** (`fa-solid fa-location-dot`)
     10. **Star** (`fa-solid fa-star`)
+  * The application shall provide an interactive Font Awesome icon picker dialog allowing users to browse, search (by keyword/name), filter by category (Emergency, Medical, Transport, Warning, Maps, Nature, All), switch styles (Solid, Regular, Brands), or input any custom Font Awesome icon class with live preview.
   * The application shall provide an integrated color picker, direct hex code input, and preset color palette allowing each sheet to have any custom badge color.
 
 * **FR-7.2: Icon & Color Updates Across Components**

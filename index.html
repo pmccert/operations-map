@@ -249,6 +249,242 @@
     .icon-option:hover  { border-color: #2c7bb6; background: #eaf3fb; }
     .icon-option.active { border-color: #2c7bb6; background: #d0e8f8; font-weight: bold; }
 
+    /* ── FontAwesome Icon Picker Modal ───────────────────────── */
+    .fa-picker-modal-box {
+      width: min(780px, 95vw);
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 24px;
+    }
+    .fa-picker-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      gap: 12px;
+    }
+    .fa-picker-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    @media (max-width: 540px) {
+      .fa-picker-controls {
+        flex-direction: column;
+      }
+    }
+    .fa-search-wrapper {
+      position: relative;
+      flex: 1;
+    }
+    .fa-search-wrapper .fa-search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #888;
+      font-size: 0.85rem;
+      pointer-events: none;
+    }
+    .fa-search-input {
+      width: 100%;
+      padding-left: 32px !important;
+      padding-right: 28px !important;
+      margin-bottom: 0 !important;
+    }
+    .fa-search-clear {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #999;
+      font-size: 1.1rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .fa-search-clear:hover { color: #333; }
+    .fa-style-select-wrapper {
+      width: 150px;
+      flex-shrink: 0;
+    }
+    @media (max-width: 540px) {
+      .fa-style-select-wrapper {
+        width: 100%;
+      }
+    }
+    .fa-style-select {
+      margin-bottom: 0 !important;
+    }
+    .fa-quick-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .fa-filter-chip {
+      padding: 3px 10px;
+      font-size: 0.78rem;
+      border-radius: 12px;
+      border: 1px solid #d0d7de;
+      background: #f6f8fa;
+      cursor: pointer;
+      color: #444;
+      user-select: none;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .fa-filter-chip:hover {
+      background: #eef3f8;
+      border-color: #2c7bb6;
+    }
+    .fa-filter-chip.active {
+      background: #2c7bb6;
+      color: #fff;
+      border-color: #2c7bb6;
+      font-weight: 600;
+    }
+    .fa-picker-body {
+      flex: 1;
+      min-height: 220px;
+      max-height: 340px;
+      overflow-y: auto;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 10px;
+      background: #fafbfc;
+      margin-bottom: 12px;
+    }
+    .fa-icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+      gap: 8px;
+    }
+    .fa-icon-tile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 4px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.15s, background-color 0.15s;
+      min-height: 68px;
+      user-select: none;
+    }
+    .fa-icon-tile:hover {
+      border-color: #2c7bb6;
+      background: #f0f7fd;
+      transform: translateY(-1px);
+    }
+    .fa-icon-tile.active {
+      border-color: #2c7bb6;
+      background: #d0e8f8;
+      box-shadow: 0 0 0 2px #2c7bb6;
+    }
+    .fa-icon-tile i {
+      font-size: 1.35rem;
+      color: #24292f;
+      margin-bottom: 6px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .fa-icon-tile-name {
+      font-size: 0.68rem;
+      color: #57606a;
+      text-align: center;
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0 2px;
+    }
+    .fa-icon-tile.active .fa-icon-tile-name {
+      color: #0969da;
+      font-weight: bold;
+    }
+    .fa-no-results {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 36px 16px;
+      color: #666;
+      text-align: center;
+    }
+    .fa-picker-footer-section {
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+    .fa-custom-input-row {
+      margin-bottom: 10px;
+    }
+    .fa-selection-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .fa-selected-preview {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .fa-preview-badge {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 15px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      background-color: #e74c3c;
+    }
+    .fa-selected-info {
+      display: flex;
+      flex-direction: column;
+    }
+    .fa-selected-name {
+      font-weight: bold;
+      font-size: 0.95rem;
+      color: #1a202c;
+    }
+    .fa-selected-class {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.78rem;
+      color: #6e7781;
+    }
+    .fa-action-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-browse-fa {
+      background: #f6f8fa;
+      border: 1px dashed #2c7bb6;
+      color: #2c7bb6;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-browse-fa:hover {
+      background: #dbeafe;
+      border-color: #1a5a8a;
+      color: #1a5a8a;
+    }
+
     .color-picker-control {
       display: flex;
       flex-direction: column;
@@ -658,6 +894,104 @@
   </div>
 </div>
 
+<!-- ── FontAwesome Icon Picker Modal ────────────────────────────── -->
+<div id="fa-picker-modal" class="modal-overlay hidden" style="z-index: 1050;">
+  <div class="modal-box fa-picker-modal-box">
+    <div class="fa-picker-header">
+      <div>
+        <h2 style="margin-bottom: 2px;">Select FontAwesome Icon</h2>
+        <p style="margin-bottom: 0; font-size: 0.84rem; color: #666;">
+          Search or choose from thousands of Font Awesome icons, or enter a custom icon class.
+        </p>
+      </div>
+      <button type="button" id="fa-picker-close" class="modal-close-btn" title="Close" aria-label="Close modal">&times;</button>
+    </div>
+
+    <!-- Search & Style Controls -->
+    <div class="fa-picker-controls">
+      <div class="fa-search-wrapper">
+        <i class="fa-solid fa-magnifying-glass fa-search-icon"></i>
+        <input
+          type="text"
+          id="fa-search-input"
+          class="text-input fa-search-input"
+          placeholder="Search icons (e.g. ambulance, hospital, shield, bell, heart)..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="button" id="fa-search-clear" class="fa-search-clear hidden" title="Clear search">&times;</button>
+      </div>
+      <div class="fa-style-select-wrapper">
+        <select id="fa-style-select" class="select-input fa-style-select" title="Icon style">
+          <option value="fa-solid" selected>Solid (fas)</option>
+          <option value="fa-regular">Regular (far)</option>
+          <option value="fa-brands">Brands (fab)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Category / Quick Filter Tags -->
+    <div class="fa-quick-filters">
+      <span class="fa-filter-chip active" data-filter="all">All</span>
+      <span class="fa-filter-chip" data-filter="emergency">Emergency &amp; Safety</span>
+      <span class="fa-filter-chip" data-filter="medical">Medical</span>
+      <span class="fa-filter-chip" data-filter="transport">Transport</span>
+      <span class="fa-filter-chip" data-filter="warning">Alerts &amp; Warning</span>
+      <span class="fa-filter-chip" data-filter="map">Maps &amp; Location</span>
+      <span class="fa-filter-chip" data-filter="nature">Nature &amp; Weather</span>
+    </div>
+
+    <!-- Results count bar -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.78rem; color: #666;">
+      <span id="fa-results-count">Loading icons…</span>
+      <span style="font-size: 0.74rem; color: #888;">Tip: Double-click any icon to select instantly</span>
+    </div>
+
+    <!-- Icon Grid Area -->
+    <div id="fa-picker-body" class="fa-picker-body">
+      <div id="fa-icon-grid" class="fa-icon-grid"></div>
+      <div id="fa-no-results" class="fa-no-results hidden">
+        <i class="fa-solid fa-circle-question" style="font-size: 2rem; color: #aaa; margin-bottom: 8px;"></i>
+        <p style="margin-bottom: 4px; font-weight: bold; color: #444;">No matching icons found for "<span id="fa-query-text"></span>"</p>
+        <p style="font-size: 0.8rem; color: #777; margin-bottom: 0;">You can still use it as a custom icon class below.</p>
+      </div>
+    </div>
+
+    <!-- Custom Class Input & Current Selection Preview -->
+    <div class="fa-picker-footer-section">
+      <div class="fa-custom-input-row">
+        <label class="sub-field-label" for="fa-custom-class-input" style="margin-bottom: 4px;">Custom Icon Class:</label>
+        <input
+          type="text"
+          id="fa-custom-class-input"
+          class="text-input"
+          style="margin-bottom: 0; font-family: ui-monospace, monospace; font-size: 0.84rem;"
+          placeholder="e.g. fa-solid fa-hospital or fa-kit-medical"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+
+      <div class="fa-selection-bar">
+        <div class="fa-selected-preview">
+          <span class="fa-preview-badge" id="fa-preview-badge">
+            <i id="fa-preview-icon" class="fa-solid fa-bell-concierge"></i>
+          </span>
+          <div class="fa-selected-info">
+            <div class="fa-selected-name" id="fa-selected-name">Emergency</div>
+            <div class="fa-selected-class" id="fa-selected-class">fa-solid fa-bell-concierge</div>
+          </div>
+        </div>
+        <div class="fa-action-buttons">
+          <button type="button" id="fa-picker-cancel" class="btn-secondary">Cancel</button>
+          <button type="button" id="fa-picker-submit" class="btn-primary" style="width: auto; padding: 9px 20px;">Use This Icon</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <!-- Map container -->
 <div id="map"></div>
 
@@ -708,6 +1042,250 @@
     { fa: 'fa-solid fa-location-dot',         label: 'Pin' },
     { fa: 'fa-solid fa-star',                 label: 'Star' },
   ];
+
+  function formatIconLabel(iconNameOrClass) {
+    if (!iconNameOrClass) return '';
+    const name = iconNameOrClass
+      .replace(/^fa-(solid|regular|brands)\s+/, '')
+      .replace(/^fa-/, '');
+    return name
+      .split('-')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+const ALL_FA_ICONS = [
+    "0", "1", "2", "3", "4", "5", "500px", "6", "7", "8", "9", "a",
+    "accessible-icon", "accusoft", "adn", "adversal", "affiliatetheme", "airbnb", "algolia", "align-center", "align-justify", "align-left", "align-right", "alipay",
+    "amazon", "amazon-pay", "amilia", "anchor", "anchor-circle-check", "anchor-circle-exclamation", "anchor-circle-xmark", "anchor-lock", "android", "angellist", "angle-down", "angle-left",
+    "angle-right", "angle-up", "angles-down", "angles-left", "angles-right", "angles-up", "angrycreative", "angular", "ankh", "app-store", "app-store-ios", "apper",
+    "apple", "apple-pay", "apple-whole", "archway", "arrow-down", "arrow-down-up-across-line", "arrow-down-up-lock", "arrow-left", "arrow-right", "arrow-right-to-city", "arrow-trend-down", "arrow-trend-up",
+    "arrow-up", "arrow-up-from-bracket", "arrow-up-from-ground-water", "arrow-up-from-water-pump", "arrow-up-right-dots", "arrows", "arrows-down-to-line", "arrows-down-to-people", "arrows-left-right", "arrows-left-right-to-line", "arrows-spin", "arrows-split-up-and-left",
+    "arrows-to-circle", "arrows-to-dot", "arrows-to-eye", "arrows-turn-right", "arrows-turn-to-dots", "arrows-up-to-line", "arrows-v", "artstation", "asterisk", "asymmetrik", "at", "atlassian",
+    "atom", "audible", "audio-description", "austral-sign", "autoprefixer", "avianex", "aviato", "award", "aws", "b", "baby", "backward",
+    "bacon", "bacteria", "bacterium", "baht-sign", "bandage", "bandcamp", "bangladeshi-taka-sign", "barcode", "baseball", "baseball-bat-ball", "basketball", "bathtub",
+    "battery", "battery-empty", "battery-half", "battery-quarter", "battery-three-quarters", "battle-net", "bed", "beer", "behance", "bell", "bell-slash", "bezier-curve",
+    "bicycle", "bilibili", "bimobject", "binoculars", "biohazard", "bitbucket", "bitcoin", "bitcoin-sign", "bity", "black-tie", "blackberry", "blender",
+    "blender-phone", "blog", "blogger", "blogger-b", "bluesky", "bluetooth", "bluetooth-b", "bold", "bolt-lightning", "bomb", "bone", "bong",
+    "book", "book-atlas", "book-bible", "book-bookmark", "book-medical", "book-open", "book-reader", "book-skull", "bookmark", "bootstrap", "border-all", "border-none",
+    "border-top-left", "bore-hole", "bots", "bottle-droplet", "bottle-water", "bowl-food", "bowl-rice", "bowling-ball", "box", "box-archive", "box-open", "box-tissue",
+    "boxes", "boxes-packing", "braille", "brain", "brave", "brave-reverse", "brazilian-real-sign", "bread-slice", "bridge", "bridge-circle-check", "bridge-circle-exclamation", "bridge-circle-xmark",
+    "bridge-lock", "bridge-water", "briefcase", "briefcase-medical", "broom", "brush", "btc", "bucket", "buffer", "bug", "bug-slash", "bugs",
+    "building", "building-circle-arrow-right", "building-circle-check", "building-circle-exclamation", "building-circle-xmark", "building-flag", "building-lock", "building-ngo", "building-shield", "building-un", "building-user", "building-wheat",
+    "bullhorn", "bullseye", "buromobelexperte", "burst", "bus", "bus-simple", "business-time", "buy-n-large", "buysellads", "c", "cake", "calculator",
+    "calendar", "calendar-check", "calendar-day", "calendar-days", "calendar-minus", "calendar-plus", "calendar-week", "calendar-xmark", "camera", "camera-retro", "camera-rotate", "campground",
+    "canadian-maple-leaf", "cancel", "candy-cane", "cannabis", "capsules", "car", "car-battery", "car-crash", "car-on", "car-rear", "car-side", "car-tunnel",
+    "caravan", "caret-down", "caret-left", "caret-right", "caret-up", "carriage-baby", "carrot", "cart-arrow-down", "cart-plus", "cash-register", "cat", "cc-amazon-pay",
+    "cc-amex", "cc-apple-pay", "cc-diners-club", "cc-discover", "cc-jcb", "cc-mastercard", "cc-paypal", "cc-stripe", "cc-visa", "cedi-sign", "cent-sign", "centercode",
+    "centos", "certificate", "chair", "chalkboard", "chalkboard-user", "charging-station", "chart-area", "chart-bar", "chart-column", "chart-gantt", "chart-simple", "check",
+    "check-double", "cheese", "chess", "chess-bishop", "chess-board", "chess-king", "chess-knight", "chess-pawn", "chess-queen", "chess-rook", "chevron-down", "chevron-left",
+    "chevron-right", "chevron-up", "child", "child-dress", "child-reaching", "child-rifle", "children", "chrome", "chromecast", "church", "circle", "circle-arrow-down",
+    "circle-arrow-left", "circle-arrow-right", "circle-arrow-up", "circle-check", "circle-chevron-down", "circle-chevron-left", "circle-chevron-right", "circle-chevron-up", "circle-down", "circle-half-stroke", "circle-left", "circle-nodes",
+    "circle-notch", "circle-right", "circle-up", "city", "clapperboard", "clipboard", "clipboard-check", "clipboard-list", "clipboard-question", "clipboard-user", "clock", "clone",
+    "closed-captioning", "cloud", "cloud-download", "cloud-meatball", "cloud-moon", "cloud-moon-rain", "cloud-rain", "cloud-showers-heavy", "cloud-showers-water", "cloud-sun", "cloud-sun-rain", "cloud-upload",
+    "cloudflare", "cloudscale", "cloudsmith", "cloudversify", "clover", "cmplid", "code", "code-branch", "code-commit", "code-compare", "code-fork", "code-merge",
+    "code-pull-request", "codepen", "codiepie", "coins", "colon-sign", "comment", "comment-dollar", "comment-medical", "comment-slash", "commenting", "comments", "comments-dollar",
+    "compact-disc", "compass", "compress", "computer", "concierge-bell", "confluence", "connectdevelop", "contact-book", "contao", "cookie", "cookie-bite", "copy",
+    "copyright", "cotton-bureau", "couch", "cow", "cpanel", "creative-commons", "creative-commons-by", "creative-commons-nc", "creative-commons-nc-eu", "creative-commons-nc-jp", "creative-commons-nd", "creative-commons-pd",
+    "creative-commons-pd-alt", "creative-commons-remix", "creative-commons-sa", "creative-commons-sampling", "creative-commons-sampling-plus", "creative-commons-share", "creative-commons-zero", "credit-card", "critical-role", "crop", "crop-simple", "cross",
+    "crosshairs", "crow", "crown", "crutch", "cruzeiro-sign", "css3", "css3-alt", "cube", "cubes", "cubes-stacked", "cuttlefish", "d",
+    "d-and-d", "d-and-d-beyond", "dailymotion", "dashcube", "database", "debian", "deezer", "delete-left", "delicious", "democrat", "deploydog", "deskpro",
+    "desktop", "dev", "deviantart", "dharmachakra", "dhl", "diagram-next", "diagram-predecessor", "diagram-successor", "diamond", "diaspora", "dice", "dice-d20",
+    "dice-d6", "dice-five", "dice-four", "dice-one", "dice-six", "dice-three", "dice-two", "digg", "digital-ocean", "directions", "discord", "discourse",
+    "disease", "display", "divide", "dna", "dochub", "docker", "dog", "dolly", "dolly-flatbed", "donate", "dong-sign", "door-closed",
+    "door-open", "dot-circle", "dove", "down-left-and-up-right-to-center", "download", "draft2digital", "drafting-compass", "dragon", "draw-polygon", "dribbble", "dropbox", "drum",
+    "drum-steelpan", "drumstick-bite", "drupal", "dumbbell", "dumpster", "dumpster-fire", "dungeon", "dyalog", "e", "ear-listen", "earlybirds", "ebay",
+    "edge", "edge-legacy", "egg", "eject", "elementor", "elevator", "ellipsis", "ellipsis-vertical", "ello", "ember", "empire", "envelope",
+    "envelope-circle-check", "envelope-open", "envelope-open-text", "envira", "equals", "eraser", "erlang", "ethereum", "ethernet", "etsy", "euro", "evernote",
+    "exchange", "exclamation", "exclamation-circle", "expand", "expeditedssl", "explosion", "external-link", "eye", "eye-slash", "eyedropper", "f", "face-angry",
+    "face-dizzy", "facebook", "facebook-f", "facebook-messenger", "fan", "fantasy-flight-games", "fast-backward", "faucet", "faucet-drip", "fax", "feather", "feather-pointed",
+    "fedex", "fedora", "ferry", "figma", "file", "file-audio", "file-circle-check", "file-circle-exclamation", "file-circle-minus", "file-circle-plus", "file-circle-question", "file-circle-xmark",
+    "file-code", "file-contract", "file-csv", "file-download", "file-excel", "file-export", "file-image", "file-import", "file-invoice", "file-invoice-dollar", "file-medical", "file-pdf",
+    "file-pen", "file-powerpoint", "file-prescription", "file-shield", "file-signature", "file-text", "file-upload", "file-video", "file-waveform", "file-word", "file-zipper", "fill",
+    "fill-drip", "film", "filter", "filter-circle-xmark", "fingerprint", "fire", "fire-burner", "fire-extinguisher", "fire-flame-curved", "fire-flame-simple", "firefox", "firefox-browser",
+    "first-order", "first-order-alt", "firstdraft", "fish", "fish-fins", "flag", "flag-checkered", "flag-usa", "flask", "flask-vial", "flickr", "flipboard",
+    "florin-sign", "flushed", "fly", "folder", "folder-closed", "folder-minus", "folder-open", "folder-plus", "folder-tree", "font", "font-awesome", "fonticons",
+    "fonticons-fi", "football", "fort-awesome", "fort-awesome-alt", "forumbee", "forward", "forward-fast", "foursquare", "franc-sign", "free-code-camp", "freebsd", "frog",
+    "frown", "frown-open", "fulcrum", "funnel-dollar", "g", "galactic-republic", "galactic-senate", "gamepad", "gas-pump", "gear", "gears", "gem",
+    "genderless", "get-pocket", "gg", "gg-circle", "ghost", "gift", "gifts", "git", "git-alt", "github", "github-alt", "gitkraken",
+    "gitlab", "gitter", "glass-cheers", "glass-water", "glass-water-droplet", "glasses", "glide", "glide-g", "globe", "globe-africa", "globe-americas", "globe-asia",
+    "globe-europe", "globe-oceania", "gofore", "golang", "golf-ball", "goodreads", "goodreads-g", "google", "google-drive", "google-pay", "google-play", "google-plus",
+    "google-plus-g", "google-scholar", "google-wallet", "gopuram", "gratipay", "grav", "greater-than", "greater-than-equal", "grimace", "grin", "grin-alt", "grin-beam",
+    "grin-beam-sweat", "grin-hearts", "grin-squint", "grin-squint-tears", "grin-stars", "grin-tears", "grin-tongue", "grin-tongue-squint", "grin-tongue-wink", "grin-wink", "grip", "grip-lines",
+    "grip-lines-vertical", "grip-vertical", "gripfire", "group-arrows-rotate", "grunt", "guarani-sign", "guilded", "guitar", "gulp", "gun", "h", "hacker-news",
+    "hackerrank", "hamburger", "hammer", "hamsa", "hand", "hand-dots", "hand-fist", "hand-holding", "hand-holding-hand", "hand-holding-heart", "hand-holding-medical", "hand-holding-usd",
+    "hand-holding-water", "hand-lizard", "hand-middle-finger", "hand-peace", "hand-point-down", "hand-point-left", "hand-point-right", "hand-point-up", "hand-pointer", "hand-rock", "hand-scissors", "hand-sparkles",
+    "hand-spock", "handcuffs", "hands-asl-interpreting", "hands-bound", "hands-clapping", "hands-holding", "hands-holding-child", "hands-holding-circle", "hands-wash", "handshake", "handshake-angle", "handshake-simple",
+    "handshake-simple-slash", "handshake-slash", "hanukiah", "hard-of-hearing", "hashnode", "hashtag", "hat-cowboy", "hat-cowboy-side", "hat-wizard", "haykal", "hdd", "head-side-cough",
+    "head-side-cough-slash", "head-side-mask", "head-side-virus", "heading", "headphones", "headphones-simple", "headset", "heart", "heart-circle-bolt", "heart-circle-check", "heart-circle-exclamation", "heart-circle-minus",
+    "heart-circle-plus", "heart-circle-xmark", "heart-crack", "heartbeat", "helicopter", "helicopter-symbol", "helmet-safety", "helmet-un", "highlighter", "hill-avalanche", "hill-rockslide", "hippo",
+    "hips", "hire-a-helper", "history", "hive", "hockey-puck", "holly-berry", "hooli", "hornbill", "horse", "horse-head", "hospital", "hospital-symbol",
+    "hospital-user", "hot-tub", "hotdog", "hotel", "hotjar", "hourglass", "hourglass-end", "hourglass-half", "hourglass-start", "house", "house-chimney", "house-chimney-medical",
+    "house-chimney-user", "house-chimney-window", "house-circle-check", "house-circle-exclamation", "house-circle-xmark", "house-crack", "house-damage", "house-fire", "house-flag", "house-flood-water", "house-flood-water-circle-arrow-right", "house-lock",
+    "house-medical", "house-medical-circle-check", "house-medical-circle-exclamation", "house-medical-circle-xmark", "house-medical-flag", "house-signal", "house-tsunami", "house-user", "houzz", "hryvnia", "html5", "hubspot",
+    "hurricane", "i", "i-cursor", "ice-cream", "icicles", "icons", "id-badge", "id-card", "id-card-clip", "ideal", "igloo", "image",
+    "images", "imdb", "inbox", "indent", "industry", "infinity", "info", "info-circle", "innosoft", "inr", "instagram", "instalod",
+    "intercom", "internet-explorer", "invision", "ioxhost", "italic", "itch-io", "itunes", "itunes-note", "j", "jar", "jar-wheat", "java",
+    "jedi", "jedi-order", "jenkins", "jet-fighter", "jet-fighter-up", "jira", "joget", "joint", "joomla", "journal-whills", "js", "jsfiddle",
+    "jug-detergent", "jxl", "k", "kaaba", "kaggle", "key", "keybase", "keyboard", "keycdn", "khanda", "kickstarter-k", "kip-sign",
+    "kiss", "kiss-beam", "kiss-wink-heart", "kit-medical", "kitchen-set", "kiwi-bird", "korvue", "l", "land-mine-on", "landmark", "landmark-dome", "landmark-flag",
+    "language", "laptop", "laptop-code", "laptop-file", "laptop-house", "laptop-medical", "laravel", "lari-sign", "lastfm", "laugh", "laugh-beam", "laugh-squint",
+    "laugh-wink", "layer-group", "leaf", "leanpub", "left-right", "legal", "lemon", "less", "less-than", "less-than-equal", "letterboxd", "level-down",
+    "level-up", "life-ring", "lightbulb", "line", "line-chart", "lines-leaning", "link", "linkedin", "linkedin-in", "linode", "linux", "lira-sign",
+    "list", "list-ol", "list-ul", "litecoin-sign", "location", "location-arrow", "location-pin-lock", "lock", "lock-open", "locust", "long-arrow-alt-down", "long-arrow-alt-left",
+    "long-arrow-down", "long-arrow-left", "long-arrow-right", "long-arrow-up", "low-vision", "luggage-cart", "lungs", "lungs-virus", "lyft", "m", "magento", "magnet",
+    "magnifying-glass-arrow-right", "magnifying-glass-chart", "mail-bulk", "mailchimp", "manat-sign", "mandalorian", "map", "map-marked", "map-marked-alt", "map-marker", "map-marker-alt", "map-pin",
+    "markdown", "marker", "mars", "mars-and-venus", "mars-and-venus-burst", "mars-double", "mars-stroke", "mars-stroke-right", "mars-stroke-v", "martini-glass", "martini-glass-citrus", "martini-glass-empty",
+    "mask", "mask-face", "mask-ventilator", "mastodon", "mattress-pillow", "maxcdn", "maximize", "mdb", "medal", "medapps", "medium", "medrt",
+    "meetup", "megaport", "meh", "meh-blank", "meh-rolling-eyes", "memory", "mendeley", "menorah", "mercury", "message", "meta", "meteor",
+    "microblog", "microchip", "microphone", "microphone-lines", "microphone-lines-slash", "microphone-slash", "microscope", "microsoft", "mill-sign", "minimize", "mintbit", "minus-circle",
+    "mitten", "mix", "mixcloud", "mixer", "mizuni", "mobile", "mobile-button", "mobile-retro", "mobile-screen", "mobile-screen-button", "modx", "monero",
+    "money-bill", "money-bill-alt", "money-bill-transfer", "money-bill-trend-up", "money-bill-wave", "money-bill-wave-alt", "money-bill-wheat", "money-bills", "money-check", "money-check-dollar", "monument", "moon",
+    "mortar-board", "mortar-pestle", "mosque", "mosquito", "mosquito-net", "motorcycle", "mound", "mountain", "mountain-city", "mountain-sun", "mouse", "mouse-pointer",
+    "mug-hot", "mug-saucer", "music", "n", "naira-sign", "napster", "navicon", "neos", "network-wired", "neuter", "newspaper", "nfc-directional",
+    "nfc-symbol", "nimblr", "node", "node-js", "not-equal", "notdef", "notes-medical", "npm", "ns8", "nutritionix", "o", "object-group",
+    "object-ungroup", "octopus-deploy", "odnoklassniki", "odysee", "oil-can", "oil-well", "old-republic", "om", "opencart", "openid", "opensuse", "opera",
+    "optin-monster", "orcid", "osi", "otter", "outdent", "p", "padlet", "page4", "pagelines", "pager", "paint-roller", "paintbrush",
+    "palette", "palfed", "pallet", "panorama", "paper-plane", "paperclip", "parachute-box", "paragraph", "passport", "paste", "patreon", "pause",
+    "pause-circle", "paw", "paypal", "peace", "pen", "pen-clip", "pen-fancy", "pen-nib", "pen-to-square", "pencil", "pencil-ruler", "people-arrows",
+    "people-carry", "people-group", "people-line", "people-pulling", "people-robbery", "people-roof", "pepper-hot", "perbyte", "percentage", "periscope", "person", "person-arrow-down-to-line",
+    "person-arrow-up-from-line", "person-biking", "person-booth", "person-breastfeeding", "person-burst", "person-cane", "person-chalkboard", "person-circle-check", "person-circle-exclamation", "person-circle-minus", "person-circle-plus", "person-circle-question",
+    "person-circle-xmark", "person-digging", "person-dots-from-line", "person-dress", "person-dress-burst", "person-drowning", "person-falling", "person-falling-burst", "person-half-dress", "person-harassing", "person-hiking", "person-military-pointing",
+    "person-military-rifle", "person-military-to-person", "person-pregnant", "person-rays", "person-rifle", "person-shelter", "person-through-window", "person-walking-arrow-loop-left", "person-walking-arrow-right", "person-walking-dashed-line-arrow-right", "person-walking-luggage", "person-walking-with-cane",
+    "peseta-sign", "peso-sign", "phabricator", "phoenix-framework", "phoenix-squadron", "phone", "phone-flip", "phone-slash", "photo-video", "php", "pie-chart", "pied-piper",
+    "pied-piper-alt", "pied-piper-hat", "pied-piper-pp", "piggy-bank", "pills", "pinterest", "pinterest-p", "pix", "pixiv", "pizza-slice", "place-of-worship", "plane",
+    "plane-arrival", "plane-circle-check", "plane-circle-exclamation", "plane-circle-xmark", "plane-departure", "plane-lock", "plane-slash", "plane-up", "plant-wilt", "plate-wheat", "play", "play-circle",
+    "playstation", "plug", "plug-circle-bolt", "plug-circle-check", "plug-circle-exclamation", "plug-circle-minus", "plug-circle-plus", "plug-circle-xmark", "plus", "plus-circle", "plus-minus", "podcast",
+    "poo", "poo-storm", "poop", "portrait", "power-off", "pray", "praying-hands", "prescription", "prescription-bottle", "prescription-bottle-medical", "print", "procedures",
+    "product-hunt", "project-diagram", "pump-medical", "pump-soap", "pushed", "puzzle-piece", "python", "q", "qq", "qrcode", "question", "question-circle",
+    "quidditch", "quinscape", "quora", "quote-left", "quote-right", "quran", "r", "r-project", "radiation", "radiation-alt", "radio", "rainbow",
+    "ranking-star", "raspberry-pi", "ravelry", "react", "reacteurope", "readme", "rebel", "receipt", "record-vinyl", "rectangle-ad", "rectangle-list", "recycle",
+    "red-river", "reddit", "reddit-alien", "redhat", "redo", "registered", "renren", "repeat", "reply", "reply-all", "replyd", "republican",
+    "researchgate", "resolving", "restroom", "retweet", "rev", "ribbon", "right-left", "right-long", "ring", "road", "road-barrier", "road-bridge",
+    "road-circle-check", "road-circle-exclamation", "road-circle-xmark", "road-lock", "road-spikes", "robot", "rocket", "rocketchat", "rockrms", "rotate-right", "route", "rss",
+    "ruble", "rug", "ruler", "ruler-combined", "ruler-horizontal", "ruler-vertical", "running", "rupee", "rupiah-sign", "rust", "s", "sack-dollar",
+    "sack-xmark", "sad-cry", "sad-tear", "safari", "sailboat", "salesforce", "sass", "satellite", "satellite-dish", "save", "scale-balanced", "scale-unbalanced",
+    "scale-unbalanced-flip", "schlix", "school", "school-circle-check", "school-circle-exclamation", "school-circle-xmark", "school-flag", "school-lock", "scissors", "screenpal", "screwdriver", "scribd",
+    "scroll", "sd-card", "search", "search-dollar", "search-location", "search-minus", "search-plus", "searchengin", "section", "sellcast", "sellsy", "server",
+    "servicestack", "share", "share-nodes", "share-square", "sheet-plastic", "sheqel", "shield", "shield-cat", "shield-dog", "shield-halved", "shield-heart", "shield-virus",
+    "ship", "shirtsinbulk", "shoe-prints", "shoelace", "shop-lock", "shopify", "shopping-bag", "shopping-basket", "shopping-cart", "shopware", "shower", "shrimp",
+    "shuffle", "sign", "sign-in", "sign-in-alt", "sign-out", "sign-out-alt", "signal", "signal-messenger", "signature", "signing", "signs-post", "sim-card",
+    "simplybuilt", "sink", "sistrix", "sitemap", "sith", "sitrox", "skating", "sketch", "skiing", "skiing-nordic", "skull", "skull-crossbones",
+    "skyatlas", "skype", "slack", "slash", "sleigh", "sliders", "slideshare", "smile", "smile-beam", "smile-wink", "smog", "smoking",
+    "smoking-ban", "sms", "snapchat", "snowboarding", "snowflake", "snowman", "snowplow", "soap", "soccer-ball", "socks", "solar-panel", "sort-alpha-down",
+    "sort-alpha-down-alt", "sort-alpha-up", "sort-alpha-up-alt", "sort-amount-down", "sort-amount-down-alt", "sort-amount-up", "sort-amount-up-alt", "sort-down", "sort-numeric-down", "sort-numeric-down-alt", "sort-numeric-up", "sort-numeric-up-alt",
+    "sort-up", "soundcloud", "sourcetree", "spa", "space-awesome", "space-shuttle", "spaghetti-monster-flying", "speakap", "speaker-deck", "spell-check", "spider", "spinner",
+    "splotch", "spotify", "spray-can", "spray-can-sparkles", "sprout", "square", "square-arrow-up-right", "square-behance", "square-caret-down", "square-caret-left", "square-caret-right", "square-caret-up",
+    "square-check", "square-dribbble", "square-envelope", "square-facebook", "square-font-awesome", "square-font-awesome-stroke", "square-full", "square-git", "square-github", "square-gitlab", "square-google-plus", "square-h",
+    "square-hacker-news", "square-instagram", "square-js", "square-kickstarter", "square-lastfm", "square-letterboxd", "square-minus", "square-nfi", "square-odnoklassniki", "square-parking", "square-pen", "square-person-confined",
+    "square-phone", "square-phone-flip", "square-pied-piper", "square-pinterest", "square-plus", "square-poll-horizontal", "square-poll-vertical", "square-reddit", "square-root-variable", "square-rss", "square-share-nodes", "square-snapchat",
+    "square-threads", "square-up-right", "square-upwork", "square-virus", "square-web-awesome", "square-web-awesome-stroke", "square-x-twitter", "squarespace", "stack-exchange", "stack-overflow", "stackpath", "staff-snake",
+    "stairs", "stamp", "stapler", "star", "star-and-crescent", "star-half", "star-half-stroke", "star-of-david", "star-of-life", "staylinked", "steam", "steam-square",
+    "steam-symbol", "step-backward", "step-forward", "sterling-sign", "stethoscope", "sticker-mule", "sticky-note", "stop", "stop-circle", "stopwatch", "stopwatch-20", "store",
+    "store-alt", "store-alt-slash", "store-slash", "strava", "stream", "street-view", "strikethrough", "stripe", "stripe-s", "stroopwafel", "stubber", "studiovinari",
+    "stumbleupon", "stumbleupon-circle", "subscript", "subtract", "suitcase", "suitcase-medical", "suitcase-rolling", "sun", "sun-plant-wilt", "superpowers", "superscript", "supple",
+    "surprise", "suse", "swatchbook", "swift", "swimmer", "symfony", "synagogue", "sync", "sync-alt", "syringe", "t", "table",
+    "table-cells-column-lock", "table-cells-row-lock", "table-columns", "table-tennis", "tablet", "tablet-button", "tablet-screen-button", "tablets", "tachograph-digital", "tachometer", "tachometer-alt", "tachometer-alt-average",
+    "tachometer-average", "tag", "tags", "tanakh", "tape", "tarp", "tarp-droplet", "tasks", "tasks-alt", "taxi", "teamspeak", "teeth",
+    "teeth-open", "telegram", "temperature-down", "temperature-high", "temperature-low", "temperature-up", "tencent-weibo", "tenge", "tent", "tent-arrow-down-to-line", "tent-arrow-left-right", "tent-arrow-turn-left",
+    "tent-arrows-down", "tents", "terminal", "text-height", "text-slash", "text-width", "th", "th-large", "th-list", "the-red-yeti", "theater-masks", "themeco",
+    "themeisle", "thermometer", "thermometer-empty", "thermometer-full", "thermometer-half", "thermometer-quarter", "thermometer-three-quarters", "think-peaks", "threads", "thumbs-down", "thumbs-up", "thumbtack",
+    "thunderstorm", "ticket", "ticket-simple", "tiktok", "timeline", "tint", "tint-slash", "tired", "toggle-off", "toggle-on", "toilet", "toilet-paper",
+    "toilet-paper-slash", "toilet-portable", "toilets-portable", "toolbox", "tools", "tooth", "torah", "torii-gate", "tornado", "tower-broadcast", "tower-cell", "tower-observation",
+    "tractor", "trade-federation", "trademark", "traffic-light", "trailer", "train", "train-subway", "train-tram", "tram", "transgender", "trash", "trash-can",
+    "trash-restore", "trash-restore-alt", "tree", "tree-city", "trello", "triangle-circle-square", "trophy", "trowel", "trowel-bricks", "truck", "truck-arrow-right", "truck-droplet",
+    "truck-fast", "truck-field", "truck-field-un", "truck-front", "truck-medical", "truck-monster", "truck-moving", "truck-pickup", "truck-plane", "truck-ramp-box", "tshirt", "tty",
+    "tumblr", "tumblr-square", "turkish-lira", "turn-down", "turn-up", "tv", "twitch", "twitter", "twitter-square", "typo3", "u", "uber",
+    "ubuntu", "uikit", "umbraco", "umbrella", "umbrella-beach", "uncharted", "underline", "undo", "undo-alt", "uniregistry", "unity", "universal-access",
+    "university", "unlink", "unlock", "unlock-keyhole", "unsorted", "unsplash", "untappd", "up-down", "up-down-left-right", "up-long", "up-right-and-down-left-from-center", "up-right-from-square",
+    "upload", "ups", "upwork", "usb", "usd", "user", "user-astronaut", "user-check", "user-circle", "user-clock", "user-gear", "user-graduate",
+    "user-group", "user-injured", "user-large", "user-large-slash", "user-lock", "user-md", "user-minus", "user-ninja", "user-nurse", "user-pen", "user-plus", "user-secret",
+    "user-shield", "user-slash", "user-tag", "user-tie", "user-xmark", "users", "users-between-lines", "users-gear", "users-line", "users-rays", "users-rectangle", "users-slash",
+    "users-viewfinder", "usps", "ussunnah", "utensil-spoon", "utensils", "v", "vaadin", "van-shuttle", "vault", "vcard", "vector-square", "venus",
+    "venus-double", "venus-mars", "vest", "vest-patches", "viacoin", "viadeo", "viadeo-square", "vial", "vial-circle-check", "vial-virus", "vials", "viber",
+    "video", "video-slash", "vihara", "vimeo", "vimeo-square", "vimeo-v", "vine", "virus", "virus-covid", "virus-covid-slash", "virus-slash", "viruses",
+    "vk", "vnv", "voicemail", "volcano", "volleyball", "volume-control-phone", "volume-low", "volume-off", "volume-up", "volume-xmark", "vote-yea", "vr-cardboard",
+    "vuejs", "w", "walkie-talkie", "walking", "wallet", "wand-magic", "wand-magic-sparkles", "wand-sparkles", "warehouse", "warning", "watchman-monitoring", "water",
+    "water-ladder", "wave-square", "waze", "web-awesome", "webflow", "weebly", "weibo", "weight", "weight-hanging", "weixin", "whatsapp", "whatsapp-square",
+    "wheat-awn", "wheat-awn-circle-exclamation", "wheelchair", "wheelchair-move", "whiskey-glass", "whmcs", "wifi", "wikipedia-w", "wind", "window-close", "window-maximize", "window-minimize",
+    "window-restore", "windows", "wine-bottle", "wine-glass", "wine-glass-empty", "wix", "wizards-of-the-coast", "wodu", "wolf-pack-battalion", "won", "wordpress", "wordpress-simple",
+    "worm", "wpbeginner", "wpexplorer", "wpforms", "wpressr", "wrench", "wsh", "x", "x-ray", "x-twitter", "xbox", "xing",
+    "xing-square", "xmark", "xmark-circle", "xmark-square", "xmarks-lines", "y", "y-combinator", "yahoo", "yammer", "yandex", "yandex-international", "yarn",
+    "yelp", "yen", "yin-yang", "yoast", "youtube", "youtube-square", "z", "zap", "zhihu",
+  ];
+
+  const FA_CATEGORIES = {
+    emergency: [
+      'bell-concierge', 'fire', 'fire-flame-curved', 'fire-extinguisher', 'triangle-exclamation',
+      'biohazard', 'radiation', 'shield-halved', 'shield-virus', 'land-mine-on',
+      'person-falling', 'person-falling-burst', 'skull-crossbones', 'tornado', 'volcano',
+      'burst', 'explosion', 'life-ring', 'handcuffs', 'tower-broadcast',
+      'bullhorn', 'bell', 'shield', 'tower-observation', 'plug-circle-bolt',
+      'plug-circle-exclamation', 'satellite-dish', 'truck-medical', 'house-chimney-crack'
+    ],
+    medical: [
+      'kit-medical', 'truck-medical', 'hospital', 'house-medical', 'house-chimney-medical',
+      'staff-snake', 'notes-medical', 'user-doctor', 'user-nurse', 'stethoscope',
+      'heart-pulse', 'heart', 'virus', 'viruses', 'head-side-cough',
+      'syringe', 'pills', 'capsules', 'bandage', 'crutch',
+      'wheelchair', 'briefcase-medical', 'bed-pulse', 'microscope', 'lungs',
+      'dna', 'bone', 'eye', 'hand-dots'
+    ],
+    transport: [
+      'car', 'car-burst', 'car-side', 'truck', 'truck-pickup',
+      'truck-monster', 'van-shuttle', 'bus', 'bus-simple', 'motorcycle',
+      'bicycle', 'helicopter', 'plane', 'plane-arrival', 'plane-departure',
+      'ship', 'sailboat', 'train', 'train-subway', 'train-tram',
+      'gas-pump', 'road', 'traffic-light', 'cable-car', 'truck-moving',
+      'truck-ramp-box', 'truck-arrow-right', 'truck-plane', 'caravan'
+    ],
+    warning: [
+      'triangle-exclamation', 'circle-exclamation', 'skull', 'skull-crossbones', 'radiation',
+      'biohazard', 'burst', 'explosion', 'bolt', 'bolt-lightning',
+      'fire-flame-simple', 'stop', 'ban', 'circle-stop', 'plug-circle-exclamation',
+      'cloud-bolt', 'flag', 'shield-virus'
+    ],
+    map: [
+      'location-dot', 'map-pin', 'map', 'map-location', 'map-location-dot',
+      'thumbtack', 'street-view', 'diamond-turn-right', 'signs-post', 'compass',
+      'crosshairs', 'star', 'circle-dot', 'flag', 'flag-checkered',
+      'building', 'house', 'landmark', 'route', 'globe',
+      'earth-americas', 'mountain-city'
+    ],
+    nature: [
+      'paw', 'dog', 'cat', 'horse', 'fish',
+      'crow', 'dove', 'frog', 'spider', 'tree',
+      'mountain', 'mountain-sun', 'cloud', 'cloud-rain', 'cloud-bolt',
+      'cloud-showers-heavy', 'snowflake', 'wind', 'smog', 'water',
+      'droplet', 'sun', 'fire', 'temperature-high', 'temperature-low',
+      'leaf', 'feather', 'volcano'
+    ]
+  };
+
+  function getCompleteFaIconsList() {
+    const iconSet = new Set(ALL_FA_ICONS);
+    try {
+      for (const styleSheet of document.styleSheets) {
+        try {
+          const rules = styleSheet.cssRules || styleSheet.rules;
+          if (!rules) continue;
+          for (const rule of rules) {
+            if (rule.selectorText) {
+              const matches = rule.selectorText.matchAll(/\.fa-([a-z0-9-]+)::?before/g);
+              for (const m of matches) {
+                if (m[1]) iconSet.add(m[1]);
+              }
+            }
+          }
+        } catch (_) {
+          // Cross-origin CSS access error - ignore
+        }
+      }
+    } catch (_) {
+      // Stylesheet scan error - ignore
+    }
+    return Array.from(iconSet).sort();
+  }
 
   const COLOR_PALETTE = [
     '#e74c3c', // Red
@@ -1500,15 +2078,21 @@
     container.appendChild(wrapper);
   }
 
-  function buildIconPicker(container, currentIcon, onSelect) {
+  function buildIconPicker(container, currentIcon, onSelect, sheetColor) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.className = 'sheet-icon-picker';
 
-    ICON_OPTIONS.forEach(function (opt) {
+    const isPreset = ICON_OPTIONS.some(opt => opt.fa === currentIcon.fa);
+    const optionsToShow = [...ICON_OPTIONS];
+    if (!isPreset && currentIcon && currentIcon.fa) {
+      optionsToShow.unshift(currentIcon);
+    }
+
+    optionsToShow.forEach(function (opt) {
       const btn = document.createElement('span');
       btn.className = 'icon-option' + (opt.fa === currentIcon.fa ? ' active' : '');
-      btn.title = opt.label;
+      btn.title = opt.label || formatIconLabel(opt.fa);
       btn.innerHTML = `<i class="${opt.fa}"></i>`;
       btn.addEventListener('click', function () {
         wrapper.querySelectorAll('.icon-option').forEach(b => b.classList.remove('active'));
@@ -1518,7 +2102,33 @@
       wrapper.appendChild(btn);
     });
 
+    const browseBtn = document.createElement('span');
+    browseBtn.className = 'icon-option btn-browse-fa';
+    browseBtn.title = 'Browse all FontAwesome icons…';
+    browseBtn.innerHTML = '<i class="fa-solid fa-icons"></i>';
+    browseBtn.addEventListener('click', function () {
+      openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
+        onSelect(newIcon);
+      });
+    });
+    wrapper.appendChild(browseBtn);
+
     container.appendChild(wrapper);
+
+    const linkWrap = document.createElement('div');
+    linkWrap.style.marginTop = '4px';
+    const linkBtn = document.createElement('button');
+    linkBtn.type = 'button';
+    linkBtn.className = 'btn-link';
+    linkBtn.style.fontSize = '0.78rem';
+    linkBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Browse all FontAwesome icons…';
+    linkBtn.addEventListener('click', function () {
+      openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
+        onSelect(newIcon);
+      });
+    });
+    linkWrap.appendChild(linkBtn);
+    container.appendChild(linkWrap);
   }
 
   // ── Sheet Modal UI Rendering ─────────────────────────────────────────────────
@@ -1731,14 +2341,18 @@
       renderSheetsModal();
     });
 
-    buildIconPicker(iconContainer, sheet.icon, function (newIcon) {
+    function handleIconSelect(newIcon) {
       sheet.icon = newIcon;
       updateBadgePreview();
-    });
+      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
+    }
+
+    buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
 
     buildColorPicker(colorContainer, sheet.color, function (newColor) {
       sheet.color = newColor;
       updateBadgePreview();
+      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
     });
 
     return card;
@@ -2072,17 +2686,22 @@
         badgePreview.innerHTML = `<i class="${sheet.icon.fa}"></i>`;
       }
 
-      buildIconPicker(iconWrap, sheet.icon, function (newIcon) {
+      function handleModalIconSelect(newIcon) {
         sheet.icon = newIcon;
         updateModalBadge();
         refreshIcons();
-      });
+        buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
+      }
 
-      buildColorPicker(colorWrap, sheet.color, function (newColor) {
+      function handleModalColorSelect(newColor) {
         sheet.color = newColor;
         updateModalBadge();
         refreshIcons();
-      });
+        buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
+      }
+
+      buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
+      buildColorPicker(colorWrap, sheet.color, handleModalColorSelect);
 
       iconsContainer.appendChild(block);
     });
@@ -2106,11 +2725,282 @@
 
   document.getElementById('btn-change-sheet').addEventListener('click', openSheetModal);
 
+  // ── FontAwesome Icon Picker Modal State & Helpers ───────────────────────────
+
+  const faPickerModal    = document.getElementById('fa-picker-modal');
+  const faPickerCloseBtn = document.getElementById('fa-picker-close');
+  const faSearchInput    = document.getElementById('fa-search-input');
+  const faSearchClearBtn = document.getElementById('fa-search-clear');
+  const faStyleSelect    = document.getElementById('fa-style-select');
+  const faPickerBody     = document.getElementById('fa-picker-body');
+  const faIconGrid       = document.getElementById('fa-icon-grid');
+  const faNoResults      = document.getElementById('fa-no-results');
+  const faQueryText      = document.getElementById('fa-query-text');
+  const faResultsCount   = document.getElementById('fa-results-count');
+  const faCustomInput    = document.getElementById('fa-custom-class-input');
+  const faPreviewBadge   = document.getElementById('fa-preview-badge');
+  const faPreviewIcon    = document.getElementById('fa-preview-icon');
+  const faSelectedName   = document.getElementById('fa-selected-name');
+  const faSelectedClass  = document.getElementById('fa-selected-class');
+  const faPickerCancel   = document.getElementById('fa-picker-cancel');
+  const faPickerSubmit   = document.getElementById('fa-picker-submit');
+
+  let faPickerCallback        = null;
+  let faPickerCurrentSelected = { fa: 'fa-solid fa-bell-concierge', label: 'Emergency' };
+  let faPickerActiveStyle     = 'fa-solid';
+  let faPickerActiveCategory  = 'all';
+  let faPickerSearchQuery     = '';
+  let faRenderedCount         = 0;
+  const FA_CHUNK_SIZE         = 120;
+  let faFilteredList          = [];
+  let allAvailableFaIcons     = [];
+
+  function normalizeFaClass(input, currentStyle) {
+    if (!input) return `${currentStyle || 'fa-solid'} fa-bell-concierge`;
+    const trimmed = input.trim();
+    if (/^fa-(solid|regular|brands)\s+fa-[\w-]+$/.test(trimmed)) {
+      return trimmed;
+    }
+    if (/^fa-(solid|regular|brands)\s+[\w-]+$/.test(trimmed)) {
+      const parts = trimmed.split(/\s+/);
+      return `${parts[0]} fa-${parts[1].replace(/^fa-/, '')}`;
+    }
+    if (/^fa-[\w-]+$/.test(trimmed)) {
+      return `${currentStyle || 'fa-solid'} ${trimmed}`;
+    }
+    if (/^[\w-]+$/.test(trimmed)) {
+      return `${currentStyle || 'fa-solid'} fa-${trimmed}`;
+    }
+    return trimmed;
+  }
+
+  function updateSelectionPreview(iconClass, label) {
+    if (faPreviewIcon) faPreviewIcon.className = iconClass;
+    if (faSelectedName) faSelectedName.textContent = label || formatIconLabel(iconClass);
+    if (faSelectedClass) faSelectedClass.textContent = iconClass;
+  }
+
+  function selectIconTile(name, fullClass, tileEl) {
+    faIconGrid.querySelectorAll('.fa-icon-tile.active').forEach(t => t.classList.remove('active'));
+    if (tileEl) tileEl.classList.add('active');
+
+    const label = formatIconLabel(name);
+    faPickerCurrentSelected = { fa: fullClass, label: label };
+    if (faCustomInput) faCustomInput.value = fullClass;
+    updateSelectionPreview(fullClass, label);
+  }
+
+  function getFilteredFaIcons() {
+    if (allAvailableFaIcons.length === 0) {
+      allAvailableFaIcons = getCompleteFaIconsList();
+    }
+    let list = allAvailableFaIcons;
+    if (faPickerActiveCategory !== 'all' && FA_CATEGORIES[faPickerActiveCategory]) {
+      const catSet = new Set(FA_CATEGORIES[faPickerActiveCategory]);
+      list = list.filter(name => catSet.has(name));
+    }
+    if (faPickerSearchQuery) {
+      const q = faPickerSearchQuery.toLowerCase();
+      list = list.filter(name => name.toLowerCase().includes(q));
+    }
+    return list;
+  }
+
+  function renderIconGrid(resetScroll) {
+    faFilteredList = getFilteredFaIcons();
+
+    if (resetScroll) {
+      faIconGrid.innerHTML = '';
+      faRenderedCount = 0;
+      if (faPickerBody) faPickerBody.scrollTop = 0;
+    }
+
+    if (faFilteredList.length === 0) {
+      faIconGrid.classList.add('hidden');
+      faNoResults.classList.remove('hidden');
+      if (faQueryText) faQueryText.textContent = faPickerSearchQuery;
+      if (faResultsCount) faResultsCount.textContent = '0 icons';
+      return;
+    }
+
+    faIconGrid.classList.remove('hidden');
+    faNoResults.classList.add('hidden');
+    if (faResultsCount) {
+      faResultsCount.textContent = `${faFilteredList.length} icon${faFilteredList.length === 1 ? '' : 's'}`;
+    }
+
+    const nextBatch = faFilteredList.slice(faRenderedCount, faRenderedCount + FA_CHUNK_SIZE);
+    const fragment = document.createDocumentFragment();
+
+    const currentClean = faPickerCurrentSelected.fa.replace(/^fa-(solid|regular|brands)\s+/, '').replace(/^fa-/, '');
+
+    nextBatch.forEach(name => {
+      const tile = document.createElement('div');
+      tile.className = 'fa-icon-tile';
+      tile.dataset.iconName = name;
+      const fullClass = `${faPickerActiveStyle} fa-${name}`;
+      if (name === currentClean) {
+        tile.classList.add('active');
+      }
+      tile.title = `${formatIconLabel(name)} (${fullClass})`;
+      tile.innerHTML = `
+        <i class="${fullClass}"></i>
+        <span class="fa-icon-tile-name">${escHtml(name)}</span>
+      `;
+
+      tile.addEventListener('click', function () {
+        selectIconTile(name, fullClass, tile);
+      });
+
+      tile.addEventListener('dblclick', function () {
+        selectIconTile(name, fullClass, tile);
+        confirmIconSelection();
+      });
+
+      fragment.appendChild(tile);
+    });
+
+    faIconGrid.appendChild(fragment);
+    faRenderedCount += nextBatch.length;
+  }
+
+  function confirmIconSelection() {
+    if (!faPickerCurrentSelected || !faPickerCurrentSelected.fa) return;
+    faPickerModal.classList.add('hidden');
+    if (typeof faPickerCallback === 'function') {
+      faPickerCallback(faPickerCurrentSelected);
+    }
+  }
+
+  function closeFontAwesomePicker() {
+    faPickerModal.classList.add('hidden');
+    faPickerCallback = null;
+  }
+
+  function openFontAwesomePickerDialog(currentIcon, badgeColor, onSelect) {
+    faPickerCallback = onSelect;
+    const iconFa = currentIcon && currentIcon.fa ? currentIcon.fa : 'fa-solid fa-bell-concierge';
+    const iconLabel = currentIcon && currentIcon.label ? currentIcon.label : formatIconLabel(iconFa);
+    faPickerCurrentSelected = { fa: iconFa, label: iconLabel };
+
+    if (iconFa.startsWith('fa-regular') || iconFa.startsWith('far ')) {
+      faPickerActiveStyle = 'fa-regular';
+    } else if (iconFa.startsWith('fa-brands') || iconFa.startsWith('fab ')) {
+      faPickerActiveStyle = 'fa-brands';
+    } else {
+      faPickerActiveStyle = 'fa-solid';
+    }
+
+    if (faStyleSelect) faStyleSelect.value = faPickerActiveStyle;
+    if (faPreviewBadge) faPreviewBadge.style.backgroundColor = badgeColor || '#e74c3c';
+
+    if (faSearchInput) {
+      faSearchInput.value = '';
+      faPickerSearchQuery = '';
+    }
+    if (faSearchClearBtn) faSearchClearBtn.classList.add('hidden');
+
+    faPickerActiveCategory = 'all';
+    document.querySelectorAll('.fa-filter-chip').forEach(c => {
+      if (c.dataset.filter === 'all') c.classList.add('active');
+      else c.classList.remove('active');
+    });
+
+    if (faCustomInput) faCustomInput.value = iconFa;
+
+    updateSelectionPreview(iconFa, iconLabel);
+    renderIconGrid(true);
+
+    faPickerModal.classList.remove('hidden');
+    setTimeout(() => {
+      if (faSearchInput) faSearchInput.focus();
+    }, 50);
+  }
+
+  if (faPickerCloseBtn) faPickerCloseBtn.addEventListener('click', closeFontAwesomePicker);
+  if (faPickerCancel) faPickerCancel.addEventListener('click', closeFontAwesomePicker);
+  if (faPickerSubmit) faPickerSubmit.addEventListener('click', confirmIconSelection);
+
+  if (faSearchInput) {
+    faSearchInput.addEventListener('input', function (e) {
+      faPickerSearchQuery = e.target.value.trim();
+      if (faSearchClearBtn) {
+        if (faPickerSearchQuery) faSearchClearBtn.classList.remove('hidden');
+        else faSearchClearBtn.classList.add('hidden');
+      }
+      renderIconGrid(true);
+    });
+  }
+
+  if (faSearchClearBtn) {
+    faSearchClearBtn.addEventListener('click', function () {
+      if (faSearchInput) {
+        faSearchInput.value = '';
+        faPickerSearchQuery = '';
+        faSearchClearBtn.classList.add('hidden');
+        faSearchInput.focus();
+      }
+      renderIconGrid(true);
+    });
+  }
+
+  if (faStyleSelect) {
+    faStyleSelect.addEventListener('change', function () {
+      faPickerActiveStyle = faStyleSelect.value;
+      const currentClean = faPickerCurrentSelected.fa.replace(/^fa-(solid|regular|brands)\s+/, '').replace(/^fa-/, '');
+      const newFullClass = `${faPickerActiveStyle} fa-${currentClean}`;
+      faPickerCurrentSelected.fa = newFullClass;
+      if (faCustomInput) faCustomInput.value = newFullClass;
+      updateSelectionPreview(newFullClass, faPickerCurrentSelected.label);
+      renderIconGrid(true);
+    });
+  }
+
+  document.querySelectorAll('.fa-filter-chip').forEach(chip => {
+    chip.addEventListener('click', function () {
+      document.querySelectorAll('.fa-filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      faPickerActiveCategory = chip.dataset.filter || 'all';
+      renderIconGrid(true);
+    });
+  });
+
+  if (faPickerBody) {
+    faPickerBody.addEventListener('scroll', function () {
+      if (faPickerBody.scrollTop + faPickerBody.clientHeight >= faPickerBody.scrollHeight - 80) {
+        if (faRenderedCount < faFilteredList.length) {
+          renderIconGrid(false);
+        }
+      }
+    });
+  }
+
+  if (faCustomInput) {
+    faCustomInput.addEventListener('input', function () {
+      const val = faCustomInput.value.trim();
+      if (!val) {
+        updateSelectionPreview('fa-solid fa-question', 'No icon');
+        return;
+      }
+      const fullClass = normalizeFaClass(val, faPickerActiveStyle);
+      const label = formatIconLabel(val);
+      faPickerCurrentSelected = { fa: fullClass, label: label };
+      updateSelectionPreview(fullClass, label);
+
+      const cleanName = val.replace(/^fa-(solid|regular|brands)\s+/, '').replace(/^fa-/, '');
+      faIconGrid.querySelectorAll('.fa-icon-tile.active').forEach(t => t.classList.remove('active'));
+      const matching = faIconGrid.querySelector(`.fa-icon-tile[data-icon-name="${cleanName}"]`);
+      if (matching) matching.classList.add('active');
+    });
+  }
+
   // ── Global Escape key and overlay backdrop dismiss ───────────
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      if (!columnsModal.classList.contains('hidden')) {
+      if (faPickerModal && !faPickerModal.classList.contains('hidden')) {
+        closeFontAwesomePicker();
+      } else if (!columnsModal.classList.contains('hidden')) {
         closeColumnsModal();
       } else if (!iconModal.classList.contains('hidden')) {
         closeIconsModal();
@@ -2119,6 +3009,14 @@
       }
     }
   });
+
+  if (faPickerModal) {
+    faPickerModal.addEventListener('click', function (e) {
+      if (e.target === faPickerModal) {
+        closeFontAwesomePicker();
+      }
+    });
+  }
 
   sheetModal.addEventListener('click', function (e) {
     if (e.target === sheetModal && hasLoadedMap) {
