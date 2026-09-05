@@ -753,7 +753,8 @@
       const opt = document.createElement('option');
       opt.value = String(i);
       const letter = colLetter(i);
-      const headerText = headers && headers[i] ? `: ${headers[i]}` : '';
+      const headerVal = headers && headers[i] !== undefined && headers[i] !== null ? String(headers[i]).trim() : '';
+      const headerText = headerVal ? `: ${headerVal}` : '';
       opt.textContent = `Column ${letter}${headerText}`;
       if (currentVal === i) {
         opt.selected = true;
@@ -766,17 +767,67 @@
 
   function toCsvUrl(raw) {
     if (!raw) return null;
-    const m = raw.match(/\/spreadsheets\/d\/([\w-]+)/);
-    if (!m) return null;
-    const sheetId = m[1];
-    const gidMatch = raw.match(/[?&#]gid=(\d+)/);
-    const gid = gidMatch ? gidMatch[1] : '0';
-    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+    raw = raw.trim();
+    if (!raw) return null;
+
+    // Direct CSV URL or query format
+    if (/\.csv(\?.*)?$/i.test(raw) || raw.includes('format=csv') || raw.includes('output=csv') || raw.includes('out:csv')) {
+      return raw;
+    }
+
+    // Published Google Sheet: /spreadsheets/d/e/2PACX-.../pubhtml or /pub
+    const pubMatch = raw.match(/\/spreadsheets\/d\/e\/([\w-]+)(?:\/|\?|$)/);
+    if (pubMatch) {
+      const gidMatch = raw.match(/[?&#]gid=(\d+)/);
+      const gid = gidMatch ? gidMatch[1] : '0';
+      return `https://docs.google.com/spreadsheets/d/e/${pubMatch[1]}/pub?output=csv&gid=${gid}`;
+    }
+
+    // Standard Google Sheet or Google Drive: /spreadsheets/d/<id> or /file/d/<id> or ?key=<id>
+    const m = raw.match(/\/spreadsheets\/d\/([\w-]+)/) || raw.match(/\/file\/d\/([\w-]+)/) || raw.match(/[?&]key=([\w-]+)/);
+    if (m && m[1] !== 'e') {
+      const sheetId = m[1];
+      const gidMatch = raw.match(/[?&#]gid=(\d+)/);
+      const gid = gidMatch ? gidMatch[1] : '0';
+      return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+    }
+
+    // Direct URL (http, https, relative)
+    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('./') || raw.startsWith('/') || raw.startsWith('data:')) {
+      return raw;
+    }
+
+    return null;
+  }
+
+  function getAlternateCsvUrl(raw) {
+    if (!raw) return null;
+    raw = raw.trim();
+    const m = raw.match(/\/spreadsheets\/d\/([\w-]+)/) || raw.match(/\/file\/d\/([\w-]+)/) || raw.match(/[?&]key=([\w-]+)/);
+    if (m && m[1] !== 'e') {
+      const sheetId = m[1];
+      const gidMatch = raw.match(/[?&#]gid=(\d+)/);
+      const gid = gidMatch ? gidMatch[1] : '0';
+      return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+    }
+    return null;
+  }
+
+  function cleanHeaders(row) {
+    if (!row || !Array.isArray(row)) return [];
+    let lastIdx = row.length - 1;
+    while (lastIdx >= 0 && (!row[lastIdx] || !row[lastIdx].trim())) {
+      lastIdx--;
+    }
+    if (lastIdx < 0) return [];
+    return row.slice(0, lastIdx + 1).map(h => (h || '').trim());
   }
 
   // ── CSV parsing ───────────────────────────────────────────────────────────────
 
   function parseCsv(text) {
+    if (!text) return [];
+    text = text.replace(/^\uFEFF/, '');
     const rows = [];
     const lines = text.split(/\r?\n/);
     for (const line of lines) {
@@ -1020,7 +1071,7 @@
           const rows = parseCsv(text);
 
           if (rows.length > 0 && (!sheet.headers || sheet.headers.length !== rows[0].length)) {
-            sheet.headers = rows[0];
+            sheet.headers = cleanHeaders(rows[0]);
           }
 
           const addrCol   = sheet.columnMapping.address ?? 0;
@@ -1218,10 +1269,11 @@
   let localAddressesData = null;
 
   async function tryDetectHeadersForSheet(sheet, cardEl) {
-    const statusEl = cardEl ? cardEl.querySelector('.column-detect-status') : null;
-    const addrSelect = cardEl ? cardEl.querySelector('.col-address-select') : null;
-    const statusSelect = cardEl ? cardEl.querySelector('.col-status-select') : null;
-    const labelSelect = cardEl ? cardEl.querySelector('.col-label-select') : null;
+    const card = cardEl || document.querySelector(`.sheet-card[data-sheet-id="${sheet.id}"]`);
+    const statusEl = card ? card.querySelector('.column-detect-status') : null;
+    const addrSelect = card ? card.querySelector('.col-address-select') : null;
+    const statusSelect = card ? card.querySelector('.col-status-select') : null;
+    const labelSelect = card ? card.querySelector('.col-label-select') : null;
 
     const converted = toCsvUrl(sheet.rawUrl);
     if (!converted) {
@@ -1231,18 +1283,47 @@
     sheet.csvUrl = converted;
     try {
       if (statusEl) statusEl.textContent = 'Detecting columns…';
-      const resp = await fetch(converted, { cache: 'no-store' });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const text = await resp.text();
-      const rows = parseCsv(text);
-      if (rows.length > 0 && rows[0].length > 0) {
-        sheet.headers = rows[0];
-        sheet.columnMapping = autoDetectColumns(sheet.headers);
-        if (addrSelect) populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
-        if (statusSelect) populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
-        if (labelSelect) populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
-        if (statusEl) statusEl.textContent = `Detected ${sheet.headers.length} columns`;
+      let text = null;
+      try {
+        const resp = await fetch(converted, { cache: 'no-store' });
+        if (resp.ok) {
+          text = await resp.text();
+        }
+      } catch (_) {
+        // Fallback to alternate endpoint if initial fetch fails
       }
+
+      if (!text) {
+        const altUrl = getAlternateCsvUrl(sheet.rawUrl);
+        if (altUrl && altUrl !== converted) {
+          try {
+            const resp = await fetch(altUrl, { cache: 'no-store' });
+            if (resp.ok) {
+              text = await resp.text();
+              sheet.csvUrl = altUrl;
+            }
+          } catch (_) {
+            // alternate failed
+          }
+        }
+      }
+
+      if (text) {
+        const rows = parseCsv(text);
+        if (rows.length > 0 && rows[0].length > 0) {
+          const headers = cleanHeaders(rows[0]);
+          if (headers.length > 0) {
+            sheet.headers = headers;
+            sheet.columnMapping = autoDetectColumns(sheet.headers);
+            if (addrSelect) populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
+            if (statusSelect) populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
+            if (labelSelect) populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
+            if (statusEl) statusEl.textContent = `Detected ${sheet.headers.length} columns`;
+            return;
+          }
+        }
+      }
+      if (statusEl) statusEl.textContent = '';
     } catch (_) {
       if (statusEl) statusEl.textContent = '';
     }
@@ -1340,8 +1421,9 @@
     }
 
     urlInput.addEventListener('input', function () { triggerDetection(false); });
+    urlInput.addEventListener('keyup', function () { triggerDetection(false); });
     urlInput.addEventListener('change', function () { triggerDetection(true); });
-    urlInput.addEventListener('paste', function () { setTimeout(() => triggerDetection(true), 20); });
+    urlInput.addEventListener('paste', function () { setTimeout(() => triggerDetection(true), 10); });
     urlInput.addEventListener('blur', function () { triggerDetection(true); });
     urlInput.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
@@ -1354,7 +1436,7 @@
     populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
     populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
 
-    if (sheet.rawUrl && !sheet.headers) {
+    if (sheet.rawUrl && (!sheet.headers || sheet.headers.length === 0)) {
       tryDetectHeadersForSheet(sheet, card);
     }
 
@@ -1459,35 +1541,33 @@
       return;
     }
 
+    clearError();
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Loading…';
+
     for (let i = 0; i < sheets.length; i++) {
       const s = sheets[i];
       if (!s.rawUrl) {
         showError(`Please enter a Google Sheet URL for "${s.name}".`);
+        submitBtn.disabled = false;
+        submitBtn.textContent = hasLoadedMap ? 'Save & Load Map' : 'Load Map';
         return;
       }
       const converted = toCsvUrl(s.rawUrl);
       if (!converted) {
         showError(`Could not parse Google Sheets ID from URL for "${s.name}".`);
+        submitBtn.disabled = false;
+        submitBtn.textContent = hasLoadedMap ? 'Save & Load Map' : 'Load Map';
         return;
       }
       s.csvUrl = converted;
-      if (!s.headers) {
-        try {
-          const resp = await fetch(converted, { cache: 'no-store' });
-          if (resp.ok) {
-            const text = await resp.text();
-            const rows = parseCsv(text);
-            if (rows.length > 0 && rows[0].length > 0) {
-              s.headers = rows[0];
-              s.columnMapping = autoDetectColumns(s.headers);
-            }
-          }
-        } catch (_) {
-          // ignore error here
-        }
+      if (!s.headers || s.headers.length === 0) {
+        await tryDetectHeadersForSheet(s);
       }
       if (s.columnMapping.address === null || s.columnMapping.address === undefined || isNaN(s.columnMapping.address) || s.columnMapping.address < 0) {
         showError(`Please select a valid Address Column for "${s.name}".`);
+        submitBtn.disabled = false;
+        submitBtn.textContent = hasLoadedMap ? 'Save & Load Map' : 'Load Map';
         return;
       }
     }
@@ -1499,12 +1579,12 @@
         geocoderUrl = 'addresses.json';
       } else {
         showError('Please enter the addresses.json URL.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = hasLoadedMap ? 'Save & Load Map' : 'Load Map';
         return;
       }
     }
 
-    clearError();
-    submitBtn.disabled = true;
     submitBtn.textContent = 'Loading geocoder…';
 
     try {
@@ -1557,9 +1637,15 @@
   const columnsCancelBtn      = document.getElementById('columns-modal-cancel');
   const columnsErrorMsgEl     = document.getElementById('columns-error-msg');
 
-  function openColumnsModal() {
+  async function openColumnsModal() {
     columnsContainer.innerHTML = '';
     if (columnsErrorMsgEl) columnsErrorMsgEl.textContent = '';
+
+    for (const sheet of sheets) {
+      if (sheet.rawUrl && (!sheet.headers || sheet.headers.length === 0)) {
+        await tryDetectHeadersForSheet(sheet);
+      }
+    }
 
     sheets.forEach((sheet) => {
       const block = document.createElement('div');
