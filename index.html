@@ -1028,6 +1028,7 @@
   const PMC_LAT = 34.857;
   const PMC_LNG = -119.155;
   const POLL_INTERVAL_MS = 30000;
+  const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';
 
   // Available incident icons: { fa: FA classes, label }
   const ICON_OPTIONS = [
@@ -1710,6 +1711,135 @@ const ALL_FA_ICONS = [
     return null;
   }
 
+  // ── Google Geocoding fallback ────────────────────────────────────────────────
+
+  let googleMapsLoaded = false;
+  let googleMapsLoadingPromise = null;
+  let googleGeocoder = null;
+  let googleGeocodeCache = null;
+
+  function loadGoogleGeocodeCache() {
+    if (googleGeocodeCache) return googleGeocodeCache;
+    try {
+      const stored = localStorage.getItem('pmc_google_geocode_cache');
+      googleGeocodeCache = stored ? JSON.parse(stored) : {};
+    } catch (_) {
+      googleGeocodeCache = {};
+    }
+    return googleGeocodeCache;
+  }
+
+  function saveGoogleGeocodeCache() {
+    try {
+      if (googleGeocodeCache) {
+        localStorage.setItem('pmc_google_geocode_cache', JSON.stringify(googleGeocodeCache));
+      }
+    } catch (_) {
+      // Ignore storage quota or disabled errors
+    }
+  }
+
+  function isGoogleGeocodingConfigured() {
+    return Boolean(
+      typeof GOOGLE_GEOCODING_API_KEY === 'string' &&
+      GOOGLE_GEOCODING_API_KEY.trim() !== '' &&
+      GOOGLE_GEOCODING_API_KEY !== '__' + 'GOOGLE_GEOCODING_API_KEY' + '__'
+    );
+  }
+
+  function loadGoogleMapsApi() {
+    if (googleMapsLoaded && googleGeocoder) return Promise.resolve(googleGeocoder);
+    if (googleMapsLoadingPromise) return googleMapsLoadingPromise;
+    if (!isGoogleGeocodingConfigured()) return Promise.resolve(null);
+
+    googleMapsLoadingPromise = new Promise(function (resolve) {
+      if (window.google && window.google.maps && window.google.maps.Geocoder) {
+        googleMapsLoaded = true;
+        googleGeocoder = new window.google.maps.Geocoder();
+        return resolve(googleGeocoder);
+      }
+
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_GEOCODING_API_KEY)}`;
+      script.async = true;
+      script.defer = true;
+      script.onload = function () {
+        if (window.google && window.google.maps && window.google.maps.Geocoder) {
+          googleMapsLoaded = true;
+          googleGeocoder = new window.google.maps.Geocoder();
+          resolve(googleGeocoder);
+        } else {
+          resolve(null);
+        }
+      };
+      script.onerror = function (e) {
+        console.warn('Failed to load Google Maps API script:', e);
+        resolve(null);
+      };
+      document.head.appendChild(script);
+    });
+
+    return googleMapsLoadingPromise;
+  }
+
+  async function googleGeocode(address) {
+    if (!address || typeof address !== 'string' || !address.trim()) return null;
+    const rawAddr = address.trim();
+    const cache = loadGoogleGeocodeCache();
+    const cacheKey = rawAddr.toLowerCase();
+
+    if (Object.prototype.hasOwnProperty.call(cache, cacheKey)) {
+      return cache[cacheKey]; // may be null (cached negative) or { lat, lon, canonical, matchType: 'google' }
+    }
+
+    if (!isGoogleGeocodingConfigured()) return null;
+
+    try {
+      const geocoder = await loadGoogleMapsApi();
+      if (!geocoder) return null;
+
+      let queryAddress = rawAddr;
+      if (!/(pine mountain club|pmc|ca\b|california\b)/i.test(queryAddress)) {
+        queryAddress = `${rawAddr}, Pine Mountain Club, CA 93222`;
+      }
+
+      const result = await new Promise(function (resolve) {
+        geocoder.geocode(
+          {
+            address: queryAddress,
+            componentRestrictions: { country: 'US', administrativeArea: 'CA' }
+          },
+          function (results, status) {
+            if (status === 'OK' && results && results.length > 0) {
+              const loc = results[0].geometry.location;
+              const lat = typeof loc.lat === 'function' ? loc.lat() : loc.lat;
+              const lon = typeof loc.lng === 'function' ? loc.lng() : loc.lng;
+              const canonical = results[0].formatted_address || rawAddr;
+              resolve({
+                lat: Number(lat),
+                lon: Number(lon),
+                canonical,
+                matchType: 'google'
+              });
+            } else {
+              if (status !== 'ZERO_RESULTS') {
+                console.warn(`Google Geocoding status for "${rawAddr}":`, status);
+              }
+              resolve(null);
+            }
+          }
+        );
+      });
+
+      cache[cacheKey] = result;
+      saveGoogleGeocodeCache();
+      return result;
+    } catch (err) {
+      console.warn(`Google Geocoding error for "${rawAddr}":`, err);
+      return null;
+    }
+  }
+
   // ── Incident marker helpers ───────────────────────────────────────────────────
 
   function buildDivIcon(isOpen, iconFa, color) {
@@ -1742,6 +1872,10 @@ const ALL_FA_ICONS = [
       locationLine =
         `<span title="Fuzzy match (edit distance ${incident.editDist})">` +
         `${escHtml(incident.canonical)} <em style="color:#888;font-size:0.8em">(fuzzy)</em></span>`;
+    } else if (incident.matchType === 'google') {
+      locationLine =
+        `<span title="Resolved via Google Geocoding fallback">` +
+        `${escHtml(incident.canonical)} <em style="color:#2980b9;font-size:0.8em">(Google Geocoded)</em></span>`;
     } else {
       locationLine = `<span style="color:#c0392b">Address not found:<br>${escHtml(incident.address)}</span>`;
     }
@@ -1826,7 +1960,8 @@ const ALL_FA_ICONS = [
           let sheetClosed = 0;
           let sheetUnmatched = 0;
 
-          dataRows.forEach(function (row, idx) {
+          for (let idx = 0; idx < dataRows.length; idx++) {
+            const row = dataRows[idx];
             const key = `${sheet.id}__${idx}`;
             currentKeys.add(key);
 
@@ -1840,7 +1975,11 @@ const ALL_FA_ICONS = [
               sheetClosed++;
             }
 
-            const geo = geocode(address);
+            let geo = geocode(address);
+            if (!geo) {
+              geo = await googleGeocode(address);
+            }
+
             const lat = geo ? geo.lat : null;
             const lon = geo ? geo.lon : null;
             if (!geo) {
@@ -1890,7 +2029,7 @@ const ALL_FA_ICONS = [
               }
               incidentMarkers[key] = marker;
             }
-          });
+          }
 
           totalOpen += sheetOpen;
           totalClosed += sheetClosed;
