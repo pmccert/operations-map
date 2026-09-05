@@ -92,6 +92,10 @@ The application operates without a dedicated backend server, resolving incident 
     6. **Esri World Imagery** (Esri high-resolution satellite imagery tiles, max zoom 19)
     7. **Esri Clarity** (Esri cloud-free archival high-resolution satellite imagery tiles, max zoom 19)
 
+* **FR-3.3: Basemap Zoom Availability Alert**
+  * If a tile set is selected that does not support the requested zoom level (e.g., current zoom exceeds the active tile layer's `maxZoom` or is below `minZoom`), the application shall display a small error alert in the lower-right hand corner indicating that the requested zoom level is not available for this base map.
+  * The alert shall automatically dismiss when the map zoom level returns to a supported range or when switching to a basemap that supports the current zoom level.
+
 ---
 
 ### 2.4 Incident Marker Rendering & Status
