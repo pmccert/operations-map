@@ -8,10 +8,10 @@ publicly accessible Google Sheet.
 
 * **No server required** — open `index.html` directly in any modern browser, or
   host it on any static file host (GitHub Pages, Netlify, etc.).
-* **Google Sheet integration** — on first load the app asks for a Google Sheets
-  URL and derives the CSV export URL automatically.
-* **Configurable column mapping** — automatically detects and allows you to select
-  which sheet columns contain the incident address, open/closed status, and label/description.
+* **Multiple Google Sheets support** — add and plot multiple sheets simultaneously.
+  Each sheet can have its own name, Google Sheets URL, column mapping, icon, and badge color.
+* **Configurable column mapping per sheet** — automatically detects and allows you to select
+  which sheet columns contain the incident address, open/closed status, and label/description for each sheet.
   Change column mapping at any time via the **Change Columns** toolbar button.
 * **Address-based geocoding** — incidents are specified as street addresses (e.g.
   `1234 Nesthorn Drive`). The app resolves them to lat/lon using a local
@@ -19,15 +19,16 @@ publicly accessible Google Sheet.
 * **Fuzzy street matching** — minor typos and common abbreviations (`Dr` → `Drive`,
   `Ave` → `Avenue`, etc.) in the incident address are tolerated. House numbers
   must match exactly. Fuzzy-matched addresses are marked *(fuzzy)* in the popup.
-* **Auto-refresh every 10 seconds** — all rows are re-read; markers are added,
-  updated, or removed to match the current sheet contents.
+* **Auto-refresh every 30 seconds** — all configured sheets are polled and re-read;
+  markers are added, updated, or removed to match the current sheet contents.
 * **Every row is a distinct incident** — each data row is plotted as its own marker.
 * **Open / Closed status & Legend** — incidents marked `closed` are rendered
-  faded and greyscale by default; open incidents display in full colour. An interactive
-  legend on the map includes a checkbox to show or hide closed incidents.
-* **User-selectable icon** — choose from a set of Font Awesome vector icons
+  faded and greyscale by default; open incidents display in the sheet's chosen colour. An interactive
+  legend on the map displays entries for every configured sheet with its icon and color, along with a checkbox to show or hide closed incidents.
+* **Customizable icon & color per sheet** — choose from a set of Font Awesome vector icons
   (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin,
-  star) in the startup dialog or via the **Change Icon** toolbar button.
+  star) and a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Change Icons & Colors**.
+* **Commit metadata indicator** — displays the active commit ID and commit date/time in the lower-left corner of the map for version tracking.
 * **Basemap switcher** — choose from four tile sources via the top-right control:
   * OpenStreetMap
   * OpenTopoMap (hillshaded terrain)
@@ -70,17 +71,17 @@ map any columns in the setup dialog or via the toolbar:
 ### 3. Load the map
 
 1. Open `index.html` in a browser.
-2. Paste your **Google Sheet URL** into the dialog. The app will auto-detect
-   sheet columns and select matching Address, Status, and Label columns (which
-   you can customize using the dropdowns).
-3. If `addresses.json` is available locally alongside `index.html`, it is
+2. Paste your **Google Sheet URL** for Sheet 1 (and optionally click **+ Add Another Sheet** to add more sheets).
+   The app auto-detects sheet columns and selects matching Address, Status, and Label columns for each sheet.
+3. Choose an incident icon and color for each sheet.
+4. If `addresses.json` is available locally alongside `index.html`, it is
    automatically detected and used (with an option to override if needed);
    otherwise, enter your **addresses.json URL**.
-4. Select an incident icon, then click **Load Map**.
-5. All incidents from the sheet are plotted immediately and refresh every 30
+5. Click **Load Map**.
+6. Incidents from all sheets are plotted immediately and refresh every 30
    seconds. Unmatched addresses appear in the status bar count and show an
    error note in their popup.
-6. Click any marker to see its details (label, status, resolved address).
-7. Use **Change Sheet**, **Change Columns**, or **Change Icon** in the top-left
+7. Click any marker to see its details (sheet name, label, status, resolved address).
+8. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
    toolbar at any time.
 

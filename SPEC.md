@@ -12,27 +12,28 @@ The application operates without a dedicated backend server, resolving incident 
 
 ### 2.1 Google Sheets Ingestion & Polling
 
-* **FR-1.1: Sheet URL Ingestion & Parsing**
-  * The application shall accept a standard Google Sheets sharing URL (e.g., `https://docs.google.com/spreadsheets/d/{SHEET_ID}/...`).
-  * It shall extract the Sheet ID and Sheet Tab ID (`gid`, defaulting to `0` if not present) and convert the input URL into a direct CSV export endpoint (`https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}`).
+* **FR-1.1: Sheet URL Ingestion & Multi-Sheet Configuration**
+  * The application shall accept one or more Google Sheets sharing URLs (e.g., `https://docs.google.com/spreadsheets/d/{SHEET_ID}/...`).
+  * Users shall be able to dynamically add and remove sheets, assign custom sheet names, and configure distinct icons, colors, and column mappings per sheet.
+  * For each sheet, it shall extract the Sheet ID and Sheet Tab ID (`gid`, defaulting to `0` if not present) and convert the input URL into a direct CSV export endpoint (`https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}`).
 
 * **FR-1.2: Periodic Polling & Real-Time Sync**
-  * The application shall poll the Google Sheet CSV endpoint at a fixed interval of **30 seconds**.
+  * The application shall poll all configured Google Sheet CSV endpoints at a fixed interval of **30 seconds**.
   * Requests shall include `cache: 'no-store'` to bypass browser caching and fetch the latest live updates.
-  * Markers on the map shall be added, updated in-place (location, icon, popup content), or removed to reflect the current sheet state on every poll.
+  * Markers on the map shall be added, updated in-place (location, icon, color, popup content), or removed to reflect the current sheet state on every poll.
 
 * **FR-1.3: Robust CSV Parsing**
   * The application shall implement RFC 4180-compliant CSV parsing, properly handling multi-line inputs, commas within quoted strings, escaped quotes (`""`), and whitespace trimming.
 
 * **FR-1.4: Automatic Column Detection**
-  * Upon entering a Google Sheet URL, the application shall probe and parse the header row (first line) to detect column indices automatically using keyword heuristics:
+  * Upon entering a Google Sheet URL, the application shall probe and parse the header row (first line) to detect column indices automatically using keyword heuristics for each sheet:
     * **Address Column (Required):** Matched if header contains `address`, `addr`, `location`, `street`, or `residence`.
     * **Status Column (Optional):** Matched if header contains `status`, `state`, `open`, `closed`, `condition`, or `stage`.
     * **Label Column (Optional):** Matched if header contains `label`, `desc`, `title`, `detail`, `note`, `type`, `incident`, `summary`, `comment`, or `call`.
   * Fallbacks if keywords do not match: Column A (`0`) for Address, Column B (`1`) for Status (if present), Column C (`2`) for Label (if present).
 
-* **FR-1.5: Configurable Column Mapping**
-  * Users shall be able to manually select and override the Address, Status, and Label columns in the initial startup dialog and at runtime via the **Change Columns** toolbar button.
+* **FR-1.5: Configurable Column Mapping per Sheet**
+  * Users shall be able to manually select and override the Address, Status, and Label columns individually for each configured sheet in the startup/configuration dialog and at runtime via the **Change Columns** toolbar button.
   * **Address Column:** Required; must reference a valid column.
   * **Status Column:** Optional; can be mapped to a specific column or set to `(None — Always Open)`.
   * **Label Column:** Optional; can be mapped to a specific column or set to `(None — Default #)`.
@@ -86,17 +87,18 @@ The application operates without a dedicated backend server, resolving incident 
 
 ### 2.4 Incident Marker Rendering & Status
 
-* **FR-4.1: Distinct Marker per Row**
-  * Every row in the Google Sheet with a non-empty address shall represent a distinct emergency incident.
+* **FR-4.1: Distinct Marker per Row across Multiple Sheets**
+  * Every row in any configured Google Sheet with a non-empty address shall represent a distinct emergency incident.
+  * Markers shall be uniquely tracked per sheet to avoid collisions across multiple sheets.
 
 * **FR-4.2: Open vs. Closed Status Evaluation**
-  * Incident status shall be determined from the mapped Status column (case-insensitive).
+  * Incident status shall be determined from the mapped Status column (case-insensitive) of each sheet.
   * A value of `closed` designates a **Closed** incident.
   * Any other value (or if the Status column is unmapped/none) designates an **Open** incident.
 
-* **FR-4.3: Visual Distinction by Status**
-  * **Open Incidents:** Rendered with a solid red circular badge (`#e74c3c`), full opacity, white vector icon, and prominent drop shadow.
-  * **Closed Incidents:** Rendered with a grey circular badge (`#7f8c8d`), reduced opacity (`0.55`), white vector icon, and reduced drop shadow.
+* **FR-4.3: Visual Distinction by Status & Sheet Styling**
+  * **Open Incidents:** Rendered with a solid circular badge using the sheet's configured color, full opacity, the sheet's chosen white vector icon, and prominent drop shadow.
+  * **Closed Incidents:** Rendered with a grey circular badge (`#7f8c8d`), reduced opacity (`0.55`), the sheet's chosen white vector icon, and reduced drop shadow.
 
 ---
 
@@ -104,8 +106,9 @@ The application operates without a dedicated backend server, resolving incident 
 
 * **FR-5.1: Incident Popup Content**
   * Clicking any incident marker shall open a Leaflet popup displaying:
+    * **Sheet Indicator:** Sheet name accompanied by a colored indicator matching the sheet's color.
     * **Title/Label:** The value from the Label column, or fallback default `Incident #{Row Number}`.
-    * **Status Badge:** A colored badge pill (`Open` in red or `Closed` in grey).
+    * **Status Badge:** A colored badge pill (`Open` in the sheet's configured color or `Closed` in grey).
     * **Resolved Address:**
       * Exact matches: Display canonical address.
       * Fuzzy matches: Display canonical address with a `(fuzzy)` indicator and an edit distance tooltip.
@@ -116,21 +119,22 @@ The application operates without a dedicated backend server, resolving incident 
 
 ### 2.6 Map Legend & Closed Incident Filtering
 
-* **FR-6.1: Interactive Map Legend**
+* **FR-6.1: Interactive Multi-Sheet Map Legend**
   * A persistent legend control shall be positioned in the top-right corner of the map.
-  * The legend shall display sample icons for Open and Closed incidents.
+  * The legend shall display an entry for every configured sheet showing its custom icon, badge color, and sheet name.
+  * The legend shall automatically update whenever sheets are added, modified, or removed.
 
 * **FR-6.2: Show / Hide Closed Incidents Toggle**
   * The legend shall include an interactive checkbox labeled **Closed** (checked by default).
-  * Unchecking the box shall immediately remove all closed incident markers from the map.
+  * Unchecking the box shall immediately remove all closed incident markers across all sheets from the map.
   * Re-checking the box shall restore all closed incident markers without triggering a network fetch.
 
 ---
 
-### 2.7 Icon Customization System
+### 2.7 Icon and Color Customization System
 
-* **FR-7.1: Selectable Font Awesome Incident Icons**
-  * The application shall support selecting an active incident icon from 10 Font Awesome 6 vector icons:
+* **FR-7.1: Selectable Font Awesome Incident Icons & Colors**
+  * The application shall support selecting an active incident icon from 10 Font Awesome 6 vector icons for each sheet:
     1. **Emergency** (`fa-solid fa-bell-concierge`) — *Default*
     2. **Fire** (`fa-solid fa-fire`)
     3. **Medical** (`fa-solid fa-kit-medical`)
@@ -141,11 +145,12 @@ The application operates without a dedicated backend server, resolving incident 
     8. **Rescue** (`fa-solid fa-person-falling`)
     9. **Pin** (`fa-solid fa-location-dot`)
     10. **Star** (`fa-solid fa-star`)
+  * The application shall provide a color selection palette (with custom color input) allowing each sheet to have a distinct badge color.
 
-* **FR-7.2: Icon Updates Across Components**
-  * Selecting an icon in the startup dialog or the **Change Icon** modal shall immediately update:
-    * All active markers currently rendered on the map.
-    * The Open and Closed icon previews in the map legend.
+* **FR-7.2: Icon & Color Updates Across Components**
+  * Selecting an icon or color for any sheet shall immediately update:
+    * All active markers corresponding to that sheet currently rendered on the map.
+    * The sheet's preview in the map legend and dialog badge previews.
 
 ---
 
@@ -153,15 +158,18 @@ The application operates without a dedicated backend server, resolving incident 
 
 * **FR-8.1: Top-Left Toolbar**
   * A fixed floating toolbar shall provide three direct actions:
-    * **Change Sheet:** Stops active polling, clears all map markers, resets geocoding cache, and opens the main configuration modal.
-    * **Change Columns:** Opens a dedicated modal to adjust column assignments; applying changes immediately re-parses and re-plots data.
-    * **Change Icon:** Opens a dedicated modal to pick a new incident icon.
+    * **Manage Sheets:** Opens the full sheet configuration modal to add, rename, edit URLs, customize icons/colors, adjust column mappings, or delete sheets.
+    * **Change Columns:** Opens a dedicated modal to adjust column assignments for each sheet; applying changes immediately re-parses and re-plots data.
+    * **Change Icons & Colors:** Opens a dedicated modal to pick new icons and colors for each sheet.
 
 * **FR-8.2: Status Bar Feedback**
   * A bottom-center floating pill shall report operational status and diagnostics:
-    * Connection states: `Waiting for sheet URL…`, `Detecting columns…`, `Loading geocoder…`, `Fetching data…`.
-    * Polling results: Timestamp of last successful fetch, total incident count, open incident count, closed incident count, and count of unmatched addresses (e.g., `Last update: 12:00:00 PM — 5 incident(s): 3 open, 2 closed, 1 unmatched`).
+    * Connection states: `Waiting for sheet configuration…`, `Detecting columns…`, `Loading geocoder…`, `Fetching data…`.
+    * Polling results: Timestamp of last successful fetch, total incident count, total sheets, open incident count, closed incident count, and count of unmatched addresses.
     * Error messages: Informative network and parsing error messages.
+
+* **FR-8.3: Commit Metadata Display**
+  * A discreet floating badge in the lower-left corner shall display the deployed commit ID (with a direct link to the commit on GitHub) and the commit timestamp/date for version tracking.
 
 ---
 
