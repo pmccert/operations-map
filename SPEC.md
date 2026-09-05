@@ -65,8 +65,14 @@ The application operates without a dedicated backend server, resolving incident 
   * When local `addresses.json` is detected, the UI shall default to using it and display an **Override** button allowing the user to provide an external geocoder URL.
   * If overridden, a **Use local file** button shall allow reverting back to the local source.
 
-* **FR-2.6: Unmatched Address Handling**
-  * If an address cannot be resolved via exact or fuzzy matching, the marker shall not be plotted on the map.
+* **FR-2.6: Google Geocoding API Fallback**
+  * When an address cannot be resolved via exact or fuzzy matching against `addresses.json`, the application shall attempt resolution via the Google Maps Geocoding API if configured (`GOOGLE_GEOCODING_API_KEY`).
+  * The application shall dynamically load the Google Maps JavaScript API client when a valid API key is present.
+  * Lookups shall be disambiguated with Pine Mountain Club, CA geographic context and cached in `localStorage` (`pmc_google_geocode_cache`) to prevent redundant requests across 30-second polling cycles.
+  * Addresses resolved via Google Geocoding shall be flagged with `matchType: 'google'` and displayed in the popup with a `(Google Geocoded)` badge.
+
+* **FR-2.7: Unmatched Address Handling**
+  * If an address cannot be resolved via exact matching, fuzzy matching, or Google Geocoding fallback, the marker shall not be plotted on the map.
   * Unmatched addresses shall be logged to the browser console and counted in the status bar summary.
 
 ---
@@ -115,6 +121,7 @@ The application operates without a dedicated backend server, resolving incident 
     * **Resolved Address:**
       * Exact matches: Display canonical address.
       * Fuzzy matches: Display canonical address with a `(fuzzy)` indicator and an edit distance tooltip.
+      * Google Geocoded matches: Display resolved address with a `(Google Geocoded)` indicator.
       * Unmatched / error states: Display warning note and raw input address.
     * **Coordinates:** Latitude and longitude formatted to 5 decimal places (e.g., `Lat: 34.85700, Lon: -119.15500`).
 
