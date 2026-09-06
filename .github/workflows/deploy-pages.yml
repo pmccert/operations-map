@@ -73,9 +73,6 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Build addresses json
-        run: python scripts/fetch_addresses.py --bbox 34.8,-119.2,34.9,-119.1
-
       - name: Inject commit info into index.html
         env:
           GOOGLE_GEOCODING_API_KEY: ${{ secrets.GOOGLE_GEOCODING_API_KEY }}
