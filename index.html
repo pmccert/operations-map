@@ -668,33 +668,20 @@
       text-overflow: ellipsis;
     }
 
-    /* ── Commit Info (lower left) ────────────────────────────── */
-    #commit-info {
-      position: fixed;
-      bottom: 8px;
-      left: 10px;
-      z-index: 1100;
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(2px);
-      padding: 3px 8px;
-      border-radius: 4px;
-      border: 1px solid #bbb;
-      font-size: 0.72rem;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    /* ── Commit info dialog ───────────────────────────────────── */
+    .commit-info-modal-box {
+      width: min(420px, 92vw);
+    }
+    .commit-info-details {
+      display: grid;
+      gap: 8px;
+      margin: 16px 0;
       color: #333;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-      user-select: text;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      font-size: 0.88rem;
     }
-    #commit-info a {
+    .commit-info-details a {
       color: #1a5a8a;
-      text-decoration: none;
       font-weight: 600;
-    }
-    #commit-info a:hover {
-      text-decoration: underline;
     }
 
     /* ── PMC CERT logo (lower left) ───────────────────────────── */
@@ -1096,15 +1083,24 @@
 <!-- Status bar -->
 <div id="status-bar">Waiting for sheet configuration…</div>
 
-<!-- Commit info (lower left) -->
-<div id="commit-info">
-  <span id="commit-hash">Commit: <a href="https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/11b0c42" target="_blank" rel="noopener noreferrer">11b0c42</a></span>
-  <span style="opacity: 0.5;">•</span>
-  <span id="commit-date">2026-09-04 21:20:49 -0700</span>
-</div>
-
 <!-- PMC CERT logo (lower left) -->
 <img id="pmc-cert-logo" src="assets/pmc-cert-logo.png" alt="PMC CERT logo" />
+
+<!-- Commit info dialog -->
+<div id="commit-info-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="commit-info-title">
+  <div class="modal-box commit-info-modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <h2 id="commit-info-title">PMC CERT Map Credits</h2>
+      <button type="button" id="commit-info-close" class="modal-close-btn" title="Close dialog" aria-label="Close dialog">&times;</button>
+    </div>
+    <div class="commit-info-details">
+      <div>Commit: <a href="https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/11b0c42" target="_blank" rel="noopener noreferrer">11b0c42</a></div>
+      <div>Timestamp: 2026-09-04 21:20:49 -0700</div>
+      <div>Website: <a href="https://pmccert.com" target="_blank" rel="noopener noreferrer">pmccert.com</a></div>
+    </div>
+    <button type="button" id="commit-info-done" class="btn-secondary">Close</button>
+  </div>
+</div>
 
 <!-- Zoom availability alert (lower right) -->
 <div id="zoom-alert" class="hidden" role="alert" aria-live="polite">
@@ -1461,6 +1457,28 @@ const ALL_FA_ICONS = [
 
   baseLayers['OpenStreetMap'].addTo(map);
   L.control.layers(baseLayers, null, { position: 'topright', collapsed: false }).addTo(map);
+  map.attributionControl.addAttribution(
+    '<a href="#" id="pmc-cert-attribution-link" title="View PMC CERT map credits">PMC CERT</a>'
+  );
+
+  const commitInfoModal = document.getElementById('commit-info-modal');
+  const closeCommitInfoModal = function () {
+    commitInfoModal.classList.add('hidden');
+  };
+  document.addEventListener('click', function (e) {
+    const attributionLink = e.target.closest('#pmc-cert-attribution-link');
+    if (attributionLink) {
+      e.preventDefault();
+      commitInfoModal.classList.remove('hidden');
+    }
+  });
+  document.getElementById('commit-info-close').addEventListener('click', closeCommitInfoModal);
+  document.getElementById('commit-info-done').addEventListener('click', closeCommitInfoModal);
+  commitInfoModal.addEventListener('click', function (e) {
+    if (e.target === commitInfoModal) {
+      closeCommitInfoModal();
+    }
+  });
 
   const zoomAlert = document.getElementById('zoom-alert');
   const zoomAlertText = document.getElementById('zoom-alert-text');
@@ -3545,7 +3563,9 @@ const ALL_FA_ICONS = [
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      if (faPickerModal && !faPickerModal.classList.contains('hidden')) {
+      if (!commitInfoModal.classList.contains('hidden')) {
+        closeCommitInfoModal();
+      } else if (faPickerModal && !faPickerModal.classList.contains('hidden')) {
         closeFontAwesomePicker();
       } else if (!columnsModal.classList.contains('hidden')) {
         closeColumnsModal();
