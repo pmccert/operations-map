@@ -697,6 +697,20 @@
       text-decoration: underline;
     }
 
+    /* ── PMC CERT logo (lower left) ───────────────────────────── */
+    #pmc-cert-logo {
+      position: fixed;
+      bottom: 44px;
+      left: 10px;
+      z-index: 1100;
+      width: 96px;
+      height: 96px;
+      object-fit: contain;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      pointer-events: none;
+    }
+
     /* ── Zoom alert (lower right) ────────────────────────────── */
     #zoom-alert {
       position: fixed;
@@ -1088,6 +1102,9 @@
   <span style="opacity: 0.5;">•</span>
   <span id="commit-date">2026-09-04 21:20:49 -0700</span>
 </div>
+
+<!-- PMC CERT logo (lower left) -->
+<img id="pmc-cert-logo" src="assets/pmc-cert-logo.png" alt="PMC CERT logo" />
 
 <!-- Zoom availability alert (lower right) -->
 <div id="zoom-alert" class="hidden" role="alert" aria-live="polite">
