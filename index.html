@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PMC CERT Map</title>
 
+  <!-- Google Identity Services (GIS) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <!-- Font Awesome 6 Free (CDN) -->
   <link
     rel="stylesheet"
@@ -740,6 +743,36 @@
       gap: 5px;
     }
     .toolbar-btn:hover { background: #e8f0fe; }
+    .toolbar-select {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid #aaa;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      cursor: pointer;
+    }
+    .btn-sheet-refresh {
+      background: #f1f3f4;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+      margin-right: 6px;
+    }
+    .btn-sheet-refresh:hover { background: #e8f0fe; border-color: #1a73e8; }
+    .oauth-config-box {
+      background: #f8f9fa;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
 
     /* ── Incident popup ──────────────────────────────────────── */
     .incident-popup { font-size: 0.88rem; line-height: 1.6; }
@@ -846,6 +879,25 @@
       Configure your Google Sheets below. You can add multiple sheets, each with
       its own icon, color, and column mapping.
     </p>
+
+    <!-- Google OAuth 2.0 Client Configuration -->
+    <div class="oauth-config-box">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+        <label class="field-label" for="google-client-id" style="margin-bottom: 0;">
+          <i class="fa-brands fa-google"></i> Google OAuth Client ID
+          <span style="font-weight:normal;color:#777"> (Optional — for private sheet access)</span>
+        </label>
+        <button type="button" id="btn-oauth-auth" class="btn-link" style="font-size: 0.8rem; white-space: nowrap;">Sign in with Google</button>
+      </div>
+      <input
+        id="google-client-id"
+        class="text-input"
+        type="text"
+        placeholder="e.g. 1234567890-abcdef.apps.googleusercontent.com"
+        autocomplete="off"
+      />
+      <div id="oauth-status-text" style="font-size: 0.78rem; color: #666; margin-top: 4px;">Not signed in (using public CSV export).</div>
+    </div>
 
     <div id="sheets-container"></div>
 
@@ -1023,6 +1075,15 @@
   <button class="toolbar-btn" id="btn-change-sheet" title="Change / Manage Sheets"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
   <button class="toolbar-btn" id="btn-change-columns"><i class="fa-solid fa-table-columns"></i> Change Columns</button>
   <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-palette"></i> Change Icons &amp; Colors</button>
+  <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
+  <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
+    <option value="0">Auto-refresh: Off</option>
+    <option value="15000">Auto-refresh: 15s</option>
+    <option value="30000" selected>Auto-refresh: 30s</option>
+    <option value="60000">Auto-refresh: 1m</option>
+    <option value="300000">Auto-refresh: 5m</option>
+  </select>
+  <button class="toolbar-btn" id="btn-google-auth-status" title="Google Authentication Status"><i class="fa-brands fa-google"></i> <span id="google-auth-btn-text">Sign In</span></button>
 </div>
 
 <!-- Status bar -->
@@ -1056,7 +1117,7 @@
 
   const PMC_LAT = 34.857;
   const PMC_LNG = -119.155;
-  const POLL_INTERVAL_MS = 30000;
+  const DEFAULT_POLL_INTERVAL_MS = 30000;
   const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';
 
   // Available incident icons: { fa: FA classes, label }
@@ -1433,6 +1494,139 @@ const ALL_FA_ICONS = [
   let showClosedIncidents = true;
   let hasLoadedMap = false;
 
+  let pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
+  let googleAccessToken = null;
+  let googleTokenExpiry = 0;
+  let googleClientId = '';
+  let tokenClient = null;
+
+  function loadSavedOAuthConfig() {
+    try {
+      const savedId = localStorage.getItem('pmc_google_client_id');
+      if (savedId) {
+        googleClientId = savedId;
+        const input = document.getElementById('google-client-id');
+        if (input) input.value = savedId;
+      }
+      const savedToken = localStorage.getItem('pmc_google_access_token');
+      const savedExp = localStorage.getItem('pmc_google_token_expiry');
+      if (savedToken && savedExp) {
+        const exp = parseInt(savedExp, 10);
+        if (Date.now() < exp) {
+          googleAccessToken = savedToken;
+          googleTokenExpiry = exp;
+        } else {
+          localStorage.removeItem('pmc_google_access_token');
+          localStorage.removeItem('pmc_google_token_expiry');
+        }
+      }
+    } catch (_) {
+      // Storage unavailable or blocked
+    }
+    updateOAuthUI();
+  }
+
+  function updateOAuthUI() {
+    const isAuthed = isGoogleAuthenticated();
+    const statusText = document.getElementById('oauth-status-text');
+    const authBtn = document.getElementById('btn-oauth-auth');
+    const toolbarBtnText = document.getElementById('google-auth-btn-text');
+    const toolbarBtn = document.getElementById('btn-google-auth-status');
+
+    if (isAuthed) {
+      if (statusText) {
+        statusText.textContent = 'Signed in to Google (Sheets API active).';
+        statusText.style.color = '#27ae60';
+      }
+      if (authBtn) authBtn.textContent = 'Sign out';
+      if (toolbarBtnText) toolbarBtnText.textContent = 'Sign Out';
+      if (toolbarBtn) toolbarBtn.title = 'Google Account: Signed In (Click to Sign Out)';
+    } else {
+      if (statusText) {
+        if (googleClientId) {
+          statusText.textContent = 'Client ID configured. Not signed in (using public CSV export).';
+        } else {
+          statusText.textContent = 'Not signed in (using public CSV export).';
+        }
+        statusText.style.color = '#666';
+      }
+      if (authBtn) authBtn.textContent = 'Sign in with Google';
+      if (toolbarBtnText) toolbarBtnText.textContent = 'Sign In';
+      if (toolbarBtn) toolbarBtn.title = 'Google Account: Not Signed In (Click to Sign In)';
+    }
+  }
+
+  function isGoogleAuthenticated() {
+    return Boolean(googleAccessToken && Date.now() < googleTokenExpiry);
+  }
+
+  function initTokenClient(callback) {
+    if (!googleClientId || typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+      return null;
+    }
+    try {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: googleClientId,
+        scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        callback: (resp) => {
+          if (resp.error) {
+            console.error('Google OAuth error:', resp);
+            return;
+          }
+          googleAccessToken = resp.access_token;
+          const expiresIn = (parseInt(resp.expires_in, 10) || 3600) * 1000;
+          googleTokenExpiry = Date.now() + expiresIn - 60000;
+          try {
+            localStorage.setItem('pmc_google_access_token', googleAccessToken);
+            localStorage.setItem('pmc_google_token_expiry', String(googleTokenExpiry));
+          } catch (_) {
+            // Ignore storage quota or disabled errors
+          }
+          updateOAuthUI();
+          if (callback) callback();
+        }
+      });
+      return tokenClient;
+    } catch (e) {
+      console.warn('Failed to initialize Google Token Client:', e);
+      return null;
+    }
+  }
+
+  function requestGoogleSignIn(callback) {
+    if (!googleClientId) {
+      openSheetModal();
+      const input = document.getElementById('google-client-id');
+      if (input) input.focus();
+      return;
+    }
+    const client = initTokenClient(callback);
+    if (client) {
+      client.requestAccessToken({ prompt: '' });
+    } else {
+      alert('Google Identity Services library not yet loaded. Please check your network connection.');
+    }
+  }
+
+  function signOutGoogle() {
+    if (googleAccessToken && typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      try {
+        google.accounts.oauth2.revoke(googleAccessToken, () => {});
+      } catch (_) {
+        // Ignore revocation error
+      }
+    }
+    googleAccessToken = null;
+    googleTokenExpiry = 0;
+    try {
+      localStorage.removeItem('pmc_google_access_token');
+      localStorage.removeItem('pmc_google_token_expiry');
+    } catch (_) {
+      // Ignore storage error
+    }
+    updateOAuthUI();
+  }
+
   let sheetIdCounter = 1;
   function createSheet(name, rawUrl) {
     const defaultUrl = rawUrl || '';
@@ -1573,7 +1767,97 @@ const ALL_FA_ICONS = [
     }
   }
 
-  // ── Google Sheets CSV URL helper ──────────────────────────────────────────────
+  // ── Google Sheets API & CSV URL helper ──────────────────────────────────────────
+
+  function parseGoogleSheetDetails(raw) {
+    if (!raw) return null;
+    raw = raw.trim();
+    const m = raw.match(/\/spreadsheets\/d\/([\w-]+)/) || raw.match(/\/file\/d\/([\w-]+)/) || raw.match(/[?&]key=([\w-]+)/);
+    if (m && m[1] !== 'e') {
+      const spreadsheetId = m[1];
+      const gidMatch = raw.match(/[?&#]gid=(\d+)/);
+      const gid = gidMatch ? parseInt(gidMatch[1], 10) : 0;
+      return { spreadsheetId, gid };
+    }
+    return null;
+  }
+
+  async function fetchGoogleSheetRows(spreadsheetId, gid, accessToken) {
+    const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(sheetId,title))`;
+    const metaResp = await fetch(metaUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+    if (!metaResp.ok) throw new Error(`Google Sheets metadata failed with HTTP ${metaResp.status}`);
+    const meta = await metaResp.json();
+    let sheetTitle = null;
+    if (meta.sheets && meta.sheets.length > 0) {
+      if (gid !== null && gid !== undefined) {
+        const found = meta.sheets.find(s => s.properties && s.properties.sheetId === gid);
+        if (found && found.properties) {
+          sheetTitle = found.properties.title;
+        }
+      }
+      if (!sheetTitle && meta.sheets[0].properties) {
+        sheetTitle = meta.sheets[0].properties.title;
+      }
+    }
+    if (!sheetTitle) sheetTitle = 'Sheet1';
+
+    const range = `'${sheetTitle.replace(/'/g, "''")}'!A:ZZ`;
+    const valuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueRenderOption=FORMATTED_VALUE`;
+    const valuesResp = await fetch(valuesUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+    if (!valuesResp.ok) throw new Error(`Google Sheets values failed with HTTP ${valuesResp.status}`);
+    const data = await valuesResp.json();
+    return data.values || [];
+  }
+
+  async function fetchSheetRows(sheet) {
+    const details = parseGoogleSheetDetails(sheet.rawUrl);
+    if (details && isGoogleAuthenticated()) {
+      try {
+        const rows = await fetchGoogleSheetRows(details.spreadsheetId, details.gid, googleAccessToken);
+        if (rows && rows.length > 0) return rows;
+      } catch (e) {
+        console.warn(`Sheets API fetch failed for "${sheet.name}", falling back to CSV export:`, e);
+      }
+    }
+
+    const targetUrl = sheet.csvUrl || toCsvUrl(sheet.rawUrl);
+    if (!targetUrl) throw new Error('No valid sheet or CSV URL configured.');
+    let text = null;
+    try {
+      const resp = await fetch(targetUrl, { cache: 'no-store' });
+      if (resp.ok) {
+        text = await resp.text();
+      }
+    } catch (_) {
+      // Primary CSV fetch error
+    }
+    if (!text) {
+      const altUrl = getAlternateCsvUrl(sheet.rawUrl);
+      if (altUrl && altUrl !== targetUrl) {
+        try {
+          const resp = await fetch(altUrl, { cache: 'no-store' });
+          if (resp.ok) {
+            text = await resp.text();
+            sheet.csvUrl = altUrl;
+          }
+        } catch (_) {
+          // Alternate CSV fetch error
+        }
+      }
+    }
+    if (!text) throw new Error('Failed to fetch CSV data.');
+    return parseCsv(text);
+  }
 
   function toCsvUrl(raw) {
     if (!raw) return null;
@@ -1994,8 +2278,130 @@ const ALL_FA_ICONS = [
 
   // ── Polling / plotting ────────────────────────────────────────────────────────
 
+  async function plotSheetRows(sheet, rows, currentKeys) {
+    if (rows.length > 0 && (!sheet.headers || sheet.headers.length !== rows[0].length)) {
+      sheet.headers = cleanHeaders(rows[0]);
+    }
+
+    const addrCol   = sheet.columnMapping.address ?? 0;
+    const statusCol = sheet.columnMapping.status;
+    const labelCol  = sheet.columnMapping.label;
+
+    const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
+    let sheetOpen = 0;
+    let sheetClosed = 0;
+    let sheetUnmatched = 0;
+
+    for (let idx = 0; idx < dataRows.length; idx++) {
+      const row = dataRows[idx];
+      const key = `${sheet.id}__${idx}`;
+      if (currentKeys) currentKeys.add(key);
+
+      const address   = (row[addrCol] || '').trim();
+      const statusRaw = (statusCol !== null && statusCol >= 0 && row[statusCol]) ? row[statusCol].toLowerCase().trim() : '';
+      const label     = (labelCol !== null && labelCol >= 0 && row[labelCol]) ? row[labelCol].trim() : '';
+      const isOpen    = (statusCol !== null && statusCol >= 0) ? statusRaw !== 'closed' : true;
+      if (isOpen) {
+        sheetOpen++;
+      } else {
+        sheetClosed++;
+      }
+
+      let geo = geocode(address);
+      if (!geo) {
+        geo = await googleGeocode(address);
+      }
+
+      const lat = geo ? geo.lat : null;
+      const lon = geo ? geo.lon : null;
+      if (!geo) {
+        sheetUnmatched++;
+        console.warn(`[${sheet.name}] Could not plot address: "${address}"`);
+      }
+
+      const incident = {
+        index: idx,
+        address,
+        label,
+        isOpen,
+        lat,
+        lon,
+        canonical:   geo ? geo.canonical   : null,
+        matchType:   geo ? geo.matchType   : null,
+        fuzzyStreet: geo ? geo.fuzzyStreet : null,
+        editDist:    geo ? geo.editDist    : null,
+      };
+
+      const shouldShow = geo && (isOpen || showClosedIncidents);
+
+      if (incidentMarkers[key]) {
+        const m = incidentMarkers[key];
+        m._isOpen = isOpen;
+        m._sheetId = sheet.id;
+        if (geo) {
+          m.setLatLng([lat, lon]);
+          if (shouldShow) {
+            if (!map.hasLayer(m)) m.addTo(map);
+          } else {
+            if (map.hasLayer(m)) map.removeLayer(m);
+          }
+        } else {
+          if (map.hasLayer(m)) map.removeLayer(m);
+        }
+        m.setIcon(buildDivIcon(isOpen, sheet.icon.fa, sheet.color));
+        m.setPopupContent(popupHtml(incident, sheet));
+      } else if (geo) {
+        const marker = L.marker([lat, lon], {
+          icon: buildDivIcon(isOpen, sheet.icon.fa, sheet.color)
+        }).bindPopup(popupHtml(incident, sheet));
+        marker._isOpen = isOpen;
+        marker._sheetId = sheet.id;
+        if (shouldShow) {
+          marker.addTo(map);
+        }
+        incidentMarkers[key] = marker;
+      }
+    }
+
+    return {
+      open: sheetOpen,
+      closed: sheetClosed,
+      unmatched: sheetUnmatched,
+      count: dataRows.length
+    };
+  }
+
+  async function fetchAndPlotSheet(sheetId) {
+    const sheet = sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    try {
+      setStatus(`Refreshing "${sheet.name}"…`);
+      const rows = await fetchSheetRows(sheet);
+      const sheetKeys = new Set();
+      const stats = await plotSheetRows(sheet, rows, sheetKeys);
+
+      // Clean up removed rows for this specific sheet
+      Object.keys(incidentMarkers).forEach(k => {
+        if (incidentMarkers[k]._sheetId === sheet.id && !sheetKeys.has(k)) {
+          map.removeLayer(incidentMarkers[k]);
+          delete incidentMarkers[k];
+        }
+      });
+
+      const now = new Date().toLocaleTimeString();
+      const unmatchedNote = stats.unmatched > 0 ? `, ${stats.unmatched} unmatched` : '';
+      setStatus(
+        `Refreshed "${sheet.name}" at ${now} — ${stats.count} incident(s): ` +
+        `${stats.open} open, ${stats.closed} closed${unmatchedNote}`
+      );
+    } catch (err) {
+      setStatus(`Error refreshing "${sheet.name}": ${err.message}`);
+      console.error(`Error refreshing "${sheet.name}":`, err);
+    }
+  }
+
   async function fetchAndPlot() {
-    const validSheets = sheets.filter(s => s.csvUrl);
+    const validSheets = sheets.filter(s => s.rawUrl || s.csvUrl);
     if (validSheets.length === 0) return;
 
     try {
@@ -2008,99 +2414,12 @@ const ALL_FA_ICONS = [
 
       for (const sheet of validSheets) {
         try {
-          const resp = await fetch(sheet.csvUrl, { cache: 'no-store' });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const text = await resp.text();
-          const rows = parseCsv(text);
-
-          if (rows.length > 0 && (!sheet.headers || sheet.headers.length !== rows[0].length)) {
-            sheet.headers = cleanHeaders(rows[0]);
-          }
-
-          const addrCol   = sheet.columnMapping.address ?? 0;
-          const statusCol = sheet.columnMapping.status;
-          const labelCol  = sheet.columnMapping.label;
-
-          const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
-          let sheetOpen = 0;
-          let sheetClosed = 0;
-          let sheetUnmatched = 0;
-
-          for (let idx = 0; idx < dataRows.length; idx++) {
-            const row = dataRows[idx];
-            const key = `${sheet.id}__${idx}`;
-            currentKeys.add(key);
-
-            const address   = (row[addrCol] || '').trim();
-            const statusRaw = (statusCol !== null && statusCol >= 0 && row[statusCol]) ? row[statusCol].toLowerCase().trim() : '';
-            const label     = (labelCol !== null && labelCol >= 0 && row[labelCol]) ? row[labelCol].trim() : '';
-            const isOpen    = (statusCol !== null && statusCol >= 0) ? statusRaw !== 'closed' : true;
-            if (isOpen) {
-              sheetOpen++;
-            } else {
-              sheetClosed++;
-            }
-
-            let geo = geocode(address);
-            if (!geo) {
-              geo = await googleGeocode(address);
-            }
-
-            const lat = geo ? geo.lat : null;
-            const lon = geo ? geo.lon : null;
-            if (!geo) {
-              sheetUnmatched++;
-              console.warn(`[${sheet.name}] Could not plot address: "${address}"`);
-            }
-
-            const incident = {
-              index: idx,
-              address,
-              label,
-              isOpen,
-              lat,
-              lon,
-              canonical:  geo ? geo.canonical  : null,
-              matchType:  geo ? geo.matchType  : null,
-              fuzzyStreet: geo ? geo.fuzzyStreet : null,
-              editDist:   geo ? geo.editDist   : null,
-            };
-
-            const shouldShow = geo && (isOpen || showClosedIncidents);
-
-            if (incidentMarkers[key]) {
-              const m = incidentMarkers[key];
-              m._isOpen = isOpen;
-              m._sheetId = sheet.id;
-              if (geo) {
-                m.setLatLng([lat, lon]);
-                if (shouldShow) {
-                  if (!map.hasLayer(m)) m.addTo(map);
-                } else {
-                  if (map.hasLayer(m)) map.removeLayer(m);
-                }
-              } else {
-                if (map.hasLayer(m)) map.removeLayer(m);
-              }
-              m.setIcon(buildDivIcon(isOpen, sheet.icon.fa, sheet.color));
-              m.setPopupContent(popupHtml(incident, sheet));
-            } else if (geo) {
-              const marker = L.marker([lat, lon], {
-                icon: buildDivIcon(isOpen, sheet.icon.fa, sheet.color)
-              }).bindPopup(popupHtml(incident, sheet));
-              marker._isOpen = isOpen;
-              marker._sheetId = sheet.id;
-              if (shouldShow) {
-                marker.addTo(map);
-              }
-              incidentMarkers[key] = marker;
-            }
-          }
-
-          totalOpen += sheetOpen;
-          totalClosed += sheetClosed;
-          totalUnmatched += sheetUnmatched;
-          totalIncidents += dataRows.length;
+          const rows = await fetchSheetRows(sheet);
+          const stats = await plotSheetRows(sheet, rows, currentKeys);
+          totalOpen += stats.open;
+          totalClosed += stats.closed;
+          totalUnmatched += stats.unmatched;
+          totalIncidents += stats.count;
         } catch (sheetErr) {
           console.error(`Error fetching sheet "${sheet.name}":`, sheetErr);
         }
@@ -2136,7 +2455,20 @@ const ALL_FA_ICONS = [
     clearMarkers();
     fetchAndPlot();
     if (pollTimer !== null) clearInterval(pollTimer);
-    pollTimer = setInterval(fetchAndPlot, POLL_INTERVAL_MS);
+    if (pollIntervalMs > 0) {
+      pollTimer = setInterval(fetchAndPlot, pollIntervalMs);
+    }
+  }
+
+  function updatePollInterval(ms) {
+    pollIntervalMs = ms;
+    if (pollTimer !== null) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+    if (pollIntervalMs > 0 && hasLoadedMap) {
+      pollTimer = setInterval(fetchAndPlot, pollIntervalMs);
+    }
   }
 
   // ── Color & Icon Picker Builders ─────────────────────────────────────────────
@@ -2430,9 +2762,14 @@ const ALL_FA_ICONS = [
           </span>
           <input type="text" class="text-input sheet-name-input" value="${escHtml(sheet.name)}" placeholder="Sheet name" />
         </div>
-        <button type="button" class="btn-remove-sheet ${sheets.length <= 1 ? 'hidden' : ''}">
-          <i class="fa-solid fa-trash"></i> Remove
-        </button>
+        <div class="sheet-card-actions">
+          <button type="button" class="btn-refresh-sheet" title="Refresh this sheet now">
+            <i class="fa-solid fa-rotate"></i> Refresh
+          </button>
+          <button type="button" class="btn-remove-sheet ${sheets.length <= 1 ? 'hidden' : ''}">
+            <i class="fa-solid fa-trash"></i> Remove
+          </button>
+        </div>
       </div>
 
       <label class="field-label">Google Sheet URL</label>
@@ -2478,12 +2815,23 @@ const ALL_FA_ICONS = [
     const badgePreview   = card.querySelector('.sheet-badge-preview');
     const nameInput      = card.querySelector('.sheet-name-input');
     const urlInput       = card.querySelector('.sheet-url-input');
+    const refreshBtn     = card.querySelector('.btn-refresh-sheet');
     const removeBtn      = card.querySelector('.btn-remove-sheet');
     const addrSelect     = card.querySelector('.col-address-select');
     const statusSelect   = card.querySelector('.col-status-select');
     const labelSelect    = card.querySelector('.col-label-select');
     const iconContainer  = card.querySelector('.sheet-icon-picker-container');
     const colorContainer = card.querySelector('.sheet-color-picker-container');
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async function () {
+        refreshBtn.disabled = true;
+        refreshBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing…';
+        await fetchAndPlotSheet(sheet.id);
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Refresh';
+      });
+    }
 
     function updateBadgePreview() {
       badgePreview.style.backgroundColor = sheet.color;
@@ -3240,6 +3588,78 @@ const ALL_FA_ICONS = [
       closeIconsModal();
     }
   });
+
+  // ── Toolbar & OAuth Event Handlers ────────────────────────────
+
+  const btnRefreshAll = document.getElementById('btn-refresh-all');
+  if (btnRefreshAll) {
+    btnRefreshAll.addEventListener('click', async function () {
+      btnRefreshAll.disabled = true;
+      btnRefreshAll.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing…';
+      await fetchAndPlot();
+      btnRefreshAll.disabled = false;
+      btnRefreshAll.innerHTML = '<i class="fa-solid fa-rotate"></i> Refresh All';
+    });
+  }
+
+  const selectRefreshInterval = document.getElementById('select-refresh-interval');
+  if (selectRefreshInterval) {
+    selectRefreshInterval.addEventListener('change', function () {
+      const ms = parseInt(selectRefreshInterval.value, 10) || 0;
+      updatePollInterval(ms);
+    });
+  }
+
+  const googleClientIdInput = document.getElementById('google-client-id');
+  if (googleClientIdInput) {
+    googleClientIdInput.addEventListener('change', function () {
+      googleClientId = googleClientIdInput.value.trim();
+      try {
+        if (googleClientId) {
+          localStorage.setItem('pmc_google_client_id', googleClientId);
+        } else {
+          localStorage.removeItem('pmc_google_client_id');
+        }
+      } catch (_) {
+        // Ignore storage error
+      }
+      updateOAuthUI();
+    });
+  }
+
+  const btnOAuthAuth = document.getElementById('btn-oauth-auth');
+  if (btnOAuthAuth) {
+    btnOAuthAuth.addEventListener('click', function () {
+      if (isGoogleAuthenticated()) {
+        signOutGoogle();
+      } else {
+        googleClientId = (googleClientIdInput ? googleClientIdInput.value.trim() : '') || googleClientId;
+        try {
+          if (googleClientId) localStorage.setItem('pmc_google_client_id', googleClientId);
+        } catch (_) {
+          // Ignore storage error
+        }
+        requestGoogleSignIn(function () {
+          if (hasLoadedMap) fetchAndPlot();
+        });
+      }
+    });
+  }
+
+  const btnGoogleAuthStatus = document.getElementById('btn-google-auth-status');
+  if (btnGoogleAuthStatus) {
+    btnGoogleAuthStatus.addEventListener('click', function () {
+      if (isGoogleAuthenticated()) {
+        signOutGoogle();
+      } else {
+        requestGoogleSignIn(function () {
+          if (hasLoadedMap) fetchAndPlot();
+        });
+      }
+    });
+  }
+
+  loadSavedOAuthConfig();
 
 })();
 </script>
