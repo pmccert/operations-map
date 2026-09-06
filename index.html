@@ -880,22 +880,15 @@
       its own icon, color, and column mapping.
     </p>
 
-    <!-- Google OAuth 2.0 Client Configuration -->
+    <!-- Google OAuth 2.0 sign-in -->
     <div class="oauth-config-box">
       <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
-        <label class="field-label" for="google-client-id" style="margin-bottom: 0;">
+        <label class="field-label" style="margin-bottom: 0;">
           <i class="fa-brands fa-google"></i> Google OAuth Client ID
-          <span style="font-weight:normal;color:#777"> (Optional — for private sheet access)</span>
+          <span style="font-weight:normal;color:#777"> (for private sheet access)</span>
         </label>
         <button type="button" id="btn-oauth-auth" class="btn-link" style="font-size: 0.8rem; white-space: nowrap;">Sign in with Google</button>
       </div>
-      <input
-        id="google-client-id"
-        class="text-input"
-        type="text"
-        placeholder="e.g. 1234567890-abcdef.apps.googleusercontent.com"
-        autocomplete="off"
-      />
       <div id="oauth-status-text" style="font-size: 0.78rem; color: #666; margin-top: 4px;">Not signed in (using public CSV export).</div>
     </div>
 
@@ -1497,17 +1490,11 @@ const ALL_FA_ICONS = [
   let pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
   let googleAccessToken = null;
   let googleTokenExpiry = 0;
-  let googleClientId = '';
+  const GOOGLE_OAUTH_CLIENT_ID = '737731486205-pnrigt0btu2aeqam7ulqghl37apbph3l.apps.googleusercontent.com';
   let tokenClient = null;
 
   function loadSavedOAuthConfig() {
     try {
-      const savedId = localStorage.getItem('pmc_google_client_id');
-      if (savedId) {
-        googleClientId = savedId;
-        const input = document.getElementById('google-client-id');
-        if (input) input.value = savedId;
-      }
       const savedToken = localStorage.getItem('pmc_google_access_token');
       const savedExp = localStorage.getItem('pmc_google_token_expiry');
       if (savedToken && savedExp) {
@@ -1543,11 +1530,7 @@ const ALL_FA_ICONS = [
       if (toolbarBtn) toolbarBtn.title = 'Google Account: Signed In (Click to Sign Out)';
     } else {
       if (statusText) {
-        if (googleClientId) {
-          statusText.textContent = 'Client ID configured. Not signed in (using public CSV export).';
-        } else {
-          statusText.textContent = 'Not signed in (using public CSV export).';
-        }
+        statusText.textContent = 'Not signed in (using public CSV export).';
         statusText.style.color = '#666';
       }
       if (authBtn) authBtn.textContent = 'Sign in with Google';
@@ -1561,12 +1544,12 @@ const ALL_FA_ICONS = [
   }
 
   function initTokenClient(callback) {
-    if (!googleClientId || typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+    if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
       return null;
     }
     try {
       tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: googleClientId,
+        client_id: GOOGLE_OAUTH_CLIENT_ID,
         scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
         callback: (resp) => {
           if (resp.error) {
@@ -1594,12 +1577,6 @@ const ALL_FA_ICONS = [
   }
 
   function requestGoogleSignIn(callback) {
-    if (!googleClientId) {
-      openSheetModal();
-      const input = document.getElementById('google-client-id');
-      if (input) input.focus();
-      return;
-    }
     const client = initTokenClient(callback);
     if (client) {
       client.requestAccessToken({ prompt: '' });
@@ -3610,35 +3587,12 @@ const ALL_FA_ICONS = [
     });
   }
 
-  const googleClientIdInput = document.getElementById('google-client-id');
-  if (googleClientIdInput) {
-    googleClientIdInput.addEventListener('change', function () {
-      googleClientId = googleClientIdInput.value.trim();
-      try {
-        if (googleClientId) {
-          localStorage.setItem('pmc_google_client_id', googleClientId);
-        } else {
-          localStorage.removeItem('pmc_google_client_id');
-        }
-      } catch (_) {
-        // Ignore storage error
-      }
-      updateOAuthUI();
-    });
-  }
-
   const btnOAuthAuth = document.getElementById('btn-oauth-auth');
   if (btnOAuthAuth) {
     btnOAuthAuth.addEventListener('click', function () {
       if (isGoogleAuthenticated()) {
         signOutGoogle();
       } else {
-        googleClientId = (googleClientIdInput ? googleClientIdInput.value.trim() : '') || googleClientId;
-        try {
-          if (googleClientId) localStorage.setItem('pmc_google_client_id', googleClientId);
-        } catch (_) {
-          // Ignore storage error
-        }
         requestGoogleSignIn(function () {
           if (hasLoadedMap) fetchAndPlot();
         });

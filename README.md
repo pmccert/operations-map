@@ -20,6 +20,8 @@ publicly accessible Google Sheet.
   abbreviations (`Dr` → `Drive`, `Ave` → `Avenue`, etc.) in the incident address
   are tolerated. If an address cannot be found in `addresses.json`, the app falls
   back to the Google Maps Geocoding API (if configured). Results are cached locally.
+* **Private Google Sheet access** — sign in with Google from the setup dialog or
+  toolbar to read sheets that are not publicly shared.
 * **Auto-refresh every 30 seconds** — all configured sheets are polled and re-read;
   markers are added, updated, or removed to match the current sheet contents.
 * **Every row is a distinct incident** — each data row is plotted as its own marker.
@@ -57,9 +59,10 @@ Then host `addresses.json` somewhere accessible to your browser — alongside
 
 ### 2. Prepare the Google Sheet
 
-The sheet must be **publicly readable** (File → Share → Anyone with the link →
-Viewer). By default, columns are detected from the first row header, or you can
-map any columns in the setup dialog or via the toolbar:
+The sheet can be publicly readable (the default CSV export path) or private. For
+private sheets, sign in with Google from the setup dialog or toolbar first.
+Columns are detected from the first row header, or you can map any columns in the
+setup dialog or via the toolbar:
 
 | Column (Address)                | Column (Status)   | Column (Label - optional)      |
 |---------------------------------|-------------------|--------------------------------|
@@ -94,5 +97,4 @@ To automatically resolve addresses missing from `addresses.json`:
 1. Obtain a Google Maps JavaScript / Geocoding API key in Google Cloud Console.
 2. Add it as a GitHub Actions repository secret named `GOOGLE_GEOCODING_API_KEY` (Repository Settings → Secrets and variables → Actions).
 3. The GitHub Actions deployment workflow will inject the API key during the build step when deploying to GitHub Pages.
-
 
