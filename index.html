@@ -2414,6 +2414,28 @@ const ALL_FA_ICONS = [
     return { number, street };
   }
 
+  function parseCoordinatePair(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.trim().match(
+      /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))$/
+    );
+    if (!match) return null;
+
+    const lat = Number(match[1]);
+    const lon = Number(match[2]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) ||
+        lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return null;
+    }
+
+    return {
+      lat,
+      lon,
+      canonical: `${lat}, ${lon}`,
+      matchType: 'coordinate'
+    };
+  }
+
   function geocode(address) {
     if (!geocoderIndex) return null;
 
@@ -2737,6 +2759,10 @@ const ALL_FA_ICONS = [
       locationLine =
         `<span title="Fuzzy match (edit distance ${incident.editDist})">` +
         `${escHtml(incident.canonical)} <em style="color:#888;font-size:0.8em">(fuzzy)</em></span>`;
+    } else if (incident.matchType === 'coordinate') {
+      locationLine =
+        `<span title="Plotted directly from the latitude/longitude pair">` +
+        `${escHtml(incident.canonical)} <em style="color:#2980b9;font-size:0.8em">(coordinates)</em></span>`;
     } else if (incident.matchType === 'google') {
       locationLine =
         `<span title="Resolved via Google Geocoding fallback">` +
@@ -2823,7 +2849,10 @@ const ALL_FA_ICONS = [
         sheetClosed++;
       }
 
-      let geo = geocode(address);
+      let geo = parseCoordinatePair(address);
+      if (!geo) {
+        geo = geocode(address);
+      }
       if (!geo) {
         geo = await googleGeocode(address);
       }
