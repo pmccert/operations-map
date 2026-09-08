@@ -1142,6 +1142,28 @@
   const PMC_LNG = -119.155;
   const DEFAULT_POLL_INTERVAL_MS = 30000;
   const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';
+  const APP_STATE_KEY = 'pmc_cert_map_state';
+
+  function readAppState() {
+    try {
+      const raw = localStorage.getItem(APP_STATE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeAppState(state) {
+    try {
+      localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
+    } catch (_) {
+      // Storage may be unavailable or full.
+    }
+  }
+
+  const savedAppState = readAppState();
+  let savedGeocoderUrl = '';
+  let savedGeocoderOverridden = false;
 
   // Available incident icons: { fa: FA classes, label }
   const ICON_OPTIONS = [
@@ -1474,6 +1496,17 @@ const ALL_FA_ICONS = [
 
   baseLayers['OpenStreetMap'].addTo(map);
   L.control.layers(baseLayers, null, { position: 'topright', collapsed: false }).addTo(map);
+  if (savedAppState && typeof savedAppState.baseLayer === 'string' && baseLayers[savedAppState.baseLayer]) {
+    map.removeLayer(baseLayers['OpenStreetMap']);
+    currentBaseLayer = baseLayers[savedAppState.baseLayer];
+    currentBaseLayer.addTo(map);
+  }
+  if (savedAppState && savedAppState.mapView &&
+      Number.isFinite(savedAppState.mapView.lat) &&
+      Number.isFinite(savedAppState.mapView.lng) &&
+      Number.isFinite(savedAppState.mapView.zoom)) {
+    map.setView([savedAppState.mapView.lat, savedAppState.mapView.lng], savedAppState.mapView.zoom);
+  }
   map.attributionControl.addAttribution(
     '<a href="#" id="pmc-cert-attribution-link" title="View PMC CERT map credits">PMC CERT</a>'
   );
@@ -1523,12 +1556,16 @@ const ALL_FA_ICONS = [
 
   map.on('baselayerchange', function (e) {
     currentBaseLayer = e.layer;
+    persistAppState();
     checkZoomAvailability();
   });
 
   map.on('zoomend', function () {
+    persistAppState();
     checkZoomAvailability();
   });
+
+  map.on('moveend', persistAppState);
 
   checkZoomAvailability();
 
@@ -1536,10 +1573,14 @@ const ALL_FA_ICONS = [
 
   let pollTimer = null;
   let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
-  let showClosedIncidents = true;
+  let showClosedIncidents = savedAppState && typeof savedAppState.showClosedIncidents === 'boolean'
+    ? savedAppState.showClosedIncidents
+    : true;
   let hasLoadedMap = false;
 
-  let pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
+  let pollIntervalMs = savedAppState && Number.isFinite(savedAppState.pollIntervalMs)
+    ? savedAppState.pollIntervalMs
+    : DEFAULT_POLL_INTERVAL_MS;
   let googleAccessToken = null;
   let googleTokenExpiry = 0;
   const GOOGLE_OAUTH_CLIENT_ID = '737731486205-pnrigt0btu2aeqam7ulqghl37apbph3l.apps.googleusercontent.com';
@@ -1680,6 +1721,57 @@ const ALL_FA_ICONS = [
   }
 
   let sheets = [createSheet('Sheet 1')];
+
+  if (savedAppState && Array.isArray(savedAppState.sheets) && savedAppState.sheets.length > 0) {
+    const restoredSheets = savedAppState.sheets.map((savedSheet, index) => {
+      const restored = createSheet(savedSheet.name || `Sheet ${index + 1}`, savedSheet.rawUrl || '');
+      if (typeof savedSheet.id === 'string' && savedSheet.id) restored.id = savedSheet.id;
+      if (savedSheet.columnMapping && typeof savedSheet.columnMapping === 'object') {
+        restored.columnMapping = {
+          address: Number.isInteger(savedSheet.columnMapping.address) ? savedSheet.columnMapping.address : 0,
+          status: Number.isInteger(savedSheet.columnMapping.status) ? savedSheet.columnMapping.status : null,
+          label: Number.isInteger(savedSheet.columnMapping.label) ? savedSheet.columnMapping.label : null
+        };
+      }
+      if (savedSheet.headers && Array.isArray(savedSheet.headers)) restored.headers = savedSheet.headers;
+      if (savedSheet.icon && typeof savedSheet.icon.fa === 'string') {
+        restored.icon = { fa: savedSheet.icon.fa, label: savedSheet.icon.label || formatIconLabel(savedSheet.icon.fa) };
+      }
+      if (typeof savedSheet.color === 'string' && normalizeHexColor(savedSheet.color)) restored.color = savedSheet.color;
+      restored.csvUrl = toCsvUrl(restored.rawUrl);
+      return restored;
+    });
+    sheets = restoredSheets;
+    const maxSavedId = restoredSheets.reduce((max, sheet) => {
+      const match = sheet.id.match(/^sheet_(\d+)$/);
+      return match ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
+    sheetIdCounter = Math.max(sheetIdCounter, maxSavedId + 1);
+  }
+
+  function persistAppState() {
+    writeAppState({
+      sheets: sheets.map(sheet => ({
+        id: sheet.id,
+        name: sheet.name,
+        rawUrl: sheet.rawUrl,
+        columnMapping: sheet.columnMapping,
+        headers: sheet.headers,
+        icon: sheet.icon,
+        color: sheet.color
+      })),
+      baseLayer: Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap',
+      showClosedIncidents,
+      pollIntervalMs,
+      geocoderUrl: savedGeocoderUrl,
+      geocoderOverridden: savedGeocoderOverridden,
+      mapView: {
+        lat: map.getCenter().lat,
+        lng: map.getCenter().lng,
+        zoom: map.getZoom()
+      }
+    });
+  }
 
   // Geocoder index (populated from addresses.json)
   let geocoderIndex = null;
@@ -2347,6 +2439,7 @@ const ALL_FA_ICONS = [
   document.addEventListener('change', function (e) {
     if (e.target && e.target.id === 'toggle-closed-incidents') {
       showClosedIncidents = e.target.checked;
+      persistAppState();
       updateClosedMarkersVisibility();
     }
   });
@@ -3034,6 +3127,7 @@ const ALL_FA_ICONS = [
 
   btnOverrideGeocoder.addEventListener('click', function () {
     isOverridden = true;
+    savedGeocoderOverridden = true;
     geocoderLocalNotice.classList.add('hidden');
     geocoderFieldGroup.classList.remove('hidden');
     btnUseLocalGeocoder.classList.remove('hidden');
@@ -3042,6 +3136,8 @@ const ALL_FA_ICONS = [
 
   btnUseLocalGeocoder.addEventListener('click', function () {
     isOverridden = false;
+    savedGeocoderOverridden = false;
+    savedGeocoderUrl = '';
     geocoderInput.value = '';
     geocoderFieldGroup.classList.add('hidden');
     geocoderLocalNotice.classList.remove('hidden');
@@ -3088,6 +3184,8 @@ const ALL_FA_ICONS = [
     }
 
     const customGeocoderUrl = geocoderInput.value.trim();
+    savedGeocoderUrl = customGeocoderUrl;
+    savedGeocoderOverridden = isOverridden;
     let geocoderUrl = customGeocoderUrl;
     if (!geocoderUrl) {
       if (hasLocalAddresses) {
@@ -3125,6 +3223,7 @@ const ALL_FA_ICONS = [
     submitBtn.disabled = false;
     hasLoadedMap = true;
     savedSheetsSnapshot = JSON.parse(JSON.stringify(sheets));
+    persistAppState();
     submitBtn.textContent = 'Save & Load Map';
     sheetCancelBtn.classList.remove('hidden');
     if (sheetCloseBtn) sheetCloseBtn.classList.remove('hidden');
@@ -3170,7 +3269,29 @@ const ALL_FA_ICONS = [
   });
 
   renderSheetsModal();
-  checkLocalAddresses();
+  if (savedAppState && savedAppState.geocoderOverridden && typeof savedAppState.geocoderUrl === 'string') {
+    isOverridden = true;
+    savedGeocoderOverridden = true;
+    savedGeocoderUrl = savedAppState.geocoderUrl;
+    geocoderInput.value = savedAppState.geocoderUrl;
+    geocoderLocalNotice.classList.add('hidden');
+    geocoderFieldGroup.classList.remove('hidden');
+    btnUseLocalGeocoder.classList.remove('hidden');
+  }
+  const savedRefreshSelect = document.getElementById('select-refresh-interval');
+  if (savedRefreshSelect) {
+    savedRefreshSelect.value = String(pollIntervalMs);
+    if (savedRefreshSelect.value !== String(pollIntervalMs)) {
+      savedRefreshSelect.value = String(DEFAULT_POLL_INTERVAL_MS);
+      pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
+    }
+  }
+  loadSavedOAuthConfig();
+  checkLocalAddresses().then(function () {
+    if (savedAppState && sheets.some(sheet => sheet.rawUrl)) {
+      handleSubmit();
+    }
+  });
 
   // ── Column-only change modal ───────────────────────────────────
 
@@ -3263,6 +3384,7 @@ const ALL_FA_ICONS = [
       sheet.columnMapping.label   = lblVal >= 0 ? lblVal : null;
     }
 
+    persistAppState();
     closeColumnsModal();
     renderSheetsModal();
     clearMarkers();
@@ -3316,6 +3438,7 @@ const ALL_FA_ICONS = [
 
       function handleModalIconSelect(newIcon) {
         sheet.icon = newIcon;
+        persistAppState();
         updateModalBadge();
         refreshIcons();
         buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
@@ -3323,6 +3446,7 @@ const ALL_FA_ICONS = [
 
       function handleModalColorSelect(newColor) {
         sheet.color = newColor;
+        persistAppState();
         updateModalBadge();
         refreshIcons();
         buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
@@ -3684,6 +3808,7 @@ const ALL_FA_ICONS = [
     selectRefreshInterval.addEventListener('change', function () {
       const ms = parseInt(selectRefreshInterval.value, 10) || 0;
       updatePollInterval(ms);
+      persistAppState();
     });
   }
 
