@@ -744,6 +744,7 @@
       gap: 5px;
     }
     .toolbar-btn:hover { background: #e8f0fe; }
+    .toolbar-file-input { display: none; }
     .toolbar-select {
       background: rgba(255,255,255,0.92);
       border: 1px solid #aaa;
@@ -1170,6 +1171,9 @@
   <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-palette"></i> Change Icons &amp; Colors</button>
   <button class="toolbar-btn" id="btn-custom-features"><i class="fa-solid fa-draw-polygon"></i> Custom Features</button>
   <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
+  <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
+  <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
+  <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
   <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
     <option value="0">Auto-refresh: Off</option>
     <option value="15000">Auto-refresh: 15s</option>
@@ -1907,6 +1911,115 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /* eslint-disable no-use-before-define */
+  function downloadTextFile(filename, text) {
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function mapSnapshot() {
+    return {
+      format: 'pmc-cert-map',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      pollIntervalMs,
+      geocoder: {
+        url: geocoderInput.value.trim(),
+        useLocalFile: !isOverridden
+      },
+      sheets: sheets.map(sheet => ({
+        id: sheet.id,
+        name: sheet.name,
+        rawUrl: sheet.rawUrl,
+        csvUrl: sheet.csvUrl,
+        columnMapping: sheet.columnMapping,
+        headers: sheet.headers,
+        icon: sheet.icon,
+        color: sheet.color,
+        rows: Array.isArray(sheet.lastRows) ? sheet.lastRows : []
+      }))
+    };
+  }
+
+  function exportMapSnapshot() {
+    downloadTextFile(
+      `pmc-cert-map-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(mapSnapshot(), null, 2)
+    );
+    setStatus('Map configuration and loaded data saved to a file.');
+  }
+
+  function validateImportedSheet(value, index) {
+    if (!value || typeof value !== 'object' || typeof value.name !== 'string' ||
+        typeof value.rawUrl !== 'string' || !value.columnMapping ||
+        !Array.isArray(value.rows)) {
+      throw new Error(`Invalid sheet data at position ${index + 1}.`);
+    }
+    const columnMapping = {
+      address: Number.isInteger(value.columnMapping.address) ? value.columnMapping.address : 0,
+      status: value.columnMapping.status === null ? null : Number.isInteger(value.columnMapping.status) ? value.columnMapping.status : 1,
+      label: value.columnMapping.label === null ? null : Number.isInteger(value.columnMapping.label) ? value.columnMapping.label : 2
+    };
+    if (columnMapping.address < 0 || value.rows.some(row => !Array.isArray(row))) {
+      throw new Error(`Invalid row or address column in sheet ${index + 1}.`);
+    }
+    return {
+      id: typeof value.id === 'string' && value.id ? value.id : `sheet_${index + 1}`,
+      name: value.name,
+      rawUrl: value.rawUrl,
+      csvUrl: typeof value.csvUrl === 'string' ? value.csvUrl : toCsvUrl(value.rawUrl),
+      columnMapping,
+      headers: Array.isArray(value.headers) ? value.headers : null,
+      icon: value.icon && typeof value.icon.fa === 'string' ? value.icon : ICON_OPTIONS[0],
+      color: typeof value.color === 'string' ? value.color : COLOR_PALETTE[index % COLOR_PALETTE.length],
+      importedRows: value.rows,
+      lastRows: value.rows
+    };
+  }
+
+  async function importMapSnapshot(file) {
+    const parsed = JSON.parse(await file.text());
+    if (!parsed || parsed.format !== 'pmc-cert-map' || parsed.version !== 1 ||
+        !Array.isArray(parsed.sheets) || parsed.sheets.length === 0) {
+      throw new Error('This is not a valid PMC CERT map file.');
+    }
+
+    const importedSheets = parsed.sheets.map(validateImportedSheet);
+    sheets = importedSheets;
+    const numericIds = importedSheets
+      .map(sheet => Number.parseInt(sheet.id.replace(/^sheet_/, ''), 10))
+      .filter(Number.isInteger);
+    sheetIdCounter = Math.max(0, ...numericIds) + 1;
+
+    pollIntervalMs = Number.isInteger(parsed.pollIntervalMs) && parsed.pollIntervalMs >= 0
+      ? parsed.pollIntervalMs
+      : DEFAULT_POLL_INTERVAL_MS;
+    selectRefreshInterval.value = String(pollIntervalMs);
+    if (parsed.geocoder && typeof parsed.geocoder.url === 'string') {
+      isOverridden = parsed.geocoder.useLocalFile !== true;
+      geocoderInput.value = isOverridden ? parsed.geocoder.url : '';
+    } else {
+      isOverridden = false;
+      geocoderInput.value = '';
+    }
+    geocoderIndex = null;
+    hasLoadedMap = false;
+    renderSheetsModal();
+    await checkLocalAddresses();
+    await handleSubmit();
+    if (!errorMsgEl.textContent) {
+      setStatus('Map file loaded. Live refresh will continue when sheet access is available.');
+    }
+  }
+  /* eslint-enable no-use-before-define */
+
   map.on('contextmenu', function (e) {
     const coordinates = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
     const popup = L.popup()
@@ -2093,6 +2206,12 @@ const ALL_FA_ICONS = [
   }
 
   async function fetchSheetRows(sheet) {
+    if (Array.isArray(sheet.importedRows)) {
+      const rows = sheet.importedRows;
+      delete sheet.importedRows;
+      return rows;
+    }
+
     const details = parseGoogleSheetDetails(sheet.rawUrl);
     if (details && isGoogleAuthenticated()) {
       try {
@@ -2774,6 +2893,7 @@ const ALL_FA_ICONS = [
     try {
       setStatus(`Refreshing "${sheet.name}"…`);
       const rows = await fetchSheetRows(sheet);
+      sheet.lastRows = rows;
       const sheetKeys = new Set();
       const stats = await plotSheetRows(sheet, rows, sheetKeys);
 
@@ -2812,6 +2932,7 @@ const ALL_FA_ICONS = [
       for (const sheet of validSheets) {
         try {
           const rows = await fetchSheetRows(sheet);
+          sheet.lastRows = rows;
           const stats = await plotSheetRows(sheet, rows, currentKeys);
           totalOpen += stats.open;
           totalClosed += stats.closed;
@@ -4141,6 +4262,30 @@ const ALL_FA_ICONS = [
       await fetchAndPlot();
       btnRefreshAll.disabled = false;
       btnRefreshAll.innerHTML = '<i class="fa-solid fa-rotate"></i> Refresh All';
+    });
+  }
+
+  const btnExportMap = document.getElementById('btn-export-map');
+  if (btnExportMap) {
+    btnExportMap.addEventListener('click', exportMapSnapshot);
+  }
+
+  const btnImportMap = document.getElementById('btn-import-map');
+  const mapFileInput = document.getElementById('map-file-input');
+  if (btnImportMap && mapFileInput) {
+    btnImportMap.addEventListener('click', function () {
+      mapFileInput.click();
+    });
+    mapFileInput.addEventListener('change', async function () {
+      const [file] = mapFileInput.files || [];
+      mapFileInput.value = '';
+      if (!file) return;
+      try {
+        await importMapSnapshot(file);
+      } catch (err) {
+        showError(`Could not load map file: ${err.message}`);
+        sheetModal.classList.remove('hidden');
+      }
     });
   }
 

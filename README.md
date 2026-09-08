@@ -22,6 +22,10 @@ publicly accessible Google Sheet.
   back to the Google Maps Geocoding API (if configured). Results are cached locally.
 * **Private Google Sheet access** — sign in with Google from the setup dialog or
   toolbar to read sheets that are not publicly shared.
+* **Portable map files** — save the current sheet configuration and loaded incident
+  rows to a JSON file, then load it in another browser. OAuth access tokens and
+  other login credentials are never included; private sheets still require
+  signing in separately.
 * **Auto-refresh every 30 seconds** — all configured sheets are polled and re-read;
   markers are added, updated, or removed to match the current sheet contents.
 * **Every row is a distinct incident** — each data row is plotted as its own marker.
@@ -80,23 +84,26 @@ setup dialog or via the toolbar:
 
 ### 3. Load the map
 
-1.  Open `index.html` in a browser.
-2.  Paste your **Google Sheet URL** for Sheet 1 (and optionally click **+ Add Another Sheet** to add more sheets).
-    The app auto-detects sheet columns and selects matching Address, Status, and Label columns for each sheet.
-3.  Choose an incident icon and color for each sheet.
-4.  If `addresses.json` is available locally alongside `index.html`, it is
-    automatically detected and used (with an option to override if needed);
-    otherwise, enter your **addresses.json URL**.
-5.  Click **Load Map**.
-6.  Incidents from all sheets are plotted immediately and refresh every 30
-    seconds. Unmatched addresses appear in the status bar count and show an
-    error note in their popup.
-7.  Click any marker to see its details (sheet name, label, status, resolved address).
+1. Open `index.html` in a browser.
+2. Paste your **Google Sheet URL** for Sheet 1 (and optionally click **+ Add Another Sheet** to add more sheets).
+   The app auto-detects sheet columns and selects matching Address, Status, and Label columns for each sheet.
+3. Choose an incident icon and color for each sheet.
+4. If `addresses.json` is available locally alongside `index.html`, it is
+   automatically detected and used (with an option to override if needed);
+   otherwise, enter your **addresses.json URL**.
+5. Click **Load Map**.
+6. Incidents from all sheets are plotted immediately and refresh every 30
+   seconds. Unmatched addresses appear in the status bar count and show an
+   error note in their popup.
+7. Click any marker to see its details (sheet name, label, status, resolved address).
 8.  Use **Custom Features** to draw and manage custom map geometries. Click to place
     points or vertices, then double-click to finish lines and polygons.
 9.  Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
 10. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
     toolbar at any time.
+11. Use **Save Map File** to export the current configuration and loaded data. Use
+    **Load Map File** in another browser to restore it; the imported snapshot is
+    displayed first and then normal sheet refresh resumes.
 
 ### 4. (Optional) Configure Google Geocoding Fallback
 
