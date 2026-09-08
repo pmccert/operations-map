@@ -775,7 +775,24 @@
       border-radius: 50%;
       flex-shrink: 0;
     }
-    .custom-feature-item span {
+    .custom-feature-icon-preview {
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 11px;
+      flex: 0 0 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .custom-feature-icon-preview.closed {
+      background-color: #7f8c8d !important;
+      opacity: 0.55;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .custom-feature-name {
       flex: 1;
       font-size: 0.86rem;
     }
@@ -785,6 +802,11 @@
       color: #222;
       font-weight: 600;
       padding: 2px 5px;
+    }
+    .custom-feature-color-input {
+      width: 52px;
+      padding: 3px;
+      cursor: pointer;
     }
     .custom-feature-empty {
       color: #777;
@@ -1047,7 +1069,11 @@
       <label class="field-label" for="custom-feature-description">Description (not shown on the map)</label>
       <textarea id="custom-feature-description" class="text-input" rows="3" placeholder="Optional private notes"></textarea>
       <label class="field-label" for="custom-feature-color">Color</label>
-      <input id="custom-feature-color" class="text-input" type="color" value="#2c7bb6" style="height: 38px; padding: 3px;" />
+      <input id="custom-feature-color" class="text-input custom-feature-color-input" type="color" value="#2c7bb6" />
+      <label id="custom-feature-closed-label" class="legend-checkbox-label hidden" for="custom-feature-closed" style="margin: 0 0 12px;">
+        <input id="custom-feature-closed" type="checkbox" />
+        <span>Closed</span>
+      </label>
       <label class="field-label">Icon</label>
       <div id="custom-feature-icon" style="margin-bottom: 12px;"></div>
       <div style="display: flex; gap: 8px;">
@@ -2624,10 +2650,13 @@ const ALL_FA_ICONS = [
 
   function renderCustomFeature(feature) {
     const icon = feature.icon || { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+    const isClosedPoint = feature.type === 'point' && feature.closed === true;
+    const iconClass = isClosedPoint ? 'incident-marker-icon closed' : 'incident-marker-icon';
+    const iconBackground = isClosedPoint ? '#7f8c8d' : feature.color;
     const iconLayer = L.marker(feature.type === 'point' ? feature.coordinates : feature.coordinates[0], {
       icon: L.divIcon({
         className: '',
-        html: `<div class="incident-marker-icon" style="background-color:${escHtml(feature.color)}"><i class="${escHtml(icon.fa)}"></i></div>`,
+        html: `<div class="${iconClass}" style="background-color:${escHtml(iconBackground)}"><i class="${escHtml(icon.fa)}"></i></div>`,
         iconSize: [32, 32],
         iconAnchor: [16, 16],
         popupAnchor: [0, -18]
@@ -2656,7 +2685,8 @@ const ALL_FA_ICONS = [
     if (feature.label) {
       layer.bindTooltip(escHtml(feature.label), {
         permanent: true,
-        direction: 'center',
+        direction: feature.type === 'point' ? 'top' : 'center',
+        offset: feature.type === 'point' ? [0, -16] : [0, 0],
         className: 'custom-feature-label'
       });
     }
@@ -3784,6 +3814,8 @@ const ALL_FA_ICONS = [
   const customFeatureEditor = document.getElementById('custom-feature-editor');
   const customFeatureType = document.getElementById('custom-feature-type');
   const customFeatureColor = document.getElementById('custom-feature-color');
+  const customFeatureClosed = document.getElementById('custom-feature-closed');
+  const customFeatureClosedLabel = document.getElementById('custom-feature-closed-label');
   const customFeatureSaveBtn = document.getElementById('custom-feature-save');
   const customFeatureCancelBtn = document.getElementById('custom-feature-cancel');
   const customFeatureError = document.getElementById('custom-feature-error');
@@ -3802,9 +3834,11 @@ const ALL_FA_ICONS = [
     customFeatures.forEach(feature => {
       const item = document.createElement('div');
       item.className = 'custom-feature-item';
+      const icon = feature.icon || { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+      const isClosedPoint = feature.type === 'point' && feature.closed === true;
       item.innerHTML = `
-        <span class="custom-feature-swatch" style="background-color:${escHtml(feature.color)}"></span>
-        <span><strong>${escHtml(feature.label || 'Custom feature')}</strong> (${escHtml(feature.type)})</span>
+        <span class="custom-feature-icon-preview${isClosedPoint ? ' closed' : ''}" style="background-color:${escHtml(isClosedPoint ? '#7f8c8d' : feature.color)}"><i class="${escHtml(icon.fa)}"></i></span>
+        <span class="custom-feature-name"><strong>${escHtml(feature.label || 'Custom feature')}</strong> (${escHtml(feature.type)})</span>
         <button type="button" class="btn-remove-sheet" title="Delete feature"><i class="fa-solid fa-trash"></i> Delete</button>
       `;
       item.querySelector('button').addEventListener('click', function () {
@@ -3828,6 +3862,8 @@ const ALL_FA_ICONS = [
     customFeatureError.textContent = '';
     customFeatureType.value = '';
     customFeatureColor.value = '#2c7bb6';
+    customFeatureClosed.checked = false;
+    customFeatureClosedLabel.classList.add('hidden');
     customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
     buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
       customFeatureIcon = newIcon;
@@ -3854,12 +3890,16 @@ const ALL_FA_ICONS = [
       document.getElementById('custom-feature-label').value = feature.label || '';
       document.getElementById('custom-feature-description').value = feature.description || '';
       customFeatureColor.value = feature.color || '#2c7bb6';
+      customFeatureClosed.checked = feature.type === 'point' && feature.closed === true;
+      customFeatureClosedLabel.classList.toggle('hidden', feature.type !== 'point');
       customFeatureIcon = feature.icon || { fa: 'fa-solid fa-location-dot', label: 'Pin' };
     } else if (draftLayer) {
       const type = draftLayer instanceof L.Marker ? 'point' :
         draftLayer instanceof L.Polygon ? 'polygon' : 'line';
       customFeatureType.value = type;
       customFeatureColor.value = '#2c7bb6';
+      customFeatureClosed.checked = false;
+      customFeatureClosedLabel.classList.toggle('hidden', type !== 'point');
       customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
       draftLayer.remove();
     }
@@ -3896,6 +3936,7 @@ const ALL_FA_ICONS = [
     feature.label = label;
     feature.description = document.getElementById('custom-feature-description').value.trim();
     feature.color = customFeatureColor.value;
+    feature.closed = feature.type === 'point' && customFeatureClosed.checked;
     feature.icon = customFeatureIcon;
     saveCustomFeatures();
     const layer = customFeatureLayers[feature.id];
@@ -3943,6 +3984,7 @@ const ALL_FA_ICONS = [
       label: '',
       description: '',
       color: '#2c7bb6',
+      closed: false,
       icon: { fa: 'fa-solid fa-location-dot', label: 'Pin' }
     };
     customFeatures.push(feature);
