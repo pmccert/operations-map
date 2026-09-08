@@ -31,6 +31,7 @@ publicly accessible Google Sheet.
 * **Customizable icon & color per sheet** — choose from preset Font Awesome vector icons
   (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin, star) or browse/search the full Font Awesome icon library in the icon picker dialog, and pick from a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Change Icons & Colors**.
 * **Commit metadata indicator** — displays the active commit ID and commit date/time in the lower-left corner of the map for version tracking.
+* **Coordinate copying** — right-click anywhere on the map to view the latitude/longitude pair and copy it to the clipboard.
 * **Basemap switcher** — choose from selectable tile sources via the top-right control:
   * OpenStreetMap
   * OpenTopoMap (hillshaded terrain)
@@ -88,7 +89,8 @@ setup dialog or via the toolbar:
    seconds. Unmatched addresses appear in the status bar count and show an
    error note in their popup.
 7. Click any marker to see its details (sheet name, label, status, resolved address).
-8. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
+8. Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
+9. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
    toolbar at any time.
 
 ### 4. (Optional) Configure Google Geocoding Fallback
@@ -97,4 +99,3 @@ To automatically resolve addresses missing from `addresses.json`:
 1. Obtain a Google Maps JavaScript / Geocoding API key in Google Cloud Console.
 2. Add it as a GitHub Actions repository secret named `GOOGLE_GEOCODING_API_KEY` (Repository Settings → Secrets and variables → Actions).
 3. The GitHub Actions deployment workflow will inject the API key during the build step when deploying to GitHub Pages.
-
