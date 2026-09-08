@@ -806,6 +806,23 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.25);
     }
 
+    .coordinate-copy-popup {
+      text-align: center;
+      font-size: 0.85rem;
+    }
+    .coordinate-copy-popup .copy-coordinates-btn {
+      margin-top: 6px;
+      padding: 4px 8px;
+      border: 1px solid #aaa;
+      border-radius: 4px;
+      background: #f8f9fa;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .coordinate-copy-popup .copy-coordinates-btn:hover {
+      background: #e8f0fe;
+    }
+
     /* ── Map legend ─────────────────────────────────────────── */
     .map-legend {
       background: rgba(255, 255, 255, 0.94);
@@ -1669,6 +1686,52 @@ const ALL_FA_ICONS = [
 
   const statusBar = document.getElementById('status-bar');
   function setStatus(msg) { statusBar.textContent = msg; }
+
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      if (!document.execCommand('copy')) {
+        return Promise.reject(new Error('Clipboard copy was not available.'));
+      }
+      return Promise.resolve();
+    } finally {
+      textArea.remove();
+    }
+  }
+
+  map.on('contextmenu', function (e) {
+    const coordinates = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+    const popup = L.popup()
+      .setLatLng(e.latlng)
+      .setContent(`
+        <div class="coordinate-copy-popup">
+          <div>Lat, Lon: <strong>${coordinates}</strong></div>
+          <button type="button" class="copy-coordinates-btn" data-coordinates="${coordinates}">Copy coordinates</button>
+        </div>
+      `)
+      .openOn(map);
+
+    popup.getElement().querySelector('.copy-coordinates-btn').addEventListener('click', function () {
+      copyTextToClipboard(coordinates)
+        .then(function () {
+          setStatus(`Copied coordinates: ${coordinates}`);
+        })
+        .catch(function (err) {
+          console.warn('Could not copy map coordinates:', err);
+          setStatus('Could not copy coordinates. Please select them manually.');
+        });
+    });
+  });
 
   // ── Legend control ───────────────────────────────────────────────────────────
 
