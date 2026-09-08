@@ -186,6 +186,16 @@ The application operates without a dedicated backend server, resolving incident 
 * **FR-8.3: Commit Metadata Display**
   * A discreet floating badge in the lower-left corner shall display the deployed commit ID (with a direct link to the commit on GitHub) and the commit timestamp/date for version tracking.
 
+### 2.9 Custom Map Features
+
+* **FR-8.4: User-Drawn Geometries**
+  * The application shall allow users to draw points, lines, and polygons directly on the map.
+  * Each feature shall have a custom color, FontAwesome icon, and label, plus an optional description stored locally in the browser.
+  * The description shall not be displayed in the map popup or otherwise rendered on the map.
+* **FR-8.5: Local Persistence & Management**
+  * Custom features shall be persisted in browser local storage and restored when the map is reopened.
+  * Users shall be able to delete saved custom features from the Custom Features dialog.
+
 ---
 
 ## 3. Address Extraction CLI Tool (`scripts/fetch_addresses.py`)

@@ -34,6 +34,9 @@ publicly accessible Google Sheet.
   legend on the map displays entries for every configured sheet with its icon and color, along with a checkbox to show or hide closed incidents.
 * **Customizable icon & color per sheet** — choose from preset Font Awesome vector icons
   (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin, star) or browse/search the full Font Awesome icon library in the icon picker dialog, and pick from a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Change Icons & Colors**.
+* **Custom map features** — draw points, lines, and polygons on the map with a custom
+  color, FontAwesome icon, and label. An optional description is stored locally in
+  the browser for reference but is not displayed on the map.
 * **Commit metadata indicator** — displays the active commit ID and commit date/time in the lower-left corner of the map for version tracking.
 * **Coordinate copying** — right-click anywhere on the map to view the latitude/longitude pair and copy it to the clipboard.
 * **Basemap switcher** — choose from selectable tile sources via the top-right control:
@@ -93,10 +96,12 @@ setup dialog or via the toolbar:
    seconds. Unmatched addresses appear in the status bar count and show an
    error note in their popup.
 7. Click any marker to see its details (sheet name, label, status, resolved address).
-8. Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
-9. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
-   toolbar at any time.
-10. Use **Save Map File** to export the current configuration and loaded data. Use
+8.  Use **Custom Features** to draw and manage custom map geometries. Click to place
+    points or vertices, then double-click to finish lines and polygons.
+9.  Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
+10. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
+    toolbar at any time.
+11. Use **Save Map File** to export the current configuration and loaded data. Use
     **Load Map File** in another browser to restore it; the imported snapshot is
     displayed first and then normal sheet refresh resumes.
 

@@ -754,6 +754,52 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.2);
       cursor: pointer;
     }
+    .custom-feature-list {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .custom-feature-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid #d0d7de;
+      border-radius: 5px;
+      background: #f8fafc;
+    }
+    .custom-feature-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .custom-feature-item span {
+      flex: 1;
+      font-size: 0.86rem;
+    }
+    .custom-feature-label {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid #888;
+      color: #222;
+      font-weight: 600;
+      padding: 2px 5px;
+    }
+    .custom-feature-empty {
+      color: #777;
+      font-size: 0.86rem;
+      padding: 8px 0;
+    }
+    .drawing-help {
+      background: #eef6fc;
+      border: 1px solid #c7e0f4;
+      border-radius: 5px;
+      padding: 8px 10px;
+      color: #315d7d;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
     .btn-sheet-refresh {
       background: #f1f3f4;
       border: 1px solid #ccc;
@@ -973,6 +1019,42 @@
       <h2 style="margin-bottom: 0;">Change Sheet Icons &amp; Colors</h2>
       <button type="button" id="icon-modal-top-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
     </div>
+
+    <!-- ── Custom feature modal ─────────────────────────────────────── -->
+    <div id="custom-feature-modal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+          <h2 style="margin-bottom: 0;">Custom Map Features</h2>
+          <button type="button" id="custom-feature-modal-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
+        </div>
+        <p>Add points, lines, and polygons to the map. Features are saved in this browser.</p>
+        <div id="custom-feature-list" class="custom-feature-list"></div>
+        <div class="sheet-card">
+          <label class="field-label" for="custom-feature-type">Geometry</label>
+          <select id="custom-feature-type" class="select-input" style="margin-bottom: 12px;">
+            <option value="point">Point</option>
+            <option value="line">Line</option>
+            <option value="polygon">Polygon</option>
+          </select>
+          <label class="field-label" for="custom-feature-label">Label</label>
+          <input id="custom-feature-label" class="text-input" type="text" placeholder="Feature label" autocomplete="off" />
+          <label class="field-label" for="custom-feature-description">Description (not shown on the map)</label>
+          <textarea id="custom-feature-description" class="text-input" rows="3" placeholder="Optional private notes"></textarea>
+          <label class="field-label" for="custom-feature-color">Color</label>
+          <input id="custom-feature-color" class="text-input" type="color" value="#2c7bb6" style="height: 38px; padding: 3px;" />
+          <label class="field-label">Icon</label>
+          <div id="custom-feature-icon" style="margin-bottom: 12px;"></div>
+          <div class="drawing-help" id="custom-feature-drawing-help">
+            Click <strong>Start Drawing</strong>, then click the map to place the point.
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" id="custom-feature-draw" class="btn-secondary" style="flex: 1;">Start Drawing</button>
+            <button type="button" id="custom-feature-save" class="btn-primary" style="flex: 1;" disabled>Save Feature</button>
+          </div>
+          <div id="custom-feature-error" class="error-msg"></div>
+        </div>
+      </div>
+    </div>
     <p>
       Customize the incident icon and marker color for each sheet.
     </p>
@@ -1087,6 +1169,7 @@
   <button class="toolbar-btn" id="btn-change-sheet" title="Change / Manage Sheets"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
   <button class="toolbar-btn" id="btn-change-columns"><i class="fa-solid fa-table-columns"></i> Change Columns</button>
   <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-palette"></i> Change Icons &amp; Colors</button>
+  <button class="toolbar-btn" id="btn-custom-features"><i class="fa-solid fa-draw-polygon"></i> Custom Features</button>
   <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
   <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
   <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
@@ -1146,6 +1229,28 @@
   const PMC_LNG = -119.155;
   const DEFAULT_POLL_INTERVAL_MS = 30000;
   const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';
+  const APP_STATE_KEY = 'pmc_cert_map_state';
+
+  function readAppState() {
+    try {
+      const raw = localStorage.getItem(APP_STATE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeAppState(state) {
+    try {
+      localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
+    } catch (_) {
+      // Storage may be unavailable or full.
+    }
+  }
+
+  const savedAppState = readAppState();
+  let savedGeocoderUrl = '';
+  let savedGeocoderOverridden = false;
 
   // Available incident icons: { fa: FA classes, label }
   const ICON_OPTIONS = [
@@ -1478,6 +1583,17 @@ const ALL_FA_ICONS = [
 
   baseLayers['OpenStreetMap'].addTo(map);
   L.control.layers(baseLayers, null, { position: 'topright', collapsed: false }).addTo(map);
+  if (savedAppState && typeof savedAppState.baseLayer === 'string' && baseLayers[savedAppState.baseLayer]) {
+    map.removeLayer(baseLayers['OpenStreetMap']);
+    currentBaseLayer = baseLayers[savedAppState.baseLayer];
+    currentBaseLayer.addTo(map);
+  }
+  if (savedAppState && savedAppState.mapView &&
+      Number.isFinite(savedAppState.mapView.lat) &&
+      Number.isFinite(savedAppState.mapView.lng) &&
+      Number.isFinite(savedAppState.mapView.zoom)) {
+    map.setView([savedAppState.mapView.lat, savedAppState.mapView.lng], savedAppState.mapView.zoom);
+  }
   map.attributionControl.addAttribution(
     '<a href="#" id="pmc-cert-attribution-link" title="View PMC CERT map credits">PMC CERT</a>'
   );
@@ -1527,12 +1643,16 @@ const ALL_FA_ICONS = [
 
   map.on('baselayerchange', function (e) {
     currentBaseLayer = e.layer;
+    persistAppState();
     checkZoomAvailability();
   });
 
   map.on('zoomend', function () {
+    persistAppState();
     checkZoomAvailability();
   });
+
+  map.on('moveend', persistAppState);
 
   checkZoomAvailability();
 
@@ -1540,10 +1660,37 @@ const ALL_FA_ICONS = [
 
   let pollTimer = null;
   let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
-  let showClosedIncidents = true;
+  let showClosedIncidents = savedAppState && typeof savedAppState.showClosedIncidents === 'boolean'
+    ? savedAppState.showClosedIncidents
+    : true;
   let hasLoadedMap = false;
+  let customFeatures = [];
+  let customFeatureLayers = {};
+  let drawingState = null;
 
-  let pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
+  function loadCustomFeatures() {
+    try {
+      const saved = localStorage.getItem('pmc_custom_features');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) customFeatures = parsed;
+      }
+    } catch (err) {
+      console.warn('Could not load custom map features:', err);
+    }
+  }
+
+  function saveCustomFeatures() {
+    try {
+      localStorage.setItem('pmc_custom_features', JSON.stringify(customFeatures));
+    } catch (err) {
+      console.warn('Could not save custom map features:', err);
+    }
+  }
+
+  let pollIntervalMs = savedAppState && Number.isFinite(savedAppState.pollIntervalMs)
+    ? savedAppState.pollIntervalMs
+    : DEFAULT_POLL_INTERVAL_MS;
   let googleAccessToken = null;
   let googleTokenExpiry = 0;
   const GOOGLE_OAUTH_CLIENT_ID = '737731486205-pnrigt0btu2aeqam7ulqghl37apbph3l.apps.googleusercontent.com';
@@ -1684,6 +1831,57 @@ const ALL_FA_ICONS = [
   }
 
   let sheets = [createSheet('Sheet 1')];
+
+  if (savedAppState && Array.isArray(savedAppState.sheets) && savedAppState.sheets.length > 0) {
+    const restoredSheets = savedAppState.sheets.map((savedSheet, index) => {
+      const restored = createSheet(savedSheet.name || `Sheet ${index + 1}`, savedSheet.rawUrl || '');
+      if (typeof savedSheet.id === 'string' && savedSheet.id) restored.id = savedSheet.id;
+      if (savedSheet.columnMapping && typeof savedSheet.columnMapping === 'object') {
+        restored.columnMapping = {
+          address: Number.isInteger(savedSheet.columnMapping.address) ? savedSheet.columnMapping.address : 0,
+          status: Number.isInteger(savedSheet.columnMapping.status) ? savedSheet.columnMapping.status : null,
+          label: Number.isInteger(savedSheet.columnMapping.label) ? savedSheet.columnMapping.label : null
+        };
+      }
+      if (savedSheet.headers && Array.isArray(savedSheet.headers)) restored.headers = savedSheet.headers;
+      if (savedSheet.icon && typeof savedSheet.icon.fa === 'string') {
+        restored.icon = { fa: savedSheet.icon.fa, label: savedSheet.icon.label || formatIconLabel(savedSheet.icon.fa) };
+      }
+      if (typeof savedSheet.color === 'string' && normalizeHexColor(savedSheet.color)) restored.color = savedSheet.color;
+      restored.csvUrl = toCsvUrl(restored.rawUrl);
+      return restored;
+    });
+    sheets = restoredSheets;
+    const maxSavedId = restoredSheets.reduce((max, sheet) => {
+      const match = sheet.id.match(/^sheet_(\d+)$/);
+      return match ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
+    sheetIdCounter = Math.max(sheetIdCounter, maxSavedId + 1);
+  }
+
+  function persistAppState() {
+    writeAppState({
+      sheets: sheets.map(sheet => ({
+        id: sheet.id,
+        name: sheet.name,
+        rawUrl: sheet.rawUrl,
+        columnMapping: sheet.columnMapping,
+        headers: sheet.headers,
+        icon: sheet.icon,
+        color: sheet.color
+      })),
+      baseLayer: Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap',
+      showClosedIncidents,
+      pollIntervalMs,
+      geocoderUrl: savedGeocoderUrl,
+      geocoderOverridden: savedGeocoderOverridden,
+      mapView: {
+        lat: map.getCenter().lat,
+        lng: map.getCenter().lng,
+        zoom: map.getZoom()
+      }
+    });
+  }
 
   // Geocoder index (populated from addresses.json)
   let geocoderIndex = null;
@@ -2406,6 +2604,129 @@ const ALL_FA_ICONS = [
       .replace(/"/g, '&quot;');
   }
 
+  function customFeaturePopupHtml(feature) {
+    return `<div class="incident-popup"><strong>${escHtml(feature.label || 'Custom feature')}</strong></div>`;
+  }
+
+  function renderCustomFeature(feature) {
+    const icon = feature.icon || { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+    const iconLayer = L.marker(feature.type === 'point' ? feature.coordinates : feature.coordinates[0], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div class="incident-marker-icon" style="background-color:${escHtml(feature.color)}"><i class="${escHtml(icon.fa)}"></i></div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -18]
+      })
+    });
+    const style = {
+      color: feature.color,
+      weight: feature.type === 'point' ? 1 : 3,
+      fillColor: feature.color,
+      fillOpacity: feature.type === 'polygon' ? 0.25 : 0
+    };
+    let layer;
+    if (feature.type === 'point') {
+      layer = iconLayer;
+    } else if (feature.type === 'line') {
+      layer = L.polyline(feature.coordinates, style);
+    } else {
+      layer = L.polygon(feature.coordinates, style);
+    }
+    if (feature.type !== 'point') {
+      layer = L.featureGroup([layer, iconLayer]);
+    }
+    layer.bindPopup(customFeaturePopupHtml(feature));
+    if (feature.label) {
+      layer.bindTooltip(escHtml(feature.label), {
+        permanent: true,
+        direction: 'center',
+        className: 'custom-feature-label'
+      });
+    }
+    layer.addTo(map);
+    customFeatureLayers[feature.id] = layer;
+  }
+
+  function renderAllCustomFeatures() {
+    Object.values(customFeatureLayers).forEach(layer => map.removeLayer(layer));
+    customFeatureLayers = {};
+    customFeatures.forEach(renderCustomFeature);
+  }
+
+  function cancelDrawing() {
+    if (!drawingState) return;
+    if (drawingState.preview) map.removeLayer(drawingState.preview);
+    map.off('click', handleDrawingClick);
+    map.off('dblclick', handleDrawingDoubleClick);
+    map.doubleClickZoom.enable();
+    drawingState = null;
+  }
+
+  function updateDrawingPreview() {
+    if (!drawingState || drawingState.coordinates.length === 0) return;
+    if (drawingState.preview) map.removeLayer(drawingState.preview);
+    const options = {
+      color: drawingState.color,
+      weight: 3,
+      fillColor: drawingState.color,
+      fillOpacity: drawingState.type === 'polygon' ? 0.2 : 0
+    };
+    if (drawingState.type === 'line') {
+      drawingState.preview = L.polyline(drawingState.coordinates, options);
+    } else if (drawingState.type === 'polygon') {
+      drawingState.preview = L.polygon(drawingState.coordinates, options);
+    } else {
+      drawingState.preview = L.circleMarker(drawingState.coordinates[0], { ...options, radius: 8 });
+    }
+    drawingState.preview.addTo(map);
+  }
+
+  function finishDrawing() {
+    if (!drawingState) return;
+    const minimum = drawingState.type === 'polygon' ? 3 : 2;
+    if (drawingState.coordinates.length < minimum) return;
+    const saveBtn = document.getElementById('custom-feature-save');
+    if (saveBtn) saveBtn.disabled = false;
+    const help = document.getElementById('custom-feature-drawing-help');
+    if (help) help.textContent = 'Geometry complete. Click Save Feature, or Start Drawing to replace it.';
+    map.off('click', handleDrawingClick);
+    map.off('dblclick', handleDrawingDoubleClick);
+    map.doubleClickZoom.enable();
+  }
+
+  function handleDrawingClick(e) {
+    if (!drawingState) return;
+    drawingState.coordinates.push([e.latlng.lat, e.latlng.lng]);
+    updateDrawingPreview();
+    if (drawingState.type === 'point') finishDrawing();
+  }
+
+  function handleDrawingDoubleClick() {
+    if (!drawingState || drawingState.type === 'point') return;
+    if (drawingState.coordinates.length > 0) drawingState.coordinates.splice(-1);
+    updateDrawingPreview();
+    finishDrawing();
+  }
+
+  function startDrawing() {
+    cancelDrawing();
+    const type = document.getElementById('custom-feature-type').value;
+    const color = document.getElementById('custom-feature-color').value;
+    drawingState = { type, color, coordinates: [], preview: null };
+    const saveBtn = document.getElementById('custom-feature-save');
+    if (saveBtn) saveBtn.disabled = true;
+    const help = document.getElementById('custom-feature-drawing-help');
+    if (help) {
+      help.innerHTML = type === 'point'
+        ? 'Click the map to place the point.'
+        : 'Click to add vertices, then double-click to finish the geometry.';
+    }
+    map.doubleClickZoom.disable();
+    map.on('click', handleDrawingClick);
+    map.on('dblclick', handleDrawingDoubleClick);
+  }
+
   function popupHtml(incident, sheet) {
     const statusLabel = incident.isOpen ? 'Open' : 'Closed';
     const badgeBg = incident.isOpen ? sheet.color : '#7f8c8d';
@@ -2466,6 +2787,7 @@ const ALL_FA_ICONS = [
   document.addEventListener('change', function (e) {
     if (e.target && e.target.id === 'toggle-closed-incidents') {
       showClosedIncidents = e.target.checked;
+      persistAppState();
       updateClosedMarkersVisibility();
     }
   });
@@ -3155,6 +3477,7 @@ const ALL_FA_ICONS = [
 
   btnOverrideGeocoder.addEventListener('click', function () {
     isOverridden = true;
+    savedGeocoderOverridden = true;
     geocoderLocalNotice.classList.add('hidden');
     geocoderFieldGroup.classList.remove('hidden');
     btnUseLocalGeocoder.classList.remove('hidden');
@@ -3163,6 +3486,8 @@ const ALL_FA_ICONS = [
 
   btnUseLocalGeocoder.addEventListener('click', function () {
     isOverridden = false;
+    savedGeocoderOverridden = false;
+    savedGeocoderUrl = '';
     geocoderInput.value = '';
     geocoderFieldGroup.classList.add('hidden');
     geocoderLocalNotice.classList.remove('hidden');
@@ -3209,6 +3534,8 @@ const ALL_FA_ICONS = [
     }
 
     const customGeocoderUrl = geocoderInput.value.trim();
+    savedGeocoderUrl = customGeocoderUrl;
+    savedGeocoderOverridden = isOverridden;
     let geocoderUrl = customGeocoderUrl;
     if (!geocoderUrl) {
       if (hasLocalAddresses) {
@@ -3246,6 +3573,7 @@ const ALL_FA_ICONS = [
     submitBtn.disabled = false;
     hasLoadedMap = true;
     savedSheetsSnapshot = JSON.parse(JSON.stringify(sheets));
+    persistAppState();
     submitBtn.textContent = 'Save & Load Map';
     sheetCancelBtn.classList.remove('hidden');
     if (sheetCloseBtn) sheetCloseBtn.classList.remove('hidden');
@@ -3291,7 +3619,29 @@ const ALL_FA_ICONS = [
   });
 
   renderSheetsModal();
-  checkLocalAddresses();
+  if (savedAppState && savedAppState.geocoderOverridden && typeof savedAppState.geocoderUrl === 'string') {
+    isOverridden = true;
+    savedGeocoderOverridden = true;
+    savedGeocoderUrl = savedAppState.geocoderUrl;
+    geocoderInput.value = savedAppState.geocoderUrl;
+    geocoderLocalNotice.classList.add('hidden');
+    geocoderFieldGroup.classList.remove('hidden');
+    btnUseLocalGeocoder.classList.remove('hidden');
+  }
+  const savedRefreshSelect = document.getElementById('select-refresh-interval');
+  if (savedRefreshSelect) {
+    savedRefreshSelect.value = String(pollIntervalMs);
+    if (savedRefreshSelect.value !== String(pollIntervalMs)) {
+      savedRefreshSelect.value = String(DEFAULT_POLL_INTERVAL_MS);
+      pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
+    }
+  }
+  loadSavedOAuthConfig();
+  checkLocalAddresses().then(function () {
+    if (savedAppState && sheets.some(sheet => sheet.rawUrl)) {
+      handleSubmit();
+    }
+  });
 
   // ── Column-only change modal ───────────────────────────────────
 
@@ -3384,6 +3734,7 @@ const ALL_FA_ICONS = [
       sheet.columnMapping.label   = lblVal >= 0 ? lblVal : null;
     }
 
+    persistAppState();
     closeColumnsModal();
     renderSheetsModal();
     clearMarkers();
@@ -3437,6 +3788,7 @@ const ALL_FA_ICONS = [
 
       function handleModalIconSelect(newIcon) {
         sheet.icon = newIcon;
+        persistAppState();
         updateModalBadge();
         refreshIcons();
         buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
@@ -3444,6 +3796,7 @@ const ALL_FA_ICONS = [
 
       function handleModalColorSelect(newColor) {
         sheet.color = newColor;
+        persistAppState();
         updateModalBadge();
         refreshIcons();
         buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
@@ -3473,6 +3826,116 @@ const ALL_FA_ICONS = [
   // ── Toolbar: Manage Sheets ────────────────────────────────────
 
   document.getElementById('btn-change-sheet').addEventListener('click', openSheetModal);
+
+  // ── Custom feature drawing and management ───────────────────────
+
+  const customFeatureModal = document.getElementById('custom-feature-modal');
+  const customFeatureList = document.getElementById('custom-feature-list');
+  const customFeatureType = document.getElementById('custom-feature-type');
+  const customFeatureColor = document.getElementById('custom-feature-color');
+  const customFeatureDrawBtn = document.getElementById('custom-feature-draw');
+  const customFeatureSaveBtn = document.getElementById('custom-feature-save');
+  const customFeatureError = document.getElementById('custom-feature-error');
+  const customFeatureIconContainer = document.getElementById('custom-feature-icon');
+  let customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+
+  function renderCustomFeatureList() {
+    if (!customFeatureList) return;
+    customFeatureList.innerHTML = '';
+    if (customFeatures.length === 0) {
+      customFeatureList.innerHTML = '<div class="custom-feature-empty">No custom features yet.</div>';
+      return;
+    }
+    customFeatures.forEach(feature => {
+      const item = document.createElement('div');
+      item.className = 'custom-feature-item';
+      item.innerHTML = `
+        <span class="custom-feature-swatch" style="background-color:${escHtml(feature.color)}"></span>
+        <span><strong>${escHtml(feature.label || 'Custom feature')}</strong> (${escHtml(feature.type)})</span>
+        <button type="button" class="btn-remove-sheet" title="Delete feature"><i class="fa-solid fa-trash"></i> Delete</button>
+      `;
+      item.querySelector('button').addEventListener('click', function () {
+        const layer = customFeatureLayers[feature.id];
+        if (layer) map.removeLayer(layer);
+        delete customFeatureLayers[feature.id];
+        customFeatures = customFeatures.filter(candidate => candidate.id !== feature.id);
+        saveCustomFeatures();
+        renderCustomFeatureList();
+      });
+      customFeatureList.appendChild(item);
+    });
+  }
+
+  function resetCustomFeatureForm() {
+    cancelDrawing();
+    document.getElementById('custom-feature-label').value = '';
+    document.getElementById('custom-feature-description').value = '';
+    customFeatureSaveBtn.disabled = true;
+    customFeatureError.textContent = '';
+    customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+    buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
+      customFeatureIcon = newIcon;
+    }, customFeatureColor.value);
+    document.getElementById('custom-feature-drawing-help').innerHTML =
+      'Click <strong>Start Drawing</strong>, then click the map to place the point.';
+  }
+
+  function openCustomFeatureModal() {
+    renderCustomFeatureList();
+    resetCustomFeatureForm();
+    customFeatureModal.classList.remove('hidden');
+  }
+
+  function closeCustomFeatureModal() {
+    resetCustomFeatureForm();
+    customFeatureModal.classList.add('hidden');
+  }
+
+  customFeatureType.addEventListener('change', function () {
+    const instructions = customFeatureType.value === 'point'
+      ? 'Click <strong>Start Drawing</strong>, then click the map to place the point.'
+      : 'Click <strong>Start Drawing</strong>, click to add vertices, then double-click to finish.';
+    document.getElementById('custom-feature-drawing-help').innerHTML = instructions;
+  });
+  buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
+    customFeatureIcon = newIcon;
+  }, customFeatureColor.value);
+  customFeatureDrawBtn.addEventListener('click', startDrawing);
+  customFeatureSaveBtn.addEventListener('click', function () {
+    if (!drawingState || drawingState.coordinates.length === 0) return;
+    const label = document.getElementById('custom-feature-label').value.trim();
+    if (!label) {
+      customFeatureError.textContent = 'Please enter a label for this feature.';
+      return;
+    }
+    const minimum = drawingState.type === 'polygon' ? 3 : drawingState.type === 'line' ? 2 : 1;
+    if (drawingState.coordinates.length < minimum) {
+      customFeatureError.textContent = `This ${drawingState.type} needs more points.`;
+      return;
+    }
+    const feature = {
+      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type: drawingState.type,
+      coordinates: drawingState.type === 'point' ? drawingState.coordinates[0] : drawingState.coordinates,
+      label,
+      description: document.getElementById('custom-feature-description').value.trim(),
+      color: customFeatureColor.value,
+      icon: customFeatureIcon
+    };
+    cancelDrawing();
+    customFeatures.push(feature);
+    saveCustomFeatures();
+    renderCustomFeature(feature);
+    renderCustomFeatureList();
+    resetCustomFeatureForm();
+  });
+  document.getElementById('btn-custom-features').addEventListener('click', openCustomFeatureModal);
+  document.getElementById('custom-feature-modal-close').addEventListener('click', closeCustomFeatureModal);
+  customFeatureModal.addEventListener('click', function (e) {
+    if (e.target === customFeatureModal) closeCustomFeatureModal();
+  });
+  loadCustomFeatures();
+  renderAllCustomFeatures();
 
   // ── FontAwesome Icon Picker Modal State & Helpers ───────────────────────────
 
@@ -3755,6 +4218,8 @@ const ALL_FA_ICONS = [
         closeColumnsModal();
       } else if (!iconModal.classList.contains('hidden')) {
         closeIconsModal();
+      } else if (customFeatureModal && !customFeatureModal.classList.contains('hidden')) {
+        closeCustomFeatureModal();
       } else if (!sheetModal.classList.contains('hidden') && hasLoadedMap) {
         cancelSheetModal();
       }
@@ -3829,6 +4294,7 @@ const ALL_FA_ICONS = [
     selectRefreshInterval.addEventListener('change', function () {
       const ms = parseInt(selectRefreshInterval.value, 10) || 0;
       updatePollInterval(ms);
+      persistAppState();
     });
   }
 
