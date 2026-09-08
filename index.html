@@ -1020,46 +1020,47 @@
       <button type="button" id="icon-modal-top-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
     </div>
 
-    <!-- ── Custom feature modal ─────────────────────────────────────── -->
-    <div id="custom-feature-modal" class="modal-overlay hidden">
-      <div class="modal-box">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-          <h2 style="margin-bottom: 0;">Custom Map Features</h2>
-          <button type="button" id="custom-feature-modal-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
-        </div>
-        <p>Add points, lines, and polygons to the map. Features are saved in this browser.</p>
-        <div id="custom-feature-list" class="custom-feature-list"></div>
-        <div class="sheet-card">
-          <label class="field-label" for="custom-feature-type">Geometry</label>
-          <select id="custom-feature-type" class="select-input" style="margin-bottom: 12px;">
-            <option value="point">Point</option>
-            <option value="line">Line</option>
-            <option value="polygon">Polygon</option>
-          </select>
-          <label class="field-label" for="custom-feature-label">Label</label>
-          <input id="custom-feature-label" class="text-input" type="text" placeholder="Feature label" autocomplete="off" />
-          <label class="field-label" for="custom-feature-description">Description (not shown on the map)</label>
-          <textarea id="custom-feature-description" class="text-input" rows="3" placeholder="Optional private notes"></textarea>
-          <label class="field-label" for="custom-feature-color">Color</label>
-          <input id="custom-feature-color" class="text-input" type="color" value="#2c7bb6" style="height: 38px; padding: 3px;" />
-          <label class="field-label">Icon</label>
-          <div id="custom-feature-icon" style="margin-bottom: 12px;"></div>
-          <div class="drawing-help" id="custom-feature-drawing-help">
-            Click <strong>Start Drawing</strong>, then click the map to place the point.
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button type="button" id="custom-feature-draw" class="btn-secondary" style="flex: 1;">Start Drawing</button>
-            <button type="button" id="custom-feature-save" class="btn-primary" style="flex: 1;" disabled>Save Feature</button>
-          </div>
-          <div id="custom-feature-error" class="error-msg"></div>
-        </div>
-      </div>
-    </div>
     <p>
       Customize the incident icon and marker color for each sheet.
     </p>
     <div id="icons-modal-container" style="margin-bottom: 18px;"></div>
     <button id="icon-modal-close" class="btn-primary">Done</button>
+  </div>
+</div>
+
+<!-- ── Custom feature modal ─────────────────────────────────────── -->
+<div id="custom-feature-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+      <h2 style="margin-bottom: 0;">Custom Map Features</h2>
+      <button type="button" id="custom-feature-modal-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
+    </div>
+    <p>Add points, lines, and polygons to the map. Features are saved in this browser.</p>
+    <div id="custom-feature-list" class="custom-feature-list"></div>
+    <div class="sheet-card">
+      <label class="field-label" for="custom-feature-type">Geometry</label>
+      <select id="custom-feature-type" class="select-input" style="margin-bottom: 12px;">
+        <option value="point">Point</option>
+        <option value="line">Line</option>
+        <option value="polygon">Polygon</option>
+      </select>
+      <label class="field-label" for="custom-feature-label">Label</label>
+      <input id="custom-feature-label" class="text-input" type="text" placeholder="Feature label" autocomplete="off" />
+      <label class="field-label" for="custom-feature-description">Description (not shown on the map)</label>
+      <textarea id="custom-feature-description" class="text-input" rows="3" placeholder="Optional private notes"></textarea>
+      <label class="field-label" for="custom-feature-color">Color</label>
+      <input id="custom-feature-color" class="text-input" type="color" value="#2c7bb6" style="height: 38px; padding: 3px;" />
+      <label class="field-label">Icon</label>
+      <div id="custom-feature-icon" style="margin-bottom: 12px;"></div>
+      <div class="drawing-help" id="custom-feature-drawing-help">
+        Click <strong>Start Drawing</strong>, then click the map to place the point.
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" id="custom-feature-draw" class="btn-secondary" style="flex: 1;">Start Drawing</button>
+        <button type="button" id="custom-feature-save" class="btn-primary" style="flex: 1;" disabled>Save Feature</button>
+      </div>
+      <div id="custom-feature-error" class="error-msg"></div>
+    </div>
   </div>
 </div>
 
