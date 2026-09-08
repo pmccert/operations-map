@@ -98,8 +98,9 @@ setup dialog or via the toolbar:
    seconds. Unmatched addresses appear in the status bar count and show an
    error note in their popup.
 7. Click any marker to see its details (sheet name, label, status, resolved address).
-8.  Use **Custom Features** to draw and manage custom map geometries. Click to place
-    points or vertices, then double-click to finish lines and polygons.
+8.  Use the Leaflet drawing controls on the map to draw points, lines, and polygons.
+    Click a feature to set or edit its label, icon, color, and private description;
+    use **Custom Features** to manage saved features.
 9.  Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
 10. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
     toolbar at any time.
