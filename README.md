@@ -34,6 +34,7 @@ publicly accessible Google Sheet.
   color, FontAwesome icon, and label. An optional description is stored locally in
   the browser for reference but is not displayed on the map.
 * **Commit metadata indicator** — displays the active commit ID and commit date/time in the lower-left corner of the map for version tracking.
+* **Coordinate copying** — right-click anywhere on the map to view the latitude/longitude pair and copy it to the clipboard.
 * **Basemap switcher** — choose from selectable tile sources via the top-right control:
   * OpenStreetMap
   * OpenTopoMap (hillshaded terrain)
@@ -79,22 +80,23 @@ setup dialog or via the toolbar:
 
 ### 3. Load the map
 
-1. Open `index.html` in a browser.
-2. Paste your **Google Sheet URL** for Sheet 1 (and optionally click **+ Add Another Sheet** to add more sheets).
-   The app auto-detects sheet columns and selects matching Address, Status, and Label columns for each sheet.
-3. Choose an incident icon and color for each sheet.
-4. If `addresses.json` is available locally alongside `index.html`, it is
-   automatically detected and used (with an option to override if needed);
-   otherwise, enter your **addresses.json URL**.
-5. Click **Load Map**.
-6. Incidents from all sheets are plotted immediately and refresh every 30
-   seconds. Unmatched addresses appear in the status bar count and show an
-   error note in their popup.
-7. Click any marker to see its details (sheet name, label, status, resolved address).
-8. Use **Custom Features** to draw and manage custom map geometries. Click to place
-   points or vertices, then double-click to finish lines and polygons.
-9. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
-   toolbar at any time.
+1.  Open `index.html` in a browser.
+2.  Paste your **Google Sheet URL** for Sheet 1 (and optionally click **+ Add Another Sheet** to add more sheets).
+    The app auto-detects sheet columns and selects matching Address, Status, and Label columns for each sheet.
+3.  Choose an incident icon and color for each sheet.
+4.  If `addresses.json` is available locally alongside `index.html`, it is
+    automatically detected and used (with an option to override if needed);
+    otherwise, enter your **addresses.json URL**.
+5.  Click **Load Map**.
+6.  Incidents from all sheets are plotted immediately and refresh every 30
+    seconds. Unmatched addresses appear in the status bar count and show an
+    error note in their popup.
+7.  Click any marker to see its details (sheet name, label, status, resolved address).
+8.  Use **Custom Features** to draw and manage custom map geometries. Click to place
+    points or vertices, then double-click to finish lines and polygons.
+9.  Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
+10. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
+    toolbar at any time.
 
 ### 4. (Optional) Configure Google Geocoding Fallback
 
