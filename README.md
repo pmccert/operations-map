@@ -30,6 +30,9 @@ publicly accessible Google Sheet.
   legend on the map displays entries for every configured sheet with its icon and color, along with a checkbox to show or hide closed incidents.
 * **Customizable icon & color per sheet** — choose from preset Font Awesome vector icons
   (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin, star) or browse/search the full Font Awesome icon library in the icon picker dialog, and pick from a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Change Icons & Colors**.
+* **Custom map features** — draw points, lines, and polygons on the map with a custom
+  color, FontAwesome icon, and label. An optional description is stored locally in
+  the browser for reference but is not displayed on the map.
 * **Commit metadata indicator** — displays the active commit ID and commit date/time in the lower-left corner of the map for version tracking.
 * **Basemap switcher** — choose from selectable tile sources via the top-right control:
   * OpenStreetMap
@@ -88,7 +91,9 @@ setup dialog or via the toolbar:
    seconds. Unmatched addresses appear in the status bar count and show an
    error note in their popup.
 7. Click any marker to see its details (sheet name, label, status, resolved address).
-8. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
+8. Use **Custom Features** to draw and manage custom map geometries. Click to place
+   points or vertices, then double-click to finish lines and polygons.
+9. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
    toolbar at any time.
 
 ### 4. (Optional) Configure Google Geocoding Fallback
@@ -97,4 +102,3 @@ To automatically resolve addresses missing from `addresses.json`:
 1. Obtain a Google Maps JavaScript / Geocoding API key in Google Cloud Console.
 2. Add it as a GitHub Actions repository secret named `GOOGLE_GEOCODING_API_KEY` (Repository Settings → Secrets and variables → Actions).
 3. The GitHub Actions deployment workflow will inject the API key during the build step when deploying to GitHub Pages.
-
