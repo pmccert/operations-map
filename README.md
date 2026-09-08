@@ -22,6 +22,10 @@ publicly accessible Google Sheet.
   back to the Google Maps Geocoding API (if configured). Results are cached locally.
 * **Private Google Sheet access** — sign in with Google from the setup dialog or
   toolbar to read sheets that are not publicly shared.
+* **Portable map files** — save the current sheet configuration and loaded incident
+  rows to a JSON file, then load it in another browser. OAuth access tokens and
+  other login credentials are never included; private sheets still require
+  signing in separately.
 * **Auto-refresh every 30 seconds** — all configured sheets are polled and re-read;
   markers are added, updated, or removed to match the current sheet contents.
 * **Every row is a distinct incident** — each data row is plotted as its own marker.
@@ -92,6 +96,9 @@ setup dialog or via the toolbar:
 8. Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
 9. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
    toolbar at any time.
+10. Use **Save Map File** to export the current configuration and loaded data. Use
+    **Load Map File** in another browser to restore it; the imported snapshot is
+    displayed first and then normal sheet refresh resumes.
 
 ### 4. (Optional) Configure Google Geocoding Fallback
 
