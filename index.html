@@ -393,6 +393,25 @@
       font-weight: bold;
       color: #fff;
     }
+    .incident-fields {
+      width: 100%;
+      margin-top: 6px;
+      border-collapse: collapse;
+      line-height: 1.35;
+    }
+    .incident-fields th,
+    .incident-fields td {
+      padding: 3px 5px;
+      border-top: 1px solid #e5e5e5;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    .incident-fields th {
+      color: #666;
+      font-weight: 600;
+      white-space: nowrap;
+    }
     .badge-open   { background: #e74c3c; }
     .badge-closed { background: #7f8c8d; }
 
@@ -1028,6 +1047,9 @@
   function popupHtml(incident, sheet) {
     const statusLabel = incident.isOpen ? 'Open' : 'Closed';
     const badgeBg = incident.isOpen ? sheet.color : '#7f8c8d';
+    const fieldsHtml = incident.fields.map(field =>
+      `<tr><th scope="row">${escHtml(field.name)}</th><td>${escHtml(field.value)}</td></tr>`
+    ).join('');
     let locationLine;
     if (incident.matchType === 'exact') {
       locationLine = `<span title="Exact address match">${escHtml(incident.canonical)}</span>`;
@@ -1048,6 +1070,9 @@
         <span class="badge" style="background-color: ${badgeBg};">${statusLabel}</span><br>
         ${locationLine}
         ${incident.lat != null ? `<br><small>Lat: ${incident.lat.toFixed(5)}, Lon: ${incident.lon.toFixed(5)}</small>` : ''}
+        <table class="incident-fields" aria-label="Spreadsheet fields">
+          <tbody>${fieldsHtml}</tbody>
+        </table>
       </div>`;
   }
 
@@ -1145,6 +1170,10 @@
               index: idx,
               address,
               label,
+              fields: Array.from({ length: Math.max(row.length, sheet.headers ? sheet.headers.length : 0) }, (_, fieldIdx) => ({
+                name: (sheet.headers && sheet.headers[fieldIdx]) || `Column ${colLetter(fieldIdx)}`,
+                value: row[fieldIdx] || ''
+              })),
               isOpen,
               lat,
               lon,
