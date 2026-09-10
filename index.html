@@ -3045,16 +3045,6 @@ const ALL_FA_ICONS = [
     setStatus('Custom features removed.');
   }
 
-  function refreshIcons() {
-    Object.values(incidentMarkers).forEach(m => {
-      const sheet = sheets.find(s => s.id === m._sheetId);
-      if (sheet) {
-        m.setIcon(buildDivIcon(m._isOpen, sheet.icon.fa, sheet.color));
-      }
-    });
-    updateLegend();
-  }
-
   function updateClosedMarkersVisibility() {
     Object.values(incidentMarkers).forEach(m => {
       if (!m._isOpen) {
@@ -4413,10 +4403,6 @@ const ALL_FA_ICONS = [
         closeCommitInfoModal();
       } else if (faPickerModal && !faPickerModal.classList.contains('hidden')) {
         closeFontAwesomePicker();
-      } else if (!columnsModal.classList.contains('hidden')) {
-        closeColumnsModal();
-      } else if (!iconModal.classList.contains('hidden')) {
-        closeIconsModal();
       } else if (customFeatureModal && !customFeatureModal.classList.contains('hidden')) {
         closeCustomFeatureModal();
       } else if (!sheetModal.classList.contains('hidden') && hasLoadedMap) {
@@ -4436,18 +4422,6 @@ const ALL_FA_ICONS = [
   sheetModal.addEventListener('click', function (e) {
     if (e.target === sheetModal && hasLoadedMap) {
       cancelSheetModal();
-    }
-  });
-
-  columnsModal.addEventListener('click', function (e) {
-    if (e.target === columnsModal) {
-      closeColumnsModal();
-    }
-  });
-
-  iconModal.addEventListener('click', function (e) {
-    if (e.target === iconModal) {
-      closeIconsModal();
     }
   });
 
