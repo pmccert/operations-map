@@ -2656,6 +2656,90 @@ const ALL_FA_ICONS = [
     };
   }
 
+  const OPEN_LOCATION_CODE_ALPHABET = '23456789CFGHJMPQRVWX';
+  const OPEN_LOCATION_CODE_SEPARATOR_POSITION = 8;
+  const OPEN_LOCATION_CODE_PAIR_RESOLUTIONS = [20, 1, 0.05, 0.0025, 0.000125];
+  const OPEN_LOCATION_CODE_GRID_SIZE = 5;
+  const OPEN_LOCATION_CODE_GRID_LAT_RESOLUTION = 0.000025;
+  const OPEN_LOCATION_CODE_GRID_LON_RESOLUTION = 0.000025;
+
+  function encodeOpenLocationCodePrefix(lat, lon, length) {
+    let latitude = Math.min(90 - Number.EPSILON, Math.max(-90, lat)) + 90;
+    let longitude = ((lon + 180) % 360 + 360) % 360;
+    let code = '';
+    for (let i = 0; i < length; i += 2) {
+      const resolution = OPEN_LOCATION_CODE_PAIR_RESOLUTIONS[i / 2];
+      const latDigit = Math.floor(latitude / resolution);
+      const lonDigit = Math.floor(longitude / resolution);
+      code += OPEN_LOCATION_CODE_ALPHABET[latDigit];
+      code += OPEN_LOCATION_CODE_ALPHABET[lonDigit];
+      latitude -= latDigit * resolution;
+      longitude -= lonDigit * resolution;
+    }
+    return code;
+  }
+
+  function decodeOpenLocationCode(value) {
+    if (typeof value !== 'string') return null;
+    const compact = value.trim().toUpperCase().replace(/\s+/g, '');
+    const codeMatch = compact.match(/^([23456789CFGHJMPQRVWX]+)\+([23456789CFGHJMPQRVWX]+)$/);
+    if (!codeMatch) return null;
+
+    let code = `${codeMatch[1]}${codeMatch[2]}`;
+    const separatorPosition = codeMatch[1].length;
+    if (separatorPosition < 2 ||
+        separatorPosition > OPEN_LOCATION_CODE_SEPARATOR_POSITION ||
+        separatorPosition % 2 !== 0 ||
+        code.length < separatorPosition + 2) return null;
+
+    if (separatorPosition < OPEN_LOCATION_CODE_SEPARATOR_POSITION) {
+      const prefix = encodeOpenLocationCodePrefix(PMC_LAT, PMC_LNG, OPEN_LOCATION_CODE_SEPARATOR_POSITION);
+      code = `${prefix.slice(0, OPEN_LOCATION_CODE_SEPARATOR_POSITION - separatorPosition)}${code}`;
+    }
+    if (code.length < OPEN_LOCATION_CODE_SEPARATOR_POSITION + 2) return null;
+
+    let latitude = -90;
+    let longitude = -180;
+    let latitudeResolution = 20;
+    let longitudeResolution = 20;
+    const pairLength = Math.min(code.length, 10);
+    for (let i = 0; i < pairLength; i += 2) {
+      const latDigit = OPEN_LOCATION_CODE_ALPHABET.indexOf(code[i]);
+      const lonDigit = OPEN_LOCATION_CODE_ALPHABET.indexOf(code[i + 1]);
+      if (latDigit < 0 || lonDigit < 0) return null;
+      const resolution = OPEN_LOCATION_CODE_PAIR_RESOLUTIONS[i / 2];
+      latitude += latDigit * resolution;
+      longitude += lonDigit * resolution;
+      latitudeResolution = resolution;
+      longitudeResolution = resolution;
+    }
+
+    if (code.length > 10) {
+      latitudeResolution = OPEN_LOCATION_CODE_GRID_LAT_RESOLUTION;
+      longitudeResolution = OPEN_LOCATION_CODE_GRID_LON_RESOLUTION;
+      for (let i = 10; i < code.length; i++) {
+        const digit = OPEN_LOCATION_CODE_ALPHABET.indexOf(code[i]);
+        if (digit < 0) return null;
+        const row = Math.floor(digit / OPEN_LOCATION_CODE_GRID_SIZE);
+        const column = digit % OPEN_LOCATION_CODE_GRID_SIZE;
+        latitude += row * latitudeResolution;
+        longitude += column * longitudeResolution;
+        latitudeResolution /= OPEN_LOCATION_CODE_GRID_SIZE;
+        longitudeResolution /= OPEN_LOCATION_CODE_GRID_SIZE;
+      }
+    }
+
+    const decodedLat = latitude + latitudeResolution / 2;
+    const decodedLon = longitude + longitudeResolution / 2;
+    if (decodedLat < -90 || decodedLat > 90 || decodedLon < -180 || decodedLon > 180) return null;
+    return {
+      lat: decodedLat,
+      lon: decodedLon,
+      canonical: `${compact} (${decodedLat.toFixed(5)}, ${decodedLon.toFixed(5)})`,
+      matchType: 'plus-code'
+    };
+  }
+
   function geocode(address) {
     if (!geocoderIndex) return null;
 
@@ -2915,6 +2999,10 @@ const ALL_FA_ICONS = [
       locationLine =
         `<span title="Plotted directly from the latitude/longitude pair">` +
         `${escHtml(incident.canonical)} <em style="color:#2980b9;font-size:0.8em">(coordinates)</em></span>`;
+    } else if (incident.matchType === 'plus-code') {
+      locationLine =
+        `<span title="Decoded from an Open Location Code">` +
+        `${escHtml(incident.canonical)} <em style="color:#2980b9;font-size:0.8em">(Open Location Code)</em></span>`;
     } else if (incident.matchType === 'google') {
       locationLine =
         `<span title="Resolved via Google Geocoding fallback">` +
@@ -3025,6 +3113,9 @@ const ALL_FA_ICONS = [
       }
 
       let geo = parseCoordinatePair(address);
+      if (!geo) {
+        geo = decodeOpenLocationCode(address);
+      }
       if (!geo) {
         geo = geocode(address);
       }
