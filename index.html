@@ -3810,14 +3810,8 @@ const ALL_FA_ICONS = [
     submitBtn.disabled = true;
     submitBtn.textContent = 'Loading…';
 
-    for (let i = 0; i < sheets.length; i++) {
-      const s = sheets[i];
-      if (!s.rawUrl) {
-        showError(`Please enter a Google Sheet URL for "${s.name}".`);
-        submitBtn.disabled = false;
-        submitBtn.textContent = hasLoadedMap ? 'Save & Load Map' : 'Load Map';
-        return;
-      }
+    const configuredSheets = sheets.filter(sheet => sheet.rawUrl && sheet.rawUrl.trim());
+    for (const s of configuredSheets) {
       const converted = toCsvUrl(s.rawUrl);
       if (!converted) {
         showError(`Could not parse Google Sheets ID from URL for "${s.name}".`);
@@ -3837,41 +3831,43 @@ const ALL_FA_ICONS = [
       }
     }
 
-    const customGeocoderUrl = geocoderInput.value.trim();
-    savedGeocoderUrl = customGeocoderUrl;
-    savedGeocoderOverridden = isOverridden;
-    let geocoderUrl = customGeocoderUrl;
-    if (!geocoderUrl) {
-      if (hasLocalAddresses) {
-        geocoderUrl = 'addresses.json';
-      } else {
-        showError('Please enter the addresses.json URL.');
+    if (configuredSheets.length > 0) {
+      const customGeocoderUrl = geocoderInput.value.trim();
+      savedGeocoderUrl = customGeocoderUrl;
+      savedGeocoderOverridden = isOverridden;
+      let geocoderUrl = customGeocoderUrl;
+      if (!geocoderUrl) {
+        if (hasLocalAddresses) {
+          geocoderUrl = 'addresses.json';
+        } else {
+          showError('Please enter the addresses.json URL.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = hasLoadedMap ? 'Save & Load Map' : 'Load Map';
+          return;
+        }
+      }
+
+      submitBtn.textContent = 'Loading geocoder…';
+
+      try {
+        if (!geocoderIndex) {
+          let addressesObj;
+          if (geocoderUrl === 'addresses.json' && localAddressesData) {
+            addressesObj = localAddressesData;
+          } else {
+            const resp = await fetch(geocoderUrl, { cache: 'no-store' });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching addresses.json`);
+            addressesObj = await resp.json();
+          }
+          geocoderIndex = buildGeocoderIndex(addressesObj);
+          console.log(`Geocoder loaded: ${geocoderIndex.size} unique streets.`);
+        }
+      } catch (err) {
+        showError(`Could not load geocoder: ${err.message}`);
         submitBtn.disabled = false;
         submitBtn.textContent = hasLoadedMap ? 'Save & Load Map' : 'Load Map';
         return;
       }
-    }
-
-    submitBtn.textContent = 'Loading geocoder…';
-
-    try {
-      if (!geocoderIndex) {
-        let addressesObj;
-        if (geocoderUrl === 'addresses.json' && localAddressesData) {
-          addressesObj = localAddressesData;
-        } else {
-          const resp = await fetch(geocoderUrl, { cache: 'no-store' });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching addresses.json`);
-          addressesObj = await resp.json();
-        }
-        geocoderIndex = buildGeocoderIndex(addressesObj);
-        console.log(`Geocoder loaded: ${geocoderIndex.size} unique streets.`);
-      }
-    } catch (err) {
-      showError(`Could not load geocoder: ${err.message}`);
-      submitBtn.disabled = false;
-      submitBtn.textContent = hasLoadedMap ? 'Save & Load Map' : 'Load Map';
-      return;
     }
 
     submitBtn.disabled = false;
@@ -3884,7 +3880,7 @@ const ALL_FA_ICONS = [
 
     sheetModal.classList.add('hidden');
     updateLegend();
-    setStatus('Loading…');
+    setStatus(configuredSheets.length > 0 ? 'Loading…' : 'Map ready — no Google Sheets configured.');
     startPolling();
   }
 
