@@ -49,6 +49,10 @@ publicly accessible Google Sheet.
   * USGS Imagery Topo
   * Esri World Imagery
   * Esri Clarity
+* **Third-party map layers** — use the top-right layers menu to load known fire
+  incidents from the National Interagency Fire Center and nearby ADS-B aircraft.
+  Enabled third-party layers also appear in the legend, where they can be
+  hidden without affecting the incident sheets.
 
 ## Setup
 
@@ -107,6 +111,9 @@ setup dialog or via the toolbar:
 11. Use **Save Map File** to export the current configuration and loaded data. Use
     **Load Map File** in another browser to restore it; the imported snapshot is
     displayed first and then normal sheet refresh resumes.
+12. Open the top-right layers menu and select **Known Fire Incidents** or
+    **ADS-B Aircraft** to load those live third-party overlays. Use their
+    legend checkboxes to hide an enabled overlay.
 
 ### 4. (Optional) Configure Google Geocoding Fallback
 

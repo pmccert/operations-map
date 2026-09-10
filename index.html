@@ -952,6 +952,14 @@
       cursor: pointer;
       margin-right: 2px;
     }
+    .map-legend .legend-third-party {
+      padding-bottom: 5px;
+      border-bottom: 1px solid #ddd;
+    }
+    .map-legend .legend-third-party:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
   </style>
 </head>
 <body>
@@ -1602,10 +1610,19 @@ const ALL_FA_ICONS = [
     )
   };
 
+  const thirdPartyLayers = {
+    'Known Fire Incidents': L.layerGroup(),
+    'ADS-B Aircraft': L.layerGroup()
+  };
+  const thirdPartyLayerActivated = {
+    'Known Fire Incidents': false,
+    'ADS-B Aircraft': false
+  };
+
   let currentBaseLayer = baseLayers['OpenStreetMap'];
 
   baseLayers['OpenStreetMap'].addTo(map);
-  L.control.layers(baseLayers, null, { position: 'topright', collapsed: false }).addTo(map);
+  L.control.layers(baseLayers, thirdPartyLayers, { position: 'topright', collapsed: false }).addTo(map);
   if (savedAppState && typeof savedAppState.baseLayer === 'string' && baseLayers[savedAppState.baseLayer]) {
     map.removeLayer(baseLayers['OpenStreetMap']);
     currentBaseLayer = baseLayers[savedAppState.baseLayer];
@@ -1668,6 +1685,20 @@ const ALL_FA_ICONS = [
     currentBaseLayer = e.layer;
     persistAppState();
     checkZoomAvailability();
+  });
+
+  map.on('overlayadd', function (e) {
+    const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name] === e.layer);
+    if (layerName) {
+      thirdPartyLayerActivated[layerName] = true;
+      updateLegend();
+      loadThirdPartyLayer(layerName);
+    }
+  });
+
+  map.on('overlayremove', function (e) {
+    const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name] === e.layer);
+    if (layerName) updateLegend();
   });
 
   map.on('zoomend', function () {
@@ -1911,6 +1942,107 @@ const ALL_FA_ICONS = [
   const statusBar = document.getElementById('status-bar');
   function setStatus(msg) { statusBar.textContent = msg; }
 
+  const THIRD_PARTY_ENDPOINTS = {
+    fires: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Fire_Perimeters/FeatureServer/0/query?where=1%3D1&geometry=-119.7%2C34.4%2C-118.6%2C35.3&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=geojson',
+    adsb: `https://api.airplanes.live/v2/point/${PMC_LAT}/${PMC_LNG}/100`
+  };
+
+  function clearThirdPartyLayer(layer) {
+    layer.clearLayers();
+  }
+
+  function fireProperty(properties, names) {
+    for (const name of names) {
+      if (properties && properties[name] !== undefined && properties[name] !== null && String(properties[name]).trim()) {
+        return String(properties[name]).trim();
+      }
+    }
+    return '';
+  }
+
+  async function loadFireIncidents() {
+    const layer = thirdPartyLayers['Known Fire Incidents'];
+    const response = await fetch(THIRD_PARTY_ENDPOINTS.fires, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Fire incidents request failed (${response.status})`);
+    const data = await response.json();
+    clearThirdPartyLayer(layer);
+
+    L.geoJSON(data, {
+      style: {
+        color: '#c0392b',
+        weight: 2,
+        fillColor: '#e67e22',
+        fillOpacity: 0.3
+      },
+      pointToLayer: function (_feature, latlng) {
+        return L.marker(latlng, {
+          icon: L.divIcon({
+            className: '',
+            html: '<div class="incident-marker-icon" style="background:#d35400;"><i class="fa-solid fa-fire"></i></div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+          })
+        });
+      },
+      onEachFeature: function (feature, featureLayer) {
+        const properties = feature.properties || {};
+        const name = fireProperty(properties, ['IncidentName', 'incidentName', 'FIRE_NAME', 'FireName']) || 'Known fire incident';
+        const status = fireProperty(properties, ['FireCause', 'Status', 'STATUS']) || 'Reported';
+        const acres = fireProperty(properties, ['DailyAcres', 'GIS_ACRES', 'Acres']);
+        const details = acres ? `<br>Acres: ${escHtml(acres)}` : '';
+        featureLayer.bindPopup(
+          `<div class="incident-popup"><strong>${escHtml(name)}</strong><br>` +
+          `<span class="badge" style="background-color:#d35400;">${escHtml(status)}</span>${details}</div>`
+        );
+      }
+    }).addTo(layer);
+  }
+
+  function aircraftIcon() {
+    return L.divIcon({
+      className: '',
+      html: '<div class="incident-marker-icon" style="background:#2980b9;"><i class="fa-solid fa-plane"></i></div>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
+    });
+  }
+
+  async function loadAdsbAircraft() {
+    const layer = thirdPartyLayers['ADS-B Aircraft'];
+    const response = await fetch(THIRD_PARTY_ENDPOINTS.adsb, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`ADS-B request failed (${response.status})`);
+    const data = await response.json();
+    clearThirdPartyLayer(layer);
+
+    (Array.isArray(data.ac) ? data.ac : []).forEach(function (aircraft) {
+      if (!Number.isFinite(aircraft.lat) || !Number.isFinite(aircraft.lon)) return;
+      const callsign = String(aircraft.flight || aircraft.hex || 'Unknown aircraft').trim();
+      const altitude = Number.isFinite(aircraft.alt_baro) ? `${aircraft.alt_baro} ft` : 'Unknown';
+      const marker = L.marker([aircraft.lat, aircraft.lon], { icon: aircraftIcon() });
+      marker.bindPopup(
+        `<div class="incident-popup"><strong>${escHtml(callsign)}</strong><br>` +
+        `Altitude: ${escHtml(altitude)}<br>` +
+        `Coordinates: ${aircraft.lat.toFixed(5)}, ${aircraft.lon.toFixed(5)}</div>`
+      );
+      marker.addTo(layer);
+    });
+  }
+
+  async function loadThirdPartyLayer(layerName) {
+    try {
+      setStatus(`Loading ${layerName}…`);
+      if (layerName === 'Known Fire Incidents') {
+        await loadFireIncidents();
+      } else if (layerName === 'ADS-B Aircraft') {
+        await loadAdsbAircraft();
+      }
+      setStatus(`${layerName} loaded.`);
+    } catch (err) {
+      console.error(`Error loading ${layerName}:`, err);
+      setStatus(`Error loading ${layerName}: ${err.message}`);
+    }
+  }
+
   function copyTextToClipboard(text) {
     if (navigator.clipboard && window.isSecureContext) {
       return navigator.clipboard.writeText(text);
@@ -2092,8 +2224,28 @@ const ALL_FA_ICONS = [
       `;
     });
 
+    const thirdPartyItemsHtml = Object.keys(thirdPartyLayers)
+      .filter(name => thirdPartyLayerActivated[name])
+      .map(name => {
+        const isFireLayer = name === 'Known Fire Incidents';
+        const icon = isFireLayer ? 'fa-solid fa-fire' : 'fa-solid fa-plane';
+        const color = isFireLayer ? '#d35400' : '#2980b9';
+        const id = `toggle-third-party-${isFireLayer ? 'fires' : 'adsb'}`;
+        return `
+          <div class="legend-item legend-third-party" title="${escHtml(name)}">
+            <label class="legend-checkbox-label" for="${id}">
+              <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(thirdPartyLayers[name]) ? 'checked' : ''} />
+              <span class="legend-icon" style="background-color: ${color};"><i class="${icon}"></i></span>
+              <span class="legend-sheet-name">${escHtml(name)}</span>
+            </label>
+          </div>
+        `;
+      })
+      .join('');
+
     div.innerHTML = `
       <div class="legend-title">Legend</div>
+      ${thirdPartyItemsHtml}
       ${itemsHtml}
       <div class="legend-status-section" style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #ddd;">
         <div class="legend-item">
@@ -2766,6 +2918,16 @@ const ALL_FA_ICONS = [
       showClosedIncidents = e.target.checked;
       persistAppState();
       updateClosedMarkersVisibility();
+    }
+    if (e.target && e.target.dataset.thirdPartyLayer) {
+      const layer = thirdPartyLayers[e.target.dataset.thirdPartyLayer];
+      if (layer) {
+        if (e.target.checked) {
+          map.addLayer(layer);
+        } else {
+          map.removeLayer(layer);
+        }
+      }
     }
   });
 
