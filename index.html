@@ -1698,6 +1698,7 @@ const ALL_FA_ICONS = [
 
   const zoomAlert = document.getElementById('zoom-alert');
   const zoomAlertText = document.getElementById('zoom-alert-text');
+  let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
 
   function isMoreThanOneDegreeFromPmc(lat, lon) {
     const toRadians = degrees => degrees * Math.PI / 180;
@@ -1775,7 +1776,6 @@ const ALL_FA_ICONS = [
 
   map.on('moveend', persistAppState);
 
-  let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
   updateMapAlerts();
 
   // ── State ────────────────────────────────────────────────────────────────────
