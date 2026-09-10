@@ -73,23 +73,27 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Build addresses json
-        run: python scripts/fetch_addresses.py --bbox 34.8,-119.2,34.9,-119.1
-
       - name: Inject commit info into index.html
+        env:
+          GOOGLE_GEOCODING_API_KEY: ${{ secrets.GOOGLE_GEOCODING_API_KEY }}
         run: |
-          COMMIT_HASH=$(git rev-parse --short HEAD)
-          COMMIT_TIME=$(git log -1 --format="%cd" --date=iso)
+          export COMMIT_HASH=$(git rev-parse --short HEAD)
+          export COMMIT_TIME=$(git log -1 --format="%cd" --date=iso)
           python3 -c "
-          import re
+          import os, re
+          h = os.environ['COMMIT_HASH']
+          t = os.environ['COMMIT_TIME']
+          k = os.environ.get('GOOGLE_GEOCODING_API_KEY', '')
           with open('index.html', 'r', encoding='utf-8') as f:
               content = f.read()
-          content = re.sub(r'href=\"https://github\.com/phargogh/pmccert-map-data-from-google-sheet/commit/[^\"]*\">[^<]*</a>',
-                           f'href=\"https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/{COMMIT_HASH}\">{COMMIT_HASH}</a>',
+          content = re.sub(r'<a\s+([^>]*?)href=\"https://github\.com/phargogh/pmccert-map-data-from-google-sheet/commit/[^\"]*\"([^>]*)>[^<]*</a>',
+                           fr'<a \1href=\"https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/{h}\"\2>{h}</a>',
                            content)
           content = re.sub(r'<span id=\"commit-date\">[^<]*</span>',
-                           f'<span id=\"commit-date\">{COMMIT_TIME}</span>',
+                           f'<span id=\"commit-date\">{t}</span>',
                            content)
+          if k:
+              content = content.replace('__GOOGLE_GEOCODING_API_KEY__', k)
           with open('index.html', 'w', encoding='utf-8') as f:
               f.write(content)
           "

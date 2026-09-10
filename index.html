@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PMC CERT Map</title>
 
+  <!-- Google Identity Services (GIS) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <!-- Font Awesome 6 Free (CDN) -->
   <link
     rel="stylesheet"
@@ -21,6 +24,7 @@
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" crossorigin="anonymous" />
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -249,46 +253,347 @@
     .icon-option:hover  { border-color: #2c7bb6; background: #eaf3fb; }
     .icon-option.active { border-color: #2c7bb6; background: #d0e8f8; font-weight: bold; }
 
-    .color-picker-container {
+    /* ── FontAwesome Icon Picker Modal ───────────────────────── */
+    .fa-picker-modal-box {
+      width: min(780px, 95vw);
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 24px;
+    }
+    .fa-picker-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      gap: 12px;
+    }
+    .fa-picker-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    @media (max-width: 540px) {
+      .fa-picker-controls {
+        flex-direction: column;
+      }
+    }
+    .fa-search-wrapper {
+      position: relative;
+      flex: 1;
+    }
+    .fa-search-wrapper .fa-search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #888;
+      font-size: 0.85rem;
+      pointer-events: none;
+    }
+    .fa-search-input {
+      width: 100%;
+      padding-left: 32px !important;
+      padding-right: 28px !important;
+      margin-bottom: 0 !important;
+    }
+    .fa-search-clear {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #999;
+      font-size: 1.1rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .fa-search-clear:hover { color: #333; }
+    .fa-style-select-wrapper {
+      width: 150px;
+      flex-shrink: 0;
+    }
+    @media (max-width: 540px) {
+      .fa-style-select-wrapper {
+        width: 100%;
+      }
+    }
+    .fa-style-select {
+      margin-bottom: 0 !important;
+    }
+    .fa-quick-filters {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      align-items: center;
+      margin-bottom: 10px;
     }
-    .color-swatch {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      border: 2px solid transparent;
+    .fa-filter-chip {
+      padding: 3px 10px;
+      font-size: 0.78rem;
+      border-radius: 12px;
+      border: 1px solid #d0d7de;
+      background: #f6f8fa;
       cursor: pointer;
-      transition: transform 0.15s, border-color 0.15s;
-      outline: none;
-      padding: 0;
+      color: #444;
+      user-select: none;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    .color-swatch:hover {
-      transform: scale(1.15);
+    .fa-filter-chip:hover {
+      background: #eef3f8;
+      border-color: #2c7bb6;
     }
-    .color-swatch.active {
-      border-color: #222;
-      transform: scale(1.15);
-      box-shadow: 0 0 0 2px #fff inset;
+    .fa-filter-chip.active {
+      background: #2c7bb6;
+      color: #fff;
+      border-color: #2c7bb6;
+      font-weight: 600;
+    }
+    .fa-picker-body {
+      flex: 1;
+      min-height: 220px;
+      max-height: 340px;
+      overflow-y: auto;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 10px;
+      background: #fafbfc;
+      margin-bottom: 12px;
+    }
+    .fa-icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+      gap: 8px;
+    }
+    .fa-icon-tile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 4px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.15s, background-color 0.15s;
+      min-height: 68px;
+      user-select: none;
+    }
+    .fa-icon-tile:hover {
+      border-color: #2c7bb6;
+      background: #f0f7fd;
+      transform: translateY(-1px);
+    }
+    .fa-icon-tile.active {
+      border-color: #2c7bb6;
+      background: #d0e8f8;
+      box-shadow: 0 0 0 2px #2c7bb6;
+    }
+    .fa-icon-tile i {
+      font-size: 1.35rem;
+      color: #24292f;
+      margin-bottom: 6px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .fa-icon-tile-name {
+      font-size: 0.68rem;
+      color: #57606a;
+      text-align: center;
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0 2px;
+    }
+    .fa-icon-tile.active .fa-icon-tile-name {
+      color: #0969da;
+      font-weight: bold;
+    }
+    .fa-no-results {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 36px 16px;
+      color: #666;
+      text-align: center;
+    }
+    .fa-picker-footer-section {
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+    .fa-custom-input-row {
+      margin-bottom: 10px;
+    }
+    .fa-selection-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .fa-selected-preview {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .fa-preview-badge {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 15px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      background-color: #e74c3c;
+    }
+    .fa-selected-info {
+      display: flex;
+      flex-direction: column;
+    }
+    .fa-selected-name {
+      font-weight: bold;
+      font-size: 0.95rem;
+      color: #1a202c;
+    }
+    .fa-selected-class {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.78rem;
+      color: #6e7781;
+    }
+    .fa-action-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-browse-fa {
+      background: #f6f8fa;
+      border: 1px dashed #2c7bb6;
+      color: #2c7bb6;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-browse-fa:hover {
+      background: #dbeafe;
+      border-color: #1a5a8a;
+      color: #1a5a8a;
+    }
+
+    .color-picker-control {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .custom-color-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .color-picker-btn-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 2px solid #ccc;
+      cursor: pointer;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+      transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+      flex-shrink: 0;
+      background: #e74c3c;
+    }
+    .color-picker-btn-wrapper:hover {
+      border-color: #2c7bb6;
+      transform: scale(1.05);
+    }
+    .color-picker-btn-wrapper:focus-within {
+      border-color: #2c7bb6;
+      box-shadow: 0 0 0 2px rgba(44, 123, 182, 0.3);
     }
     .custom-color-input {
-      width: 28px;
-      height: 28px;
-      border: 1px solid #ccc;
-      border-radius: 50%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
       cursor: pointer;
+      border: none;
       padding: 0;
-      background: none;
-      vertical-align: middle;
+      margin: 0;
     }
     .custom-color-input::-webkit-color-swatch-wrapper {
       padding: 0;
     }
     .custom-color-input::-webkit-color-swatch {
       border: none;
+    }
+    .custom-color-input::-moz-color-swatch {
+      border: none;
+    }
+    .color-picker-icon-overlay {
+      pointer-events: none;
+      color: rgba(255, 255, 255, 0.9);
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7));
+      font-size: 0.75rem;
+    }
+    .color-hex-input {
+      width: 88px;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      text-transform: uppercase;
+      color: #333;
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .color-hex-input:focus {
+      outline: none;
+      border-color: #2c7bb6;
+      box-shadow: 0 0 0 2px rgba(44, 123, 182, 0.2);
+    }
+    .color-hex-input.invalid {
+      border-color: #e74c3c;
+    }
+    .color-palette-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .color-swatch {
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      outline: none;
+      padding: 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    }
+    .color-swatch:hover {
+      transform: scale(1.18);
+    }
+    .color-swatch.active {
+      border-color: #222;
+      transform: scale(1.18);
+      box-shadow: 0 0 0 2px #fff inset, 0 1px 4px rgba(0,0,0,0.3);
     }
 
     .btn-primary {
@@ -302,6 +607,40 @@
       cursor: pointer;
     }
     .btn-primary:hover { background: #1a5a8a; }
+
+    .btn-secondary {
+      background: #f1f3f5;
+      color: #333;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 9px 16px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-secondary:hover {
+      background: #e2e6ea;
+      border-color: #bbb;
+    }
+
+    .modal-close-btn {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      line-height: 1;
+      color: #888;
+      cursor: pointer;
+      padding: 0 4px;
+      border-radius: 4px;
+      transition: color 0.15s;
+    }
+    .modal-close-btn:hover {
+      color: #333;
+    }
 
     .error-msg {
       color: #c0392b;
@@ -330,33 +669,57 @@
       text-overflow: ellipsis;
     }
 
-    /* ── Commit Info (lower left) ────────────────────────────── */
-    #commit-info {
-      position: fixed;
-      bottom: 8px;
-      left: 10px;
-      z-index: 500;
-      background: rgba(255, 255, 255, 0.88);
-      backdrop-filter: blur(2px);
-      padding: 3px 8px;
-      border-radius: 4px;
-      border: 1px solid #bbb;
-      font-size: 0.72rem;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    /* ── Commit info dialog ───────────────────────────────────── */
+    .commit-info-modal-box {
+      width: min(420px, 92vw);
+    }
+    .commit-info-details {
+      display: grid;
+      gap: 8px;
+      margin: 16px 0;
       color: #333;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-      user-select: text;
+      font-size: 0.88rem;
+    }
+    .commit-info-details a {
+      color: #1a5a8a;
+      font-weight: 600;
+    }
+
+    /* ── PMC CERT logo (lower left) ───────────────────────────── */
+    #pmc-cert-logo {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      z-index: 1100;
+      width: 96px;
+      height: 96px;
+      object-fit: contain;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      pointer-events: none;
+    }
+
+    /* ── Zoom alert (lower right) ────────────────────────────── */
+    #zoom-alert {
+      position: fixed;
+      bottom: 24px;
+      right: 10px;
+      z-index: 1100;
+      background: rgba(192, 57, 43, 0.95);
+      color: #fff;
+      backdrop-filter: blur(2px);
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid #962d22;
+      font-size: 0.78rem;
+      font-weight: 500;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
       display: flex;
       align-items: center;
       gap: 6px;
-    }
-    #commit-info a {
-      color: #1a5a8a;
-      text-decoration: none;
-      font-weight: 600;
-    }
-    #commit-info a:hover {
-      text-decoration: underline;
+      max-width: min(340px, 90vw);
+      user-select: none;
+      pointer-events: auto;
     }
 
     /* ── Toolbar ─────────────────────────────────────────────── */
@@ -382,6 +745,105 @@
       gap: 5px;
     }
     .toolbar-btn:hover { background: #e8f0fe; }
+    .toolbar-file-input { display: none; }
+    .toolbar-select {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid #aaa;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      cursor: pointer;
+    }
+    .custom-feature-list {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .custom-feature-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid #d0d7de;
+      border-radius: 5px;
+      background: #f8fafc;
+    }
+    .custom-feature-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .custom-feature-icon-preview {
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 11px;
+      flex: 0 0 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .custom-feature-icon-preview.closed {
+      background-color: #7f8c8d !important;
+      opacity: 0.55;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .custom-feature-name {
+      flex: 1;
+      font-size: 0.86rem;
+    }
+    .custom-feature-label {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid #888;
+      color: #222;
+      font-weight: 600;
+      padding: 2px 5px;
+    }
+    .custom-feature-color-input {
+      width: 52px;
+      padding: 3px;
+      cursor: pointer;
+    }
+    .custom-feature-empty {
+      color: #777;
+      font-size: 0.86rem;
+      padding: 8px 0;
+    }
+    .drawing-help {
+      background: #eef6fc;
+      border: 1px solid #c7e0f4;
+      border-radius: 5px;
+      padding: 8px 10px;
+      color: #315d7d;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+    .btn-sheet-refresh {
+      background: #f1f3f4;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+      margin-right: 6px;
+    }
+    .btn-sheet-refresh:hover { background: #e8f0fe; border-color: #1a73e8; }
+    .oauth-config-box {
+      background: #f8f9fa;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
 
     /* ── Incident popup ──────────────────────────────────────── */
     .incident-popup { font-size: 0.88rem; line-height: 1.6; }
@@ -412,6 +874,23 @@
       background-color: #7f8c8d !important;
       opacity: 0.55;
       box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+
+    .coordinate-copy-popup {
+      text-align: center;
+      font-size: 0.85rem;
+    }
+    .coordinate-copy-popup .copy-coordinates-btn {
+      margin-top: 6px;
+      padding: 4px 8px;
+      border: 1px solid #aaa;
+      border-radius: 4px;
+      background: #f8f9fa;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .coordinate-copy-popup .copy-coordinates-btn:hover {
+      background: #e8f0fe;
     }
 
     /* ── Map legend ─────────────────────────────────────────── */
@@ -480,11 +959,26 @@
 <!-- ── Sheet URL + configuration modal ─────────────────────────── -->
 <div id="sheet-modal" class="modal-overlay">
   <div class="modal-box">
-    <h2>PMC CERT Incident Map</h2>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+      <h2 style="margin-bottom: 0;">PMC CERT Incident Map</h2>
+      <button type="button" id="sheet-modal-close" class="modal-close-btn hidden" title="Close modal" aria-label="Close modal">&times;</button>
+    </div>
     <p>
       Configure your Google Sheets below. You can add multiple sheets, each with
       its own icon, color, and column mapping.
     </p>
+
+    <!-- Google OAuth 2.0 sign-in -->
+    <div class="oauth-config-box">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+        <label class="field-label" style="margin-bottom: 0;">
+          <i class="fa-brands fa-google"></i> Google OAuth Client ID
+          <span style="font-weight:normal;color:#777"> (for private sheet access)</span>
+        </label>
+        <button type="button" id="btn-oauth-auth" class="btn-link" style="font-size: 0.8rem; white-space: nowrap;">Sign in with Google</button>
+      </div>
+      <div id="oauth-status-text" style="font-size: 0.78rem; color: #666; margin-top: 4px;">Not signed in (using public CSV export).</div>
+    </div>
 
     <div id="sheets-container"></div>
 
@@ -516,7 +1010,7 @@
 
     <div style="display: flex; gap: 8px; margin-top: 14px;">
       <button id="sheet-submit" class="btn-primary" style="flex: 1;">Load Map</button>
-      <button id="sheet-modal-cancel" class="toolbar-btn hidden" style="padding: 9px 16px; font-size: 1rem;">Cancel</button>
+      <button type="button" id="sheet-modal-cancel" class="btn-secondary hidden" style="padding: 9px 16px; font-size: 1rem;">Cancel</button>
     </div>
     <div id="error-msg" class="error-msg"></div>
   </div>
@@ -525,14 +1019,17 @@
 <!-- ── Column-only change modal ─────────────────────────────────── -->
 <div id="columns-modal" class="modal-overlay hidden">
   <div class="modal-box">
-    <h2>Select Sheet Columns</h2>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+      <h2 style="margin-bottom: 0;">Select Sheet Columns</h2>
+      <button type="button" id="columns-modal-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
+    </div>
     <p>
       Choose which columns in your Google Sheets contain the incident data.
     </p>
     <div id="columns-modal-container" style="margin-bottom: 18px;"></div>
     <div style="display: flex; gap: 8px;">
       <button id="columns-modal-save" class="btn-primary" style="flex: 1;">Apply Changes</button>
-      <button id="columns-modal-cancel" class="toolbar-btn" style="padding: 9px 16px; font-size: 1rem;">Cancel</button>
+      <button type="button" id="columns-modal-cancel" class="btn-secondary" style="padding: 9px 16px; font-size: 1rem;">Cancel</button>
     </div>
     <div id="columns-error-msg" class="error-msg"></div>
   </div>
@@ -541,7 +1038,11 @@
 <!-- ── Icon & Color change modal ────────────────────────────────── -->
 <div id="icon-modal" class="modal-overlay hidden">
   <div class="modal-box">
-    <h2>Change Sheet Icons &amp; Colors</h2>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+      <h2 style="margin-bottom: 0;">Change Sheet Icons &amp; Colors</h2>
+      <button type="button" id="icon-modal-top-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
+    </div>
+
     <p>
       Customize the incident icon and marker color for each sheet.
     </p>
@@ -550,25 +1051,188 @@
   </div>
 </div>
 
+<!-- ── Custom feature modal ─────────────────────────────────────── -->
+<div id="custom-feature-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+      <h2 style="margin-bottom: 0;">Custom Map Features</h2>
+      <button type="button" id="custom-feature-modal-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
+    </div>
+    <p>Use the drawing controls on the map to add a point, line, or polygon. Click any feature to edit its details. Features are saved in this browser.</p>
+    <div id="custom-feature-list" class="custom-feature-list"></div>
+    <div class="sheet-card hidden" id="custom-feature-editor">
+      <h3 id="custom-feature-editor-title" style="margin: 0 0 12px;">Feature details</h3>
+      <label class="field-label" for="custom-feature-type">Geometry</label>
+      <input id="custom-feature-type" class="text-input" type="text" readonly style="margin-bottom: 12px;" />
+      <label class="field-label" for="custom-feature-label">Label</label>
+      <input id="custom-feature-label" class="text-input" type="text" placeholder="Feature label" autocomplete="off" />
+      <label class="field-label" for="custom-feature-description">Description (not shown on the map)</label>
+      <textarea id="custom-feature-description" class="text-input" rows="3" placeholder="Optional private notes"></textarea>
+      <label class="field-label" for="custom-feature-color">Color</label>
+      <input id="custom-feature-color" class="text-input custom-feature-color-input" type="color" value="#2c7bb6" />
+      <label id="custom-feature-closed-label" class="legend-checkbox-label hidden" for="custom-feature-closed" style="margin: 0 0 12px;">
+        <input id="custom-feature-closed" type="checkbox" />
+        <span>Closed</span>
+      </label>
+      <label class="field-label">Icon</label>
+      <div id="custom-feature-icon" style="margin-bottom: 12px;"></div>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" id="custom-feature-cancel" class="btn-secondary" style="flex: 1;">Cancel</button>
+        <button type="button" id="custom-feature-save" class="btn-primary" style="flex: 1;">Save Feature</button>
+      </div>
+      <div id="custom-feature-error" class="error-msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FontAwesome Icon Picker Modal ────────────────────────────── -->
+<div id="fa-picker-modal" class="modal-overlay hidden" style="z-index: 1050;">
+  <div class="modal-box fa-picker-modal-box">
+    <div class="fa-picker-header">
+      <div>
+        <h2 style="margin-bottom: 2px;">Select FontAwesome Icon</h2>
+        <p style="margin-bottom: 0; font-size: 0.84rem; color: #666;">
+          Search or choose from thousands of Font Awesome icons, or enter a custom icon class.
+        </p>
+      </div>
+      <button type="button" id="fa-picker-close" class="modal-close-btn" title="Close" aria-label="Close modal">&times;</button>
+    </div>
+
+    <!-- Search & Style Controls -->
+    <div class="fa-picker-controls">
+      <div class="fa-search-wrapper">
+        <i class="fa-solid fa-magnifying-glass fa-search-icon"></i>
+        <input
+          type="text"
+          id="fa-search-input"
+          class="text-input fa-search-input"
+          placeholder="Search icons (e.g. ambulance, hospital, shield, bell, heart)..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="button" id="fa-search-clear" class="fa-search-clear hidden" title="Clear search">&times;</button>
+      </div>
+      <div class="fa-style-select-wrapper">
+        <select id="fa-style-select" class="select-input fa-style-select" title="Icon style">
+          <option value="fa-solid" selected>Solid (fas)</option>
+          <option value="fa-regular">Regular (far)</option>
+          <option value="fa-brands">Brands (fab)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Category / Quick Filter Tags -->
+    <div class="fa-quick-filters">
+      <span class="fa-filter-chip active" data-filter="all">All</span>
+      <span class="fa-filter-chip" data-filter="emergency">Emergency &amp; Safety</span>
+      <span class="fa-filter-chip" data-filter="medical">Medical</span>
+      <span class="fa-filter-chip" data-filter="transport">Transport</span>
+      <span class="fa-filter-chip" data-filter="warning">Alerts &amp; Warning</span>
+      <span class="fa-filter-chip" data-filter="map">Maps &amp; Location</span>
+      <span class="fa-filter-chip" data-filter="nature">Nature &amp; Weather</span>
+    </div>
+
+    <!-- Results count bar -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.78rem; color: #666;">
+      <span id="fa-results-count">Loading icons…</span>
+      <span style="font-size: 0.74rem; color: #888;">Tip: Double-click any icon to select instantly</span>
+    </div>
+
+    <!-- Icon Grid Area -->
+    <div id="fa-picker-body" class="fa-picker-body">
+      <div id="fa-icon-grid" class="fa-icon-grid"></div>
+      <div id="fa-no-results" class="fa-no-results hidden">
+        <i class="fa-solid fa-circle-question" style="font-size: 2rem; color: #aaa; margin-bottom: 8px;"></i>
+        <p style="margin-bottom: 4px; font-weight: bold; color: #444;">No matching icons found for "<span id="fa-query-text"></span>"</p>
+        <p style="font-size: 0.8rem; color: #777; margin-bottom: 0;">You can still use it as a custom icon class below.</p>
+      </div>
+    </div>
+
+    <!-- Custom Class Input & Current Selection Preview -->
+    <div class="fa-picker-footer-section">
+      <div class="fa-custom-input-row">
+        <label class="sub-field-label" for="fa-custom-class-input" style="margin-bottom: 4px;">Custom Icon Class:</label>
+        <input
+          type="text"
+          id="fa-custom-class-input"
+          class="text-input"
+          style="margin-bottom: 0; font-family: ui-monospace, monospace; font-size: 0.84rem;"
+          placeholder="e.g. fa-solid fa-hospital or fa-kit-medical"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+
+      <div class="fa-selection-bar">
+        <div class="fa-selected-preview">
+          <span class="fa-preview-badge" id="fa-preview-badge">
+            <i id="fa-preview-icon" class="fa-solid fa-bell-concierge"></i>
+          </span>
+          <div class="fa-selected-info">
+            <div class="fa-selected-name" id="fa-selected-name">Emergency</div>
+            <div class="fa-selected-class" id="fa-selected-class">fa-solid fa-bell-concierge</div>
+          </div>
+        </div>
+        <div class="fa-action-buttons">
+          <button type="button" id="fa-picker-cancel" class="btn-secondary">Cancel</button>
+          <button type="button" id="fa-picker-submit" class="btn-primary" style="width: auto; padding: 9px 20px;">Use This Icon</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <!-- Map container -->
 <div id="map"></div>
 
 <!-- Toolbar -->
 <div id="toolbar">
-  <button class="toolbar-btn" id="btn-change-sheet"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
+  <button class="toolbar-btn" id="btn-change-sheet" title="Change / Manage Sheets"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
   <button class="toolbar-btn" id="btn-change-columns"><i class="fa-solid fa-table-columns"></i> Change Columns</button>
   <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-palette"></i> Change Icons &amp; Colors</button>
   <button class="toolbar-btn" id="btn-clear-features" title="Remove all incident features from the map"><i class="fa-solid fa-trash-can"></i> Clear Features</button>
+  <button class="toolbar-btn" id="btn-custom-features"><i class="fa-solid fa-draw-polygon"></i> Custom Features</button>
+  <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
+  <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
+  <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
+  <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
+  <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
+    <option value="0">Auto-refresh: Off</option>
+    <option value="15000">Auto-refresh: 15s</option>
+    <option value="30000" selected>Auto-refresh: 30s</option>
+    <option value="60000">Auto-refresh: 1m</option>
+    <option value="300000">Auto-refresh: 5m</option>
+  </select>
+  <button class="toolbar-btn" id="btn-google-auth-status" title="Google Authentication Status"><i class="fa-brands fa-google"></i> <span id="google-auth-btn-text">Sign In</span></button>
 </div>
 
 <!-- Status bar -->
 <div id="status-bar">Waiting for sheet configuration…</div>
 
-<!-- Commit info (lower left) -->
-<div id="commit-info">
-  <span id="commit-hash">Commit: <a href="https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/f96039d" target="_blank" rel="noopener noreferrer">f96039d</a></span>
-  <span style="opacity: 0.5;">•</span>
-  <span id="commit-date">Fri Sep 4 21:06:10 2026 -0700</span>
+<!-- PMC CERT logo (lower left) -->
+<img id="pmc-cert-logo" src="assets/pmc-cert-logo.png" alt="PMC CERT logo" />
+
+<!-- Commit info dialog -->
+<div id="commit-info-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="commit-info-title">
+  <div class="modal-box commit-info-modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <h2 id="commit-info-title">PMC CERT Map Credits</h2>
+      <button type="button" id="commit-info-close" class="modal-close-btn" title="Close dialog" aria-label="Close dialog">&times;</button>
+    </div>
+    <div class="commit-info-details">
+      <div>Commit: <a href="https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/11b0c42" target="_blank" rel="noopener noreferrer">11b0c42</a></div>
+      <div>Timestamp: 2026-09-04 21:20:49 -0700</div>
+      <div>Website: <a href="https://pmccert.com" target="_blank" rel="noopener noreferrer">pmccert.com</a></div>
+    </div>
+    <button type="button" id="commit-info-done" class="btn-secondary">Close</button>
+  </div>
+</div>
+
+<!-- Zoom availability alert (lower right) -->
+<div id="zoom-alert" class="hidden" role="alert" aria-live="polite">
+  <i class="fa-solid fa-triangle-exclamation"></i>
+  <span id="zoom-alert-text">The requested zoom level is not available for this base map.</span>
 </div>
 
 <!-- Leaflet JS -->
@@ -577,6 +1241,7 @@
   integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
   crossorigin=""
 ></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js" crossorigin="anonymous"></script>
 
 <script>
 (function () {
@@ -586,7 +1251,30 @@
 
   const PMC_LAT = 34.857;
   const PMC_LNG = -119.155;
-  const POLL_INTERVAL_MS = 30000;
+  const DEFAULT_POLL_INTERVAL_MS = 30000;
+  const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';
+  const APP_STATE_KEY = 'pmc_cert_map_state';
+
+  function readAppState() {
+    try {
+      const raw = localStorage.getItem(APP_STATE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeAppState(state) {
+    try {
+      localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
+    } catch (_) {
+      // Storage may be unavailable or full.
+    }
+  }
+
+  const savedAppState = readAppState();
+  let savedGeocoderUrl = '';
+  let savedGeocoderOverridden = false;
 
   // Available incident icons: { fa: FA classes, label }
   const ICON_OPTIONS = [
@@ -601,6 +1289,250 @@
     { fa: 'fa-solid fa-location-dot',         label: 'Pin' },
     { fa: 'fa-solid fa-star',                 label: 'Star' },
   ];
+
+  function formatIconLabel(iconNameOrClass) {
+    if (!iconNameOrClass) return '';
+    const name = iconNameOrClass
+      .replace(/^fa-(solid|regular|brands)\s+/, '')
+      .replace(/^fa-/, '');
+    return name
+      .split('-')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+const ALL_FA_ICONS = [
+    "0", "1", "2", "3", "4", "5", "500px", "6", "7", "8", "9", "a",
+    "accessible-icon", "accusoft", "adn", "adversal", "affiliatetheme", "airbnb", "algolia", "align-center", "align-justify", "align-left", "align-right", "alipay",
+    "amazon", "amazon-pay", "amilia", "anchor", "anchor-circle-check", "anchor-circle-exclamation", "anchor-circle-xmark", "anchor-lock", "android", "angellist", "angle-down", "angle-left",
+    "angle-right", "angle-up", "angles-down", "angles-left", "angles-right", "angles-up", "angrycreative", "angular", "ankh", "app-store", "app-store-ios", "apper",
+    "apple", "apple-pay", "apple-whole", "archway", "arrow-down", "arrow-down-up-across-line", "arrow-down-up-lock", "arrow-left", "arrow-right", "arrow-right-to-city", "arrow-trend-down", "arrow-trend-up",
+    "arrow-up", "arrow-up-from-bracket", "arrow-up-from-ground-water", "arrow-up-from-water-pump", "arrow-up-right-dots", "arrows", "arrows-down-to-line", "arrows-down-to-people", "arrows-left-right", "arrows-left-right-to-line", "arrows-spin", "arrows-split-up-and-left",
+    "arrows-to-circle", "arrows-to-dot", "arrows-to-eye", "arrows-turn-right", "arrows-turn-to-dots", "arrows-up-to-line", "arrows-v", "artstation", "asterisk", "asymmetrik", "at", "atlassian",
+    "atom", "audible", "audio-description", "austral-sign", "autoprefixer", "avianex", "aviato", "award", "aws", "b", "baby", "backward",
+    "bacon", "bacteria", "bacterium", "baht-sign", "bandage", "bandcamp", "bangladeshi-taka-sign", "barcode", "baseball", "baseball-bat-ball", "basketball", "bathtub",
+    "battery", "battery-empty", "battery-half", "battery-quarter", "battery-three-quarters", "battle-net", "bed", "beer", "behance", "bell", "bell-slash", "bezier-curve",
+    "bicycle", "bilibili", "bimobject", "binoculars", "biohazard", "bitbucket", "bitcoin", "bitcoin-sign", "bity", "black-tie", "blackberry", "blender",
+    "blender-phone", "blog", "blogger", "blogger-b", "bluesky", "bluetooth", "bluetooth-b", "bold", "bolt-lightning", "bomb", "bone", "bong",
+    "book", "book-atlas", "book-bible", "book-bookmark", "book-medical", "book-open", "book-reader", "book-skull", "bookmark", "bootstrap", "border-all", "border-none",
+    "border-top-left", "bore-hole", "bots", "bottle-droplet", "bottle-water", "bowl-food", "bowl-rice", "bowling-ball", "box", "box-archive", "box-open", "box-tissue",
+    "boxes", "boxes-packing", "braille", "brain", "brave", "brave-reverse", "brazilian-real-sign", "bread-slice", "bridge", "bridge-circle-check", "bridge-circle-exclamation", "bridge-circle-xmark",
+    "bridge-lock", "bridge-water", "briefcase", "briefcase-medical", "broom", "brush", "btc", "bucket", "buffer", "bug", "bug-slash", "bugs",
+    "building", "building-circle-arrow-right", "building-circle-check", "building-circle-exclamation", "building-circle-xmark", "building-flag", "building-lock", "building-ngo", "building-shield", "building-un", "building-user", "building-wheat",
+    "bullhorn", "bullseye", "buromobelexperte", "burst", "bus", "bus-simple", "business-time", "buy-n-large", "buysellads", "c", "cake", "calculator",
+    "calendar", "calendar-check", "calendar-day", "calendar-days", "calendar-minus", "calendar-plus", "calendar-week", "calendar-xmark", "camera", "camera-retro", "camera-rotate", "campground",
+    "canadian-maple-leaf", "cancel", "candy-cane", "cannabis", "capsules", "car", "car-battery", "car-crash", "car-on", "car-rear", "car-side", "car-tunnel",
+    "caravan", "caret-down", "caret-left", "caret-right", "caret-up", "carriage-baby", "carrot", "cart-arrow-down", "cart-plus", "cash-register", "cat", "cc-amazon-pay",
+    "cc-amex", "cc-apple-pay", "cc-diners-club", "cc-discover", "cc-jcb", "cc-mastercard", "cc-paypal", "cc-stripe", "cc-visa", "cedi-sign", "cent-sign", "centercode",
+    "centos", "certificate", "chair", "chalkboard", "chalkboard-user", "charging-station", "chart-area", "chart-bar", "chart-column", "chart-gantt", "chart-simple", "check",
+    "check-double", "cheese", "chess", "chess-bishop", "chess-board", "chess-king", "chess-knight", "chess-pawn", "chess-queen", "chess-rook", "chevron-down", "chevron-left",
+    "chevron-right", "chevron-up", "child", "child-dress", "child-reaching", "child-rifle", "children", "chrome", "chromecast", "church", "circle", "circle-arrow-down",
+    "circle-arrow-left", "circle-arrow-right", "circle-arrow-up", "circle-check", "circle-chevron-down", "circle-chevron-left", "circle-chevron-right", "circle-chevron-up", "circle-down", "circle-half-stroke", "circle-left", "circle-nodes",
+    "circle-notch", "circle-right", "circle-up", "city", "clapperboard", "clipboard", "clipboard-check", "clipboard-list", "clipboard-question", "clipboard-user", "clock", "clone",
+    "closed-captioning", "cloud", "cloud-download", "cloud-meatball", "cloud-moon", "cloud-moon-rain", "cloud-rain", "cloud-showers-heavy", "cloud-showers-water", "cloud-sun", "cloud-sun-rain", "cloud-upload",
+    "cloudflare", "cloudscale", "cloudsmith", "cloudversify", "clover", "cmplid", "code", "code-branch", "code-commit", "code-compare", "code-fork", "code-merge",
+    "code-pull-request", "codepen", "codiepie", "coins", "colon-sign", "comment", "comment-dollar", "comment-medical", "comment-slash", "commenting", "comments", "comments-dollar",
+    "compact-disc", "compass", "compress", "computer", "concierge-bell", "confluence", "connectdevelop", "contact-book", "contao", "cookie", "cookie-bite", "copy",
+    "copyright", "cotton-bureau", "couch", "cow", "cpanel", "creative-commons", "creative-commons-by", "creative-commons-nc", "creative-commons-nc-eu", "creative-commons-nc-jp", "creative-commons-nd", "creative-commons-pd",
+    "creative-commons-pd-alt", "creative-commons-remix", "creative-commons-sa", "creative-commons-sampling", "creative-commons-sampling-plus", "creative-commons-share", "creative-commons-zero", "credit-card", "critical-role", "crop", "crop-simple", "cross",
+    "crosshairs", "crow", "crown", "crutch", "cruzeiro-sign", "css3", "css3-alt", "cube", "cubes", "cubes-stacked", "cuttlefish", "d",
+    "d-and-d", "d-and-d-beyond", "dailymotion", "dashcube", "database", "debian", "deezer", "delete-left", "delicious", "democrat", "deploydog", "deskpro",
+    "desktop", "dev", "deviantart", "dharmachakra", "dhl", "diagram-next", "diagram-predecessor", "diagram-successor", "diamond", "diaspora", "dice", "dice-d20",
+    "dice-d6", "dice-five", "dice-four", "dice-one", "dice-six", "dice-three", "dice-two", "digg", "digital-ocean", "directions", "discord", "discourse",
+    "disease", "display", "divide", "dna", "dochub", "docker", "dog", "dolly", "dolly-flatbed", "donate", "dong-sign", "door-closed",
+    "door-open", "dot-circle", "dove", "down-left-and-up-right-to-center", "download", "draft2digital", "drafting-compass", "dragon", "draw-polygon", "dribbble", "dropbox", "drum",
+    "drum-steelpan", "drumstick-bite", "drupal", "dumbbell", "dumpster", "dumpster-fire", "dungeon", "dyalog", "e", "ear-listen", "earlybirds", "ebay",
+    "edge", "edge-legacy", "egg", "eject", "elementor", "elevator", "ellipsis", "ellipsis-vertical", "ello", "ember", "empire", "envelope",
+    "envelope-circle-check", "envelope-open", "envelope-open-text", "envira", "equals", "eraser", "erlang", "ethereum", "ethernet", "etsy", "euro", "evernote",
+    "exchange", "exclamation", "exclamation-circle", "expand", "expeditedssl", "explosion", "external-link", "eye", "eye-slash", "eyedropper", "f", "face-angry",
+    "face-dizzy", "facebook", "facebook-f", "facebook-messenger", "fan", "fantasy-flight-games", "fast-backward", "faucet", "faucet-drip", "fax", "feather", "feather-pointed",
+    "fedex", "fedora", "ferry", "figma", "file", "file-audio", "file-circle-check", "file-circle-exclamation", "file-circle-minus", "file-circle-plus", "file-circle-question", "file-circle-xmark",
+    "file-code", "file-contract", "file-csv", "file-download", "file-excel", "file-export", "file-image", "file-import", "file-invoice", "file-invoice-dollar", "file-medical", "file-pdf",
+    "file-pen", "file-powerpoint", "file-prescription", "file-shield", "file-signature", "file-text", "file-upload", "file-video", "file-waveform", "file-word", "file-zipper", "fill",
+    "fill-drip", "film", "filter", "filter-circle-xmark", "fingerprint", "fire", "fire-burner", "fire-extinguisher", "fire-flame-curved", "fire-flame-simple", "firefox", "firefox-browser",
+    "first-order", "first-order-alt", "firstdraft", "fish", "fish-fins", "flag", "flag-checkered", "flag-usa", "flask", "flask-vial", "flickr", "flipboard",
+    "florin-sign", "flushed", "fly", "folder", "folder-closed", "folder-minus", "folder-open", "folder-plus", "folder-tree", "font", "font-awesome", "fonticons",
+    "fonticons-fi", "football", "fort-awesome", "fort-awesome-alt", "forumbee", "forward", "forward-fast", "foursquare", "franc-sign", "free-code-camp", "freebsd", "frog",
+    "frown", "frown-open", "fulcrum", "funnel-dollar", "g", "galactic-republic", "galactic-senate", "gamepad", "gas-pump", "gear", "gears", "gem",
+    "genderless", "get-pocket", "gg", "gg-circle", "ghost", "gift", "gifts", "git", "git-alt", "github", "github-alt", "gitkraken",
+    "gitlab", "gitter", "glass-cheers", "glass-water", "glass-water-droplet", "glasses", "glide", "glide-g", "globe", "globe-africa", "globe-americas", "globe-asia",
+    "globe-europe", "globe-oceania", "gofore", "golang", "golf-ball", "goodreads", "goodreads-g", "google", "google-drive", "google-pay", "google-play", "google-plus",
+    "google-plus-g", "google-scholar", "google-wallet", "gopuram", "gratipay", "grav", "greater-than", "greater-than-equal", "grimace", "grin", "grin-alt", "grin-beam",
+    "grin-beam-sweat", "grin-hearts", "grin-squint", "grin-squint-tears", "grin-stars", "grin-tears", "grin-tongue", "grin-tongue-squint", "grin-tongue-wink", "grin-wink", "grip", "grip-lines",
+    "grip-lines-vertical", "grip-vertical", "gripfire", "group-arrows-rotate", "grunt", "guarani-sign", "guilded", "guitar", "gulp", "gun", "h", "hacker-news",
+    "hackerrank", "hamburger", "hammer", "hamsa", "hand", "hand-dots", "hand-fist", "hand-holding", "hand-holding-hand", "hand-holding-heart", "hand-holding-medical", "hand-holding-usd",
+    "hand-holding-water", "hand-lizard", "hand-middle-finger", "hand-peace", "hand-point-down", "hand-point-left", "hand-point-right", "hand-point-up", "hand-pointer", "hand-rock", "hand-scissors", "hand-sparkles",
+    "hand-spock", "handcuffs", "hands-asl-interpreting", "hands-bound", "hands-clapping", "hands-holding", "hands-holding-child", "hands-holding-circle", "hands-wash", "handshake", "handshake-angle", "handshake-simple",
+    "handshake-simple-slash", "handshake-slash", "hanukiah", "hard-of-hearing", "hashnode", "hashtag", "hat-cowboy", "hat-cowboy-side", "hat-wizard", "haykal", "hdd", "head-side-cough",
+    "head-side-cough-slash", "head-side-mask", "head-side-virus", "heading", "headphones", "headphones-simple", "headset", "heart", "heart-circle-bolt", "heart-circle-check", "heart-circle-exclamation", "heart-circle-minus",
+    "heart-circle-plus", "heart-circle-xmark", "heart-crack", "heartbeat", "helicopter", "helicopter-symbol", "helmet-safety", "helmet-un", "highlighter", "hill-avalanche", "hill-rockslide", "hippo",
+    "hips", "hire-a-helper", "history", "hive", "hockey-puck", "holly-berry", "hooli", "hornbill", "horse", "horse-head", "hospital", "hospital-symbol",
+    "hospital-user", "hot-tub", "hotdog", "hotel", "hotjar", "hourglass", "hourglass-end", "hourglass-half", "hourglass-start", "house", "house-chimney", "house-chimney-medical",
+    "house-chimney-user", "house-chimney-window", "house-circle-check", "house-circle-exclamation", "house-circle-xmark", "house-crack", "house-damage", "house-fire", "house-flag", "house-flood-water", "house-flood-water-circle-arrow-right", "house-lock",
+    "house-medical", "house-medical-circle-check", "house-medical-circle-exclamation", "house-medical-circle-xmark", "house-medical-flag", "house-signal", "house-tsunami", "house-user", "houzz", "hryvnia", "html5", "hubspot",
+    "hurricane", "i", "i-cursor", "ice-cream", "icicles", "icons", "id-badge", "id-card", "id-card-clip", "ideal", "igloo", "image",
+    "images", "imdb", "inbox", "indent", "industry", "infinity", "info", "info-circle", "innosoft", "inr", "instagram", "instalod",
+    "intercom", "internet-explorer", "invision", "ioxhost", "italic", "itch-io", "itunes", "itunes-note", "j", "jar", "jar-wheat", "java",
+    "jedi", "jedi-order", "jenkins", "jet-fighter", "jet-fighter-up", "jira", "joget", "joint", "joomla", "journal-whills", "js", "jsfiddle",
+    "jug-detergent", "jxl", "k", "kaaba", "kaggle", "key", "keybase", "keyboard", "keycdn", "khanda", "kickstarter-k", "kip-sign",
+    "kiss", "kiss-beam", "kiss-wink-heart", "kit-medical", "kitchen-set", "kiwi-bird", "korvue", "l", "land-mine-on", "landmark", "landmark-dome", "landmark-flag",
+    "language", "laptop", "laptop-code", "laptop-file", "laptop-house", "laptop-medical", "laravel", "lari-sign", "lastfm", "laugh", "laugh-beam", "laugh-squint",
+    "laugh-wink", "layer-group", "leaf", "leanpub", "left-right", "legal", "lemon", "less", "less-than", "less-than-equal", "letterboxd", "level-down",
+    "level-up", "life-ring", "lightbulb", "line", "line-chart", "lines-leaning", "link", "linkedin", "linkedin-in", "linode", "linux", "lira-sign",
+    "list", "list-ol", "list-ul", "litecoin-sign", "location", "location-arrow", "location-pin-lock", "lock", "lock-open", "locust", "long-arrow-alt-down", "long-arrow-alt-left",
+    "long-arrow-down", "long-arrow-left", "long-arrow-right", "long-arrow-up", "low-vision", "luggage-cart", "lungs", "lungs-virus", "lyft", "m", "magento", "magnet",
+    "magnifying-glass-arrow-right", "magnifying-glass-chart", "mail-bulk", "mailchimp", "manat-sign", "mandalorian", "map", "map-marked", "map-marked-alt", "map-marker", "map-marker-alt", "map-pin",
+    "markdown", "marker", "mars", "mars-and-venus", "mars-and-venus-burst", "mars-double", "mars-stroke", "mars-stroke-right", "mars-stroke-v", "martini-glass", "martini-glass-citrus", "martini-glass-empty",
+    "mask", "mask-face", "mask-ventilator", "mastodon", "mattress-pillow", "maxcdn", "maximize", "mdb", "medal", "medapps", "medium", "medrt",
+    "meetup", "megaport", "meh", "meh-blank", "meh-rolling-eyes", "memory", "mendeley", "menorah", "mercury", "message", "meta", "meteor",
+    "microblog", "microchip", "microphone", "microphone-lines", "microphone-lines-slash", "microphone-slash", "microscope", "microsoft", "mill-sign", "minimize", "mintbit", "minus-circle",
+    "mitten", "mix", "mixcloud", "mixer", "mizuni", "mobile", "mobile-button", "mobile-retro", "mobile-screen", "mobile-screen-button", "modx", "monero",
+    "money-bill", "money-bill-alt", "money-bill-transfer", "money-bill-trend-up", "money-bill-wave", "money-bill-wave-alt", "money-bill-wheat", "money-bills", "money-check", "money-check-dollar", "monument", "moon",
+    "mortar-board", "mortar-pestle", "mosque", "mosquito", "mosquito-net", "motorcycle", "mound", "mountain", "mountain-city", "mountain-sun", "mouse", "mouse-pointer",
+    "mug-hot", "mug-saucer", "music", "n", "naira-sign", "napster", "navicon", "neos", "network-wired", "neuter", "newspaper", "nfc-directional",
+    "nfc-symbol", "nimblr", "node", "node-js", "not-equal", "notdef", "notes-medical", "npm", "ns8", "nutritionix", "o", "object-group",
+    "object-ungroup", "octopus-deploy", "odnoklassniki", "odysee", "oil-can", "oil-well", "old-republic", "om", "opencart", "openid", "opensuse", "opera",
+    "optin-monster", "orcid", "osi", "otter", "outdent", "p", "padlet", "page4", "pagelines", "pager", "paint-roller", "paintbrush",
+    "palette", "palfed", "pallet", "panorama", "paper-plane", "paperclip", "parachute-box", "paragraph", "passport", "paste", "patreon", "pause",
+    "pause-circle", "paw", "paypal", "peace", "pen", "pen-clip", "pen-fancy", "pen-nib", "pen-to-square", "pencil", "pencil-ruler", "people-arrows",
+    "people-carry", "people-group", "people-line", "people-pulling", "people-robbery", "people-roof", "pepper-hot", "perbyte", "percentage", "periscope", "person", "person-arrow-down-to-line",
+    "person-arrow-up-from-line", "person-biking", "person-booth", "person-breastfeeding", "person-burst", "person-cane", "person-chalkboard", "person-circle-check", "person-circle-exclamation", "person-circle-minus", "person-circle-plus", "person-circle-question",
+    "person-circle-xmark", "person-digging", "person-dots-from-line", "person-dress", "person-dress-burst", "person-drowning", "person-falling", "person-falling-burst", "person-half-dress", "person-harassing", "person-hiking", "person-military-pointing",
+    "person-military-rifle", "person-military-to-person", "person-pregnant", "person-rays", "person-rifle", "person-shelter", "person-through-window", "person-walking-arrow-loop-left", "person-walking-arrow-right", "person-walking-dashed-line-arrow-right", "person-walking-luggage", "person-walking-with-cane",
+    "peseta-sign", "peso-sign", "phabricator", "phoenix-framework", "phoenix-squadron", "phone", "phone-flip", "phone-slash", "photo-video", "php", "pie-chart", "pied-piper",
+    "pied-piper-alt", "pied-piper-hat", "pied-piper-pp", "piggy-bank", "pills", "pinterest", "pinterest-p", "pix", "pixiv", "pizza-slice", "place-of-worship", "plane",
+    "plane-arrival", "plane-circle-check", "plane-circle-exclamation", "plane-circle-xmark", "plane-departure", "plane-lock", "plane-slash", "plane-up", "plant-wilt", "plate-wheat", "play", "play-circle",
+    "playstation", "plug", "plug-circle-bolt", "plug-circle-check", "plug-circle-exclamation", "plug-circle-minus", "plug-circle-plus", "plug-circle-xmark", "plus", "plus-circle", "plus-minus", "podcast",
+    "poo", "poo-storm", "poop", "portrait", "power-off", "pray", "praying-hands", "prescription", "prescription-bottle", "prescription-bottle-medical", "print", "procedures",
+    "product-hunt", "project-diagram", "pump-medical", "pump-soap", "pushed", "puzzle-piece", "python", "q", "qq", "qrcode", "question", "question-circle",
+    "quidditch", "quinscape", "quora", "quote-left", "quote-right", "quran", "r", "r-project", "radiation", "radiation-alt", "radio", "rainbow",
+    "ranking-star", "raspberry-pi", "ravelry", "react", "reacteurope", "readme", "rebel", "receipt", "record-vinyl", "rectangle-ad", "rectangle-list", "recycle",
+    "red-river", "reddit", "reddit-alien", "redhat", "redo", "registered", "renren", "repeat", "reply", "reply-all", "replyd", "republican",
+    "researchgate", "resolving", "restroom", "retweet", "rev", "ribbon", "right-left", "right-long", "ring", "road", "road-barrier", "road-bridge",
+    "road-circle-check", "road-circle-exclamation", "road-circle-xmark", "road-lock", "road-spikes", "robot", "rocket", "rocketchat", "rockrms", "rotate-right", "route", "rss",
+    "ruble", "rug", "ruler", "ruler-combined", "ruler-horizontal", "ruler-vertical", "running", "rupee", "rupiah-sign", "rust", "s", "sack-dollar",
+    "sack-xmark", "sad-cry", "sad-tear", "safari", "sailboat", "salesforce", "sass", "satellite", "satellite-dish", "save", "scale-balanced", "scale-unbalanced",
+    "scale-unbalanced-flip", "schlix", "school", "school-circle-check", "school-circle-exclamation", "school-circle-xmark", "school-flag", "school-lock", "scissors", "screenpal", "screwdriver", "scribd",
+    "scroll", "sd-card", "search", "search-dollar", "search-location", "search-minus", "search-plus", "searchengin", "section", "sellcast", "sellsy", "server",
+    "servicestack", "share", "share-nodes", "share-square", "sheet-plastic", "sheqel", "shield", "shield-cat", "shield-dog", "shield-halved", "shield-heart", "shield-virus",
+    "ship", "shirtsinbulk", "shoe-prints", "shoelace", "shop-lock", "shopify", "shopping-bag", "shopping-basket", "shopping-cart", "shopware", "shower", "shrimp",
+    "shuffle", "sign", "sign-in", "sign-in-alt", "sign-out", "sign-out-alt", "signal", "signal-messenger", "signature", "signing", "signs-post", "sim-card",
+    "simplybuilt", "sink", "sistrix", "sitemap", "sith", "sitrox", "skating", "sketch", "skiing", "skiing-nordic", "skull", "skull-crossbones",
+    "skyatlas", "skype", "slack", "slash", "sleigh", "sliders", "slideshare", "smile", "smile-beam", "smile-wink", "smog", "smoking",
+    "smoking-ban", "sms", "snapchat", "snowboarding", "snowflake", "snowman", "snowplow", "soap", "soccer-ball", "socks", "solar-panel", "sort-alpha-down",
+    "sort-alpha-down-alt", "sort-alpha-up", "sort-alpha-up-alt", "sort-amount-down", "sort-amount-down-alt", "sort-amount-up", "sort-amount-up-alt", "sort-down", "sort-numeric-down", "sort-numeric-down-alt", "sort-numeric-up", "sort-numeric-up-alt",
+    "sort-up", "soundcloud", "sourcetree", "spa", "space-awesome", "space-shuttle", "spaghetti-monster-flying", "speakap", "speaker-deck", "spell-check", "spider", "spinner",
+    "splotch", "spotify", "spray-can", "spray-can-sparkles", "sprout", "square", "square-arrow-up-right", "square-behance", "square-caret-down", "square-caret-left", "square-caret-right", "square-caret-up",
+    "square-check", "square-dribbble", "square-envelope", "square-facebook", "square-font-awesome", "square-font-awesome-stroke", "square-full", "square-git", "square-github", "square-gitlab", "square-google-plus", "square-h",
+    "square-hacker-news", "square-instagram", "square-js", "square-kickstarter", "square-lastfm", "square-letterboxd", "square-minus", "square-nfi", "square-odnoklassniki", "square-parking", "square-pen", "square-person-confined",
+    "square-phone", "square-phone-flip", "square-pied-piper", "square-pinterest", "square-plus", "square-poll-horizontal", "square-poll-vertical", "square-reddit", "square-root-variable", "square-rss", "square-share-nodes", "square-snapchat",
+    "square-threads", "square-up-right", "square-upwork", "square-virus", "square-web-awesome", "square-web-awesome-stroke", "square-x-twitter", "squarespace", "stack-exchange", "stack-overflow", "stackpath", "staff-snake",
+    "stairs", "stamp", "stapler", "star", "star-and-crescent", "star-half", "star-half-stroke", "star-of-david", "star-of-life", "staylinked", "steam", "steam-square",
+    "steam-symbol", "step-backward", "step-forward", "sterling-sign", "stethoscope", "sticker-mule", "sticky-note", "stop", "stop-circle", "stopwatch", "stopwatch-20", "store",
+    "store-alt", "store-alt-slash", "store-slash", "strava", "stream", "street-view", "strikethrough", "stripe", "stripe-s", "stroopwafel", "stubber", "studiovinari",
+    "stumbleupon", "stumbleupon-circle", "subscript", "subtract", "suitcase", "suitcase-medical", "suitcase-rolling", "sun", "sun-plant-wilt", "superpowers", "superscript", "supple",
+    "surprise", "suse", "swatchbook", "swift", "swimmer", "symfony", "synagogue", "sync", "sync-alt", "syringe", "t", "table",
+    "table-cells-column-lock", "table-cells-row-lock", "table-columns", "table-tennis", "tablet", "tablet-button", "tablet-screen-button", "tablets", "tachograph-digital", "tachometer", "tachometer-alt", "tachometer-alt-average",
+    "tachometer-average", "tag", "tags", "tanakh", "tape", "tarp", "tarp-droplet", "tasks", "tasks-alt", "taxi", "teamspeak", "teeth",
+    "teeth-open", "telegram", "temperature-down", "temperature-high", "temperature-low", "temperature-up", "tencent-weibo", "tenge", "tent", "tent-arrow-down-to-line", "tent-arrow-left-right", "tent-arrow-turn-left",
+    "tent-arrows-down", "tents", "terminal", "text-height", "text-slash", "text-width", "th", "th-large", "th-list", "the-red-yeti", "theater-masks", "themeco",
+    "themeisle", "thermometer", "thermometer-empty", "thermometer-full", "thermometer-half", "thermometer-quarter", "thermometer-three-quarters", "think-peaks", "threads", "thumbs-down", "thumbs-up", "thumbtack",
+    "thunderstorm", "ticket", "ticket-simple", "tiktok", "timeline", "tint", "tint-slash", "tired", "toggle-off", "toggle-on", "toilet", "toilet-paper",
+    "toilet-paper-slash", "toilet-portable", "toilets-portable", "toolbox", "tools", "tooth", "torah", "torii-gate", "tornado", "tower-broadcast", "tower-cell", "tower-observation",
+    "tractor", "trade-federation", "trademark", "traffic-light", "trailer", "train", "train-subway", "train-tram", "tram", "transgender", "trash", "trash-can",
+    "trash-restore", "trash-restore-alt", "tree", "tree-city", "trello", "triangle-circle-square", "trophy", "trowel", "trowel-bricks", "truck", "truck-arrow-right", "truck-droplet",
+    "truck-fast", "truck-field", "truck-field-un", "truck-front", "truck-medical", "truck-monster", "truck-moving", "truck-pickup", "truck-plane", "truck-ramp-box", "tshirt", "tty",
+    "tumblr", "tumblr-square", "turkish-lira", "turn-down", "turn-up", "tv", "twitch", "twitter", "twitter-square", "typo3", "u", "uber",
+    "ubuntu", "uikit", "umbraco", "umbrella", "umbrella-beach", "uncharted", "underline", "undo", "undo-alt", "uniregistry", "unity", "universal-access",
+    "university", "unlink", "unlock", "unlock-keyhole", "unsorted", "unsplash", "untappd", "up-down", "up-down-left-right", "up-long", "up-right-and-down-left-from-center", "up-right-from-square",
+    "upload", "ups", "upwork", "usb", "usd", "user", "user-astronaut", "user-check", "user-circle", "user-clock", "user-gear", "user-graduate",
+    "user-group", "user-injured", "user-large", "user-large-slash", "user-lock", "user-md", "user-minus", "user-ninja", "user-nurse", "user-pen", "user-plus", "user-secret",
+    "user-shield", "user-slash", "user-tag", "user-tie", "user-xmark", "users", "users-between-lines", "users-gear", "users-line", "users-rays", "users-rectangle", "users-slash",
+    "users-viewfinder", "usps", "ussunnah", "utensil-spoon", "utensils", "v", "vaadin", "van-shuttle", "vault", "vcard", "vector-square", "venus",
+    "venus-double", "venus-mars", "vest", "vest-patches", "viacoin", "viadeo", "viadeo-square", "vial", "vial-circle-check", "vial-virus", "vials", "viber",
+    "video", "video-slash", "vihara", "vimeo", "vimeo-square", "vimeo-v", "vine", "virus", "virus-covid", "virus-covid-slash", "virus-slash", "viruses",
+    "vk", "vnv", "voicemail", "volcano", "volleyball", "volume-control-phone", "volume-low", "volume-off", "volume-up", "volume-xmark", "vote-yea", "vr-cardboard",
+    "vuejs", "w", "walkie-talkie", "walking", "wallet", "wand-magic", "wand-magic-sparkles", "wand-sparkles", "warehouse", "warning", "watchman-monitoring", "water",
+    "water-ladder", "wave-square", "waze", "web-awesome", "webflow", "weebly", "weibo", "weight", "weight-hanging", "weixin", "whatsapp", "whatsapp-square",
+    "wheat-awn", "wheat-awn-circle-exclamation", "wheelchair", "wheelchair-move", "whiskey-glass", "whmcs", "wifi", "wikipedia-w", "wind", "window-close", "window-maximize", "window-minimize",
+    "window-restore", "windows", "wine-bottle", "wine-glass", "wine-glass-empty", "wix", "wizards-of-the-coast", "wodu", "wolf-pack-battalion", "won", "wordpress", "wordpress-simple",
+    "worm", "wpbeginner", "wpexplorer", "wpforms", "wpressr", "wrench", "wsh", "x", "x-ray", "x-twitter", "xbox", "xing",
+    "xing-square", "xmark", "xmark-circle", "xmark-square", "xmarks-lines", "y", "y-combinator", "yahoo", "yammer", "yandex", "yandex-international", "yarn",
+    "yelp", "yen", "yin-yang", "yoast", "youtube", "youtube-square", "z", "zap", "zhihu",
+  ];
+
+  const FA_CATEGORIES = {
+    emergency: [
+      'bell-concierge', 'fire', 'fire-flame-curved', 'fire-extinguisher', 'triangle-exclamation',
+      'biohazard', 'radiation', 'shield-halved', 'shield-virus', 'land-mine-on',
+      'person-falling', 'person-falling-burst', 'skull-crossbones', 'tornado', 'volcano',
+      'burst', 'explosion', 'life-ring', 'handcuffs', 'tower-broadcast',
+      'bullhorn', 'bell', 'shield', 'tower-observation', 'plug-circle-bolt',
+      'plug-circle-exclamation', 'satellite-dish', 'truck-medical', 'house-chimney-crack'
+    ],
+    medical: [
+      'kit-medical', 'truck-medical', 'hospital', 'house-medical', 'house-chimney-medical',
+      'staff-snake', 'notes-medical', 'user-doctor', 'user-nurse', 'stethoscope',
+      'heart-pulse', 'heart', 'virus', 'viruses', 'head-side-cough',
+      'syringe', 'pills', 'capsules', 'bandage', 'crutch',
+      'wheelchair', 'briefcase-medical', 'bed-pulse', 'microscope', 'lungs',
+      'dna', 'bone', 'eye', 'hand-dots'
+    ],
+    transport: [
+      'car', 'car-burst', 'car-side', 'truck', 'truck-pickup',
+      'truck-monster', 'van-shuttle', 'bus', 'bus-simple', 'motorcycle',
+      'bicycle', 'helicopter', 'plane', 'plane-arrival', 'plane-departure',
+      'ship', 'sailboat', 'train', 'train-subway', 'train-tram',
+      'gas-pump', 'road', 'traffic-light', 'cable-car', 'truck-moving',
+      'truck-ramp-box', 'truck-arrow-right', 'truck-plane', 'caravan'
+    ],
+    warning: [
+      'triangle-exclamation', 'circle-exclamation', 'skull', 'skull-crossbones', 'radiation',
+      'biohazard', 'burst', 'explosion', 'bolt', 'bolt-lightning',
+      'fire-flame-simple', 'stop', 'ban', 'circle-stop', 'plug-circle-exclamation',
+      'cloud-bolt', 'flag', 'shield-virus'
+    ],
+    map: [
+      'location-dot', 'map-pin', 'map', 'map-location', 'map-location-dot',
+      'thumbtack', 'street-view', 'diamond-turn-right', 'signs-post', 'compass',
+      'crosshairs', 'star', 'circle-dot', 'flag', 'flag-checkered',
+      'building', 'house', 'landmark', 'route', 'globe',
+      'earth-americas', 'mountain-city'
+    ],
+    nature: [
+      'paw', 'dog', 'cat', 'horse', 'fish',
+      'crow', 'dove', 'frog', 'spider', 'tree',
+      'mountain', 'mountain-sun', 'cloud', 'cloud-rain', 'cloud-bolt',
+      'cloud-showers-heavy', 'snowflake', 'wind', 'smog', 'water',
+      'droplet', 'sun', 'fire', 'temperature-high', 'temperature-low',
+      'leaf', 'feather', 'volcano'
+    ]
+  };
+
+  function getCompleteFaIconsList() {
+    const iconSet = new Set(ALL_FA_ICONS);
+    try {
+      for (const styleSheet of document.styleSheets) {
+        try {
+          const rules = styleSheet.cssRules || styleSheet.rules;
+          if (!rules) continue;
+          for (const rule of rules) {
+            if (rule.selectorText) {
+              const matches = rule.selectorText.matchAll(/\.fa-([a-z0-9-]+)::?before/g);
+              for (const m of matches) {
+                if (m[1]) iconSet.add(m[1]);
+              }
+            }
+          }
+        } catch (_) {
+          // Cross-origin CSS access error - ignore
+        }
+      }
+    } catch (_) {
+      // Stylesheet scan error - ignore
+    }
+    return Array.from(iconSet).sort();
+  }
 
   const COLOR_PALETTE = [
     '#e74c3c', // Red
@@ -617,7 +1549,7 @@
 
   // ── Map setup ────────────────────────────────────────────────────────────────
 
-  const map = L.map('map').setView([PMC_LAT, PMC_LNG], 13);
+  const map = L.map('map', { maxZoom: 20 }).setView([PMC_LAT, PMC_LNG], 13);
 
   const baseLayers = {
     'OpenStreetMap': L.tileLayer(
@@ -647,18 +1579,256 @@
         attribution: 'USGS The National Map',
         maxZoom: 20
       }
+    ),
+    'USGS Imagery Topo': L.tileLayer(
+      'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}',
+      {
+        attribution: 'USGS The National Map',
+        maxZoom: 20
+      }
+    ),
+    'Esri World Imagery': L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {
+        attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        maxZoom: 19
+      }
+    ),
+    'Esri Clarity': L.tileLayer(
+      'https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {
+        attribution: 'Tiles © Esri — Source: Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
+        maxZoom: 19
+      }
     )
   };
 
+  let currentBaseLayer = baseLayers['OpenStreetMap'];
+
   baseLayers['OpenStreetMap'].addTo(map);
   L.control.layers(baseLayers, null, { position: 'topright', collapsed: false }).addTo(map);
+  if (savedAppState && typeof savedAppState.baseLayer === 'string' && baseLayers[savedAppState.baseLayer]) {
+    map.removeLayer(baseLayers['OpenStreetMap']);
+    currentBaseLayer = baseLayers[savedAppState.baseLayer];
+    currentBaseLayer.addTo(map);
+  }
+  if (savedAppState && savedAppState.mapView &&
+      Number.isFinite(savedAppState.mapView.lat) &&
+      Number.isFinite(savedAppState.mapView.lng) &&
+      Number.isFinite(savedAppState.mapView.zoom)) {
+    map.setView([savedAppState.mapView.lat, savedAppState.mapView.lng], savedAppState.mapView.zoom);
+  }
+  map.attributionControl.addAttribution(
+    '<a href="#" id="pmc-cert-attribution-link" title="View PMC CERT map credits">PMC CERT</a>'
+  );
+
+  const commitInfoModal = document.getElementById('commit-info-modal');
+  const closeCommitInfoModal = function () {
+    commitInfoModal.classList.add('hidden');
+  };
+  document.addEventListener('click', function (e) {
+    const attributionLink = e.target.closest('#pmc-cert-attribution-link');
+    if (attributionLink) {
+      e.preventDefault();
+      commitInfoModal.classList.remove('hidden');
+    }
+  });
+  document.getElementById('commit-info-close').addEventListener('click', closeCommitInfoModal);
+  document.getElementById('commit-info-done').addEventListener('click', closeCommitInfoModal);
+  commitInfoModal.addEventListener('click', function (e) {
+    if (e.target === commitInfoModal) {
+      closeCommitInfoModal();
+    }
+  });
+
+  const zoomAlert = document.getElementById('zoom-alert');
+  const zoomAlertText = document.getElementById('zoom-alert-text');
+
+  function checkZoomAvailability() {
+    if (!currentBaseLayer || !zoomAlert) return;
+    const currentZoom = map.getZoom();
+    const maxZoom = currentBaseLayer.options && currentBaseLayer.options.maxZoom !== undefined
+      ? currentBaseLayer.options.maxZoom
+      : Infinity;
+    const minZoom = currentBaseLayer.options && currentBaseLayer.options.minZoom !== undefined
+      ? currentBaseLayer.options.minZoom
+      : 0;
+
+    const isUnsupported = currentZoom > maxZoom || currentZoom < minZoom;
+    if (isUnsupported) {
+      if (zoomAlertText) {
+        zoomAlertText.textContent = 'The requested zoom level is not available for this base map.';
+      }
+      zoomAlert.classList.remove('hidden');
+    } else {
+      zoomAlert.classList.add('hidden');
+    }
+  }
+
+  map.on('baselayerchange', function (e) {
+    currentBaseLayer = e.layer;
+    persistAppState();
+    checkZoomAvailability();
+  });
+
+  map.on('zoomend', function () {
+    persistAppState();
+    checkZoomAvailability();
+  });
+
+  map.on('moveend', persistAppState);
+
+  checkZoomAvailability();
 
   // ── State ────────────────────────────────────────────────────────────────────
 
   let pollTimer = null;
   let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
-  let showClosedIncidents = true;
+  let showClosedIncidents = savedAppState && typeof savedAppState.showClosedIncidents === 'boolean'
+    ? savedAppState.showClosedIncidents
+    : true;
   let hasLoadedMap = false;
+  let customFeatures = [];
+  let customFeatureLayers = {};
+
+  function loadCustomFeatures() {
+    try {
+      const saved = localStorage.getItem('pmc_custom_features');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) customFeatures = parsed;
+      }
+    } catch (err) {
+      console.warn('Could not load custom map features:', err);
+    }
+  }
+
+  function saveCustomFeatures() {
+    try {
+      localStorage.setItem('pmc_custom_features', JSON.stringify(customFeatures));
+    } catch (err) {
+      console.warn('Could not save custom map features:', err);
+    }
+  }
+
+  let pollIntervalMs = savedAppState && Number.isFinite(savedAppState.pollIntervalMs)
+    ? savedAppState.pollIntervalMs
+    : DEFAULT_POLL_INTERVAL_MS;
+  let googleAccessToken = null;
+  let googleTokenExpiry = 0;
+  const GOOGLE_OAUTH_CLIENT_ID = '737731486205-pnrigt0btu2aeqam7ulqghl37apbph3l.apps.googleusercontent.com';
+  let tokenClient = null;
+
+  function loadSavedOAuthConfig() {
+    try {
+      const savedToken = localStorage.getItem('pmc_google_access_token');
+      const savedExp = localStorage.getItem('pmc_google_token_expiry');
+      if (savedToken && savedExp) {
+        const exp = parseInt(savedExp, 10);
+        if (Date.now() < exp) {
+          googleAccessToken = savedToken;
+          googleTokenExpiry = exp;
+        } else {
+          localStorage.removeItem('pmc_google_access_token');
+          localStorage.removeItem('pmc_google_token_expiry');
+        }
+      }
+    } catch (_) {
+      // Storage unavailable or blocked
+    }
+    updateOAuthUI();
+  }
+
+  function updateOAuthUI() {
+    const isAuthed = isGoogleAuthenticated();
+    const statusText = document.getElementById('oauth-status-text');
+    const authBtn = document.getElementById('btn-oauth-auth');
+    const toolbarBtnText = document.getElementById('google-auth-btn-text');
+    const toolbarBtn = document.getElementById('btn-google-auth-status');
+
+    if (isAuthed) {
+      if (statusText) {
+        statusText.textContent = 'Signed in to Google (Sheets API active).';
+        statusText.style.color = '#27ae60';
+      }
+      if (authBtn) authBtn.textContent = 'Sign out';
+      if (toolbarBtnText) toolbarBtnText.textContent = 'Sign Out';
+      if (toolbarBtn) toolbarBtn.title = 'Google Account: Signed In (Click to Sign Out)';
+    } else {
+      if (statusText) {
+        statusText.textContent = 'Not signed in (using public CSV export).';
+        statusText.style.color = '#666';
+      }
+      if (authBtn) authBtn.textContent = 'Sign in with Google';
+      if (toolbarBtnText) toolbarBtnText.textContent = 'Sign In';
+      if (toolbarBtn) toolbarBtn.title = 'Google Account: Not Signed In (Click to Sign In)';
+    }
+  }
+
+  function isGoogleAuthenticated() {
+    return Boolean(googleAccessToken && Date.now() < googleTokenExpiry);
+  }
+
+  function initTokenClient(callback) {
+    if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+      return null;
+    }
+    try {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_OAUTH_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        callback: (resp) => {
+          if (resp.error) {
+            console.error('Google OAuth error:', resp);
+            return;
+          }
+          googleAccessToken = resp.access_token;
+          const expiresIn = (parseInt(resp.expires_in, 10) || 3600) * 1000;
+          googleTokenExpiry = Date.now() + expiresIn - 60000;
+          try {
+            localStorage.setItem('pmc_google_access_token', googleAccessToken);
+            localStorage.setItem('pmc_google_token_expiry', String(googleTokenExpiry));
+          } catch (_) {
+            // Ignore storage quota or disabled errors
+          }
+          updateOAuthUI();
+          if (callback) callback();
+        }
+      });
+      return tokenClient;
+    } catch (e) {
+      console.warn('Failed to initialize Google Token Client:', e);
+      return null;
+    }
+  }
+
+  function requestGoogleSignIn(callback) {
+    const client = initTokenClient(callback);
+    if (client) {
+      client.requestAccessToken({ prompt: '' });
+    } else {
+      alert('Google Identity Services library not yet loaded. Please check your network connection.');
+    }
+  }
+
+  function signOutGoogle() {
+    if (googleAccessToken && typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      try {
+        google.accounts.oauth2.revoke(googleAccessToken, () => {});
+      } catch (_) {
+        // Ignore revocation error
+      }
+    }
+    googleAccessToken = null;
+    googleTokenExpiry = 0;
+    try {
+      localStorage.removeItem('pmc_google_access_token');
+      localStorage.removeItem('pmc_google_token_expiry');
+    } catch (_) {
+      // Ignore storage error
+    }
+    updateOAuthUI();
+  }
 
   let sheetIdCounter = 1;
   function createSheet(name, rawUrl) {
@@ -685,11 +1855,217 @@
 
   let sheets = [createSheet('Sheet 1')];
 
+  if (savedAppState && Array.isArray(savedAppState.sheets) && savedAppState.sheets.length > 0) {
+    const restoredSheets = savedAppState.sheets.map((savedSheet, index) => {
+      const restored = createSheet(savedSheet.name || `Sheet ${index + 1}`, savedSheet.rawUrl || '');
+      if (typeof savedSheet.id === 'string' && savedSheet.id) restored.id = savedSheet.id;
+      if (savedSheet.columnMapping && typeof savedSheet.columnMapping === 'object') {
+        restored.columnMapping = {
+          address: Number.isInteger(savedSheet.columnMapping.address) ? savedSheet.columnMapping.address : 0,
+          status: Number.isInteger(savedSheet.columnMapping.status) ? savedSheet.columnMapping.status : null,
+          label: Number.isInteger(savedSheet.columnMapping.label) ? savedSheet.columnMapping.label : null
+        };
+      }
+      if (savedSheet.headers && Array.isArray(savedSheet.headers)) restored.headers = savedSheet.headers;
+      if (savedSheet.icon && typeof savedSheet.icon.fa === 'string') {
+        restored.icon = { fa: savedSheet.icon.fa, label: savedSheet.icon.label || formatIconLabel(savedSheet.icon.fa) };
+      }
+      if (typeof savedSheet.color === 'string' && normalizeHexColor(savedSheet.color)) restored.color = savedSheet.color;
+      restored.csvUrl = toCsvUrl(restored.rawUrl);
+      return restored;
+    });
+    sheets = restoredSheets;
+    const maxSavedId = restoredSheets.reduce((max, sheet) => {
+      const match = sheet.id.match(/^sheet_(\d+)$/);
+      return match ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
+    sheetIdCounter = Math.max(sheetIdCounter, maxSavedId + 1);
+  }
+
+  function persistAppState() {
+    writeAppState({
+      sheets: sheets.map(sheet => ({
+        id: sheet.id,
+        name: sheet.name,
+        rawUrl: sheet.rawUrl,
+        columnMapping: sheet.columnMapping,
+        headers: sheet.headers,
+        icon: sheet.icon,
+        color: sheet.color
+      })),
+      baseLayer: Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap',
+      showClosedIncidents,
+      pollIntervalMs,
+      geocoderUrl: savedGeocoderUrl,
+      geocoderOverridden: savedGeocoderOverridden,
+      mapView: {
+        lat: map.getCenter().lat,
+        lng: map.getCenter().lng,
+        zoom: map.getZoom()
+      }
+    });
+  }
+
   // Geocoder index (populated from addresses.json)
   let geocoderIndex = null;
 
   const statusBar = document.getElementById('status-bar');
   function setStatus(msg) { statusBar.textContent = msg; }
+
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      if (!document.execCommand('copy')) {
+        return Promise.reject(new Error('Clipboard copy was not available.'));
+      }
+      return Promise.resolve();
+    } finally {
+      textArea.remove();
+    }
+  }
+
+  /* eslint-disable no-use-before-define */
+  function downloadTextFile(filename, text) {
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function mapSnapshot() {
+    return {
+      format: 'pmc-cert-map',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      pollIntervalMs,
+      geocoder: {
+        url: geocoderInput.value.trim(),
+        useLocalFile: !isOverridden
+      },
+      sheets: sheets.map(sheet => ({
+        id: sheet.id,
+        name: sheet.name,
+        rawUrl: sheet.rawUrl,
+        csvUrl: sheet.csvUrl,
+        columnMapping: sheet.columnMapping,
+        headers: sheet.headers,
+        icon: sheet.icon,
+        color: sheet.color,
+        rows: Array.isArray(sheet.lastRows) ? sheet.lastRows : []
+      }))
+    };
+  }
+
+  function exportMapSnapshot() {
+    downloadTextFile(
+      `pmc-cert-map-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(mapSnapshot(), null, 2)
+    );
+    setStatus('Map configuration and loaded data saved to a file.');
+  }
+
+  function validateImportedSheet(value, index) {
+    if (!value || typeof value !== 'object' || typeof value.name !== 'string' ||
+        typeof value.rawUrl !== 'string' || !value.columnMapping ||
+        !Array.isArray(value.rows)) {
+      throw new Error(`Invalid sheet data at position ${index + 1}.`);
+    }
+    const columnMapping = {
+      address: Number.isInteger(value.columnMapping.address) ? value.columnMapping.address : 0,
+      status: value.columnMapping.status === null ? null : Number.isInteger(value.columnMapping.status) ? value.columnMapping.status : 1,
+      label: value.columnMapping.label === null ? null : Number.isInteger(value.columnMapping.label) ? value.columnMapping.label : 2
+    };
+    if (columnMapping.address < 0 || value.rows.some(row => !Array.isArray(row))) {
+      throw new Error(`Invalid row or address column in sheet ${index + 1}.`);
+    }
+    return {
+      id: typeof value.id === 'string' && value.id ? value.id : `sheet_${index + 1}`,
+      name: value.name,
+      rawUrl: value.rawUrl,
+      csvUrl: typeof value.csvUrl === 'string' ? value.csvUrl : toCsvUrl(value.rawUrl),
+      columnMapping,
+      headers: Array.isArray(value.headers) ? value.headers : null,
+      icon: value.icon && typeof value.icon.fa === 'string' ? value.icon : ICON_OPTIONS[0],
+      color: typeof value.color === 'string' ? value.color : COLOR_PALETTE[index % COLOR_PALETTE.length],
+      importedRows: value.rows,
+      lastRows: value.rows
+    };
+  }
+
+  async function importMapSnapshot(file) {
+    const parsed = JSON.parse(await file.text());
+    if (!parsed || parsed.format !== 'pmc-cert-map' || parsed.version !== 1 ||
+        !Array.isArray(parsed.sheets) || parsed.sheets.length === 0) {
+      throw new Error('This is not a valid PMC CERT map file.');
+    }
+
+    const importedSheets = parsed.sheets.map(validateImportedSheet);
+    sheets = importedSheets;
+    const numericIds = importedSheets
+      .map(sheet => Number.parseInt(sheet.id.replace(/^sheet_/, ''), 10))
+      .filter(Number.isInteger);
+    sheetIdCounter = Math.max(0, ...numericIds) + 1;
+
+    pollIntervalMs = Number.isInteger(parsed.pollIntervalMs) && parsed.pollIntervalMs >= 0
+      ? parsed.pollIntervalMs
+      : DEFAULT_POLL_INTERVAL_MS;
+    selectRefreshInterval.value = String(pollIntervalMs);
+    if (parsed.geocoder && typeof parsed.geocoder.url === 'string') {
+      isOverridden = parsed.geocoder.useLocalFile !== true;
+      geocoderInput.value = isOverridden ? parsed.geocoder.url : '';
+    } else {
+      isOverridden = false;
+      geocoderInput.value = '';
+    }
+    geocoderIndex = null;
+    hasLoadedMap = false;
+    renderSheetsModal();
+    await checkLocalAddresses();
+    await handleSubmit();
+    if (!errorMsgEl.textContent) {
+      setStatus('Map file loaded. Live refresh will continue when sheet access is available.');
+    }
+  }
+  /* eslint-enable no-use-before-define */
+
+  map.on('contextmenu', function (e) {
+    const coordinates = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+    const popup = L.popup()
+      .setLatLng(e.latlng)
+      .setContent(`
+        <div class="coordinate-copy-popup">
+          <div>Lat, Lon: <strong>${coordinates}</strong></div>
+          <button type="button" class="copy-coordinates-btn" data-coordinates="${coordinates}">Copy coordinates</button>
+        </div>
+      `)
+      .openOn(map);
+
+    popup.getElement().querySelector('.copy-coordinates-btn').addEventListener('click', function () {
+      copyTextToClipboard(coordinates)
+        .then(function () {
+          setStatus(`Copied coordinates: ${coordinates}`);
+        })
+        .catch(function (err) {
+          console.warn('Could not copy map coordinates:', err);
+          setStatus('Could not copy coordinates. Please select them manually.');
+        });
+    });
+  });
 
   // ── Legend control ───────────────────────────────────────────────────────────
 
@@ -800,7 +2176,103 @@
     }
   }
 
-  // ── Google Sheets CSV URL helper ──────────────────────────────────────────────
+  // ── Google Sheets API & CSV URL helper ──────────────────────────────────────────
+
+  function parseGoogleSheetDetails(raw) {
+    if (!raw) return null;
+    raw = raw.trim();
+    const m = raw.match(/\/spreadsheets\/d\/([\w-]+)/) || raw.match(/\/file\/d\/([\w-]+)/) || raw.match(/[?&]key=([\w-]+)/);
+    if (m && m[1] !== 'e') {
+      const spreadsheetId = m[1];
+      const gidMatch = raw.match(/[?&#]gid=(\d+)/);
+      const gid = gidMatch ? parseInt(gidMatch[1], 10) : 0;
+      return { spreadsheetId, gid };
+    }
+    return null;
+  }
+
+  async function fetchGoogleSheetRows(spreadsheetId, gid, accessToken) {
+    const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(sheetId,title))`;
+    const metaResp = await fetch(metaUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+    if (!metaResp.ok) throw new Error(`Google Sheets metadata failed with HTTP ${metaResp.status}`);
+    const meta = await metaResp.json();
+    let sheetTitle = null;
+    if (meta.sheets && meta.sheets.length > 0) {
+      if (gid !== null && gid !== undefined) {
+        const found = meta.sheets.find(s => s.properties && s.properties.sheetId === gid);
+        if (found && found.properties) {
+          sheetTitle = found.properties.title;
+        }
+      }
+      if (!sheetTitle && meta.sheets[0].properties) {
+        sheetTitle = meta.sheets[0].properties.title;
+      }
+    }
+    if (!sheetTitle) sheetTitle = 'Sheet1';
+
+    const range = `'${sheetTitle.replace(/'/g, "''")}'!A:ZZ`;
+    const valuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueRenderOption=FORMATTED_VALUE`;
+    const valuesResp = await fetch(valuesUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+    if (!valuesResp.ok) throw new Error(`Google Sheets values failed with HTTP ${valuesResp.status}`);
+    const data = await valuesResp.json();
+    return data.values || [];
+  }
+
+  async function fetchSheetRows(sheet) {
+    if (Array.isArray(sheet.importedRows)) {
+      const rows = sheet.importedRows;
+      delete sheet.importedRows;
+      return rows;
+    }
+
+    const details = parseGoogleSheetDetails(sheet.rawUrl);
+    if (details && isGoogleAuthenticated()) {
+      try {
+        const rows = await fetchGoogleSheetRows(details.spreadsheetId, details.gid, googleAccessToken);
+        if (rows && rows.length > 0) return rows;
+      } catch (e) {
+        console.warn(`Sheets API fetch failed for "${sheet.name}", falling back to CSV export:`, e);
+      }
+    }
+
+    const targetUrl = sheet.csvUrl || toCsvUrl(sheet.rawUrl);
+    if (!targetUrl) throw new Error('No valid sheet or CSV URL configured.');
+    let text = null;
+    try {
+      const resp = await fetch(targetUrl, { cache: 'no-store' });
+      if (resp.ok) {
+        text = await resp.text();
+      }
+    } catch (_) {
+      // Primary CSV fetch error
+    }
+    if (!text) {
+      const altUrl = getAlternateCsvUrl(sheet.rawUrl);
+      if (altUrl && altUrl !== targetUrl) {
+        try {
+          const resp = await fetch(altUrl, { cache: 'no-store' });
+          if (resp.ok) {
+            text = await resp.text();
+            sheet.csvUrl = altUrl;
+          }
+        } catch (_) {
+          // Alternate CSV fetch error
+        }
+      }
+    }
+    if (!text) throw new Error('Failed to fetch CSV data.');
+    return parseCsv(text);
+  }
 
   function toCsvUrl(raw) {
     if (!raw) return null;
@@ -965,6 +2437,28 @@
     return { number, street };
   }
 
+  function parseCoordinatePair(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.trim().match(
+      /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))$/
+    );
+    if (!match) return null;
+
+    const lat = Number(match[1]);
+    const lon = Number(match[2]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) ||
+        lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return null;
+    }
+
+    return {
+      lat,
+      lon,
+      canonical: `${lat}, ${lon}`,
+      matchType: 'coordinate'
+    };
+  }
+
   function geocode(address) {
     if (!geocoderIndex) return null;
 
@@ -1004,6 +2498,135 @@
     return null;
   }
 
+  // ── Google Geocoding fallback ────────────────────────────────────────────────
+
+  let googleMapsLoaded = false;
+  let googleMapsLoadingPromise = null;
+  let googleGeocoder = null;
+  let googleGeocodeCache = null;
+
+  function loadGoogleGeocodeCache() {
+    if (googleGeocodeCache) return googleGeocodeCache;
+    try {
+      const stored = localStorage.getItem('pmc_google_geocode_cache');
+      googleGeocodeCache = stored ? JSON.parse(stored) : {};
+    } catch (_) {
+      googleGeocodeCache = {};
+    }
+    return googleGeocodeCache;
+  }
+
+  function saveGoogleGeocodeCache() {
+    try {
+      if (googleGeocodeCache) {
+        localStorage.setItem('pmc_google_geocode_cache', JSON.stringify(googleGeocodeCache));
+      }
+    } catch (_) {
+      // Ignore storage quota or disabled errors
+    }
+  }
+
+  function isGoogleGeocodingConfigured() {
+    return Boolean(
+      typeof GOOGLE_GEOCODING_API_KEY === 'string' &&
+      GOOGLE_GEOCODING_API_KEY.trim() !== '' &&
+      GOOGLE_GEOCODING_API_KEY !== '__' + 'GOOGLE_GEOCODING_API_KEY' + '__'
+    );
+  }
+
+  function loadGoogleMapsApi() {
+    if (googleMapsLoaded && googleGeocoder) return Promise.resolve(googleGeocoder);
+    if (googleMapsLoadingPromise) return googleMapsLoadingPromise;
+    if (!isGoogleGeocodingConfigured()) return Promise.resolve(null);
+
+    googleMapsLoadingPromise = new Promise(function (resolve) {
+      if (window.google && window.google.maps && window.google.maps.Geocoder) {
+        googleMapsLoaded = true;
+        googleGeocoder = new window.google.maps.Geocoder();
+        return resolve(googleGeocoder);
+      }
+
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_GEOCODING_API_KEY)}`;
+      script.async = true;
+      script.defer = true;
+      script.onload = function () {
+        if (window.google && window.google.maps && window.google.maps.Geocoder) {
+          googleMapsLoaded = true;
+          googleGeocoder = new window.google.maps.Geocoder();
+          resolve(googleGeocoder);
+        } else {
+          resolve(null);
+        }
+      };
+      script.onerror = function (e) {
+        console.warn('Failed to load Google Maps API script:', e);
+        resolve(null);
+      };
+      document.head.appendChild(script);
+    });
+
+    return googleMapsLoadingPromise;
+  }
+
+  async function googleGeocode(address) {
+    if (!address || typeof address !== 'string' || !address.trim()) return null;
+    const rawAddr = address.trim();
+    const cache = loadGoogleGeocodeCache();
+    const cacheKey = rawAddr.toLowerCase();
+
+    if (Object.prototype.hasOwnProperty.call(cache, cacheKey)) {
+      return cache[cacheKey]; // may be null (cached negative) or { lat, lon, canonical, matchType: 'google' }
+    }
+
+    if (!isGoogleGeocodingConfigured()) return null;
+
+    try {
+      const geocoder = await loadGoogleMapsApi();
+      if (!geocoder) return null;
+
+      let queryAddress = rawAddr;
+      if (!/(pine mountain club|pmc|ca\b|california\b)/i.test(queryAddress)) {
+        queryAddress = `${rawAddr}, Pine Mountain Club, CA 93222`;
+      }
+
+      const result = await new Promise(function (resolve) {
+        geocoder.geocode(
+          {
+            address: queryAddress,
+            componentRestrictions: { country: 'US', administrativeArea: 'CA' }
+          },
+          function (results, status) {
+            if (status === 'OK' && results && results.length > 0) {
+              const loc = results[0].geometry.location;
+              const lat = typeof loc.lat === 'function' ? loc.lat() : loc.lat;
+              const lon = typeof loc.lng === 'function' ? loc.lng() : loc.lng;
+              const canonical = results[0].formatted_address || rawAddr;
+              resolve({
+                lat: Number(lat),
+                lon: Number(lon),
+                canonical,
+                matchType: 'google'
+              });
+            } else {
+              if (status !== 'ZERO_RESULTS') {
+                console.warn(`Google Geocoding status for "${rawAddr}":`, status);
+              }
+              resolve(null);
+            }
+          }
+        );
+      });
+
+      cache[cacheKey] = result;
+      saveGoogleGeocodeCache();
+      return result;
+    } catch (err) {
+      console.warn(`Google Geocoding error for "${rawAddr}":`, err);
+      return null;
+    }
+  }
+
   // ── Incident marker helpers ───────────────────────────────────────────────────
 
   function buildDivIcon(isOpen, iconFa, color) {
@@ -1026,6 +2649,58 @@
       .replace(/"/g, '&quot;');
   }
 
+  function renderCustomFeature(feature) {
+    const icon = feature.icon || { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+    const isClosedPoint = feature.type === 'point' && feature.closed === true;
+    const iconClass = isClosedPoint ? 'incident-marker-icon closed' : 'incident-marker-icon';
+    const iconBackground = isClosedPoint ? '#7f8c8d' : feature.color;
+    const iconLayer = L.marker(feature.type === 'point' ? feature.coordinates : feature.coordinates[0], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div class="${iconClass}" style="background-color:${escHtml(iconBackground)}"><i class="${escHtml(icon.fa)}"></i></div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -18]
+      })
+    });
+    const style = {
+      color: feature.color,
+      weight: feature.type === 'point' ? 1 : 3,
+      fillColor: feature.color,
+      fillOpacity: feature.type === 'polygon' ? 0.25 : 0
+    };
+    let layer;
+    if (feature.type === 'point') {
+      layer = iconLayer;
+    } else if (feature.type === 'line') {
+      layer = L.polyline(feature.coordinates, style);
+    } else {
+      layer = L.polygon(feature.coordinates, style);
+    }
+    if (feature.type !== 'point') {
+      layer = L.featureGroup([layer, iconLayer]);
+    }
+    layer.on('click', function () {
+      openCustomFeatureEditor(feature.id);
+    });
+    if (feature.label) {
+      layer.bindTooltip(escHtml(feature.label), {
+        permanent: true,
+        direction: feature.type === 'point' ? 'top' : 'center',
+        offset: feature.type === 'point' ? [0, -16] : [0, 0],
+        className: 'custom-feature-label'
+      });
+    }
+    layer.addTo(map);
+    customFeatureLayers[feature.id] = layer;
+  }
+
+  function renderAllCustomFeatures() {
+    Object.values(customFeatureLayers).forEach(layer => map.removeLayer(layer));
+    customFeatureLayers = {};
+    customFeatures.forEach(renderCustomFeature);
+  }
+
   function popupHtml(incident, sheet) {
     const statusLabel = incident.isOpen ? 'Open' : 'Closed';
     const badgeBg = incident.isOpen ? sheet.color : '#7f8c8d';
@@ -1036,6 +2711,14 @@
       locationLine =
         `<span title="Fuzzy match (edit distance ${incident.editDist})">` +
         `${escHtml(incident.canonical)} <em style="color:#888;font-size:0.8em">(fuzzy)</em></span>`;
+    } else if (incident.matchType === 'coordinate') {
+      locationLine =
+        `<span title="Plotted directly from the latitude/longitude pair">` +
+        `${escHtml(incident.canonical)} <em style="color:#2980b9;font-size:0.8em">(coordinates)</em></span>`;
+    } else if (incident.matchType === 'google') {
+      locationLine =
+        `<span title="Resolved via Google Geocoding fallback">` +
+        `${escHtml(incident.canonical)} <em style="color:#2980b9;font-size:0.8em">(Google Geocoded)</em></span>`;
     } else {
       locationLine = `<span style="color:#c0392b">Address not found:<br>${escHtml(incident.address)}</span>`;
     }
@@ -1087,14 +2770,141 @@
   document.addEventListener('change', function (e) {
     if (e.target && e.target.id === 'toggle-closed-incidents') {
       showClosedIncidents = e.target.checked;
+      persistAppState();
       updateClosedMarkersVisibility();
     }
   });
 
   // ── Polling / plotting ────────────────────────────────────────────────────────
 
+  async function plotSheetRows(sheet, rows, currentKeys) {
+    if (rows.length > 0 && (!sheet.headers || sheet.headers.length !== rows[0].length)) {
+      sheet.headers = cleanHeaders(rows[0]);
+    }
+
+    const addrCol   = sheet.columnMapping.address ?? 0;
+    const statusCol = sheet.columnMapping.status;
+    const labelCol  = sheet.columnMapping.label;
+
+    const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
+    let sheetOpen = 0;
+    let sheetClosed = 0;
+    let sheetUnmatched = 0;
+
+    for (let idx = 0; idx < dataRows.length; idx++) {
+      const row = dataRows[idx];
+      const key = `${sheet.id}__${idx}`;
+      if (currentKeys) currentKeys.add(key);
+
+      const address   = (row[addrCol] || '').trim();
+      const statusRaw = (statusCol !== null && statusCol >= 0 && row[statusCol]) ? row[statusCol].toLowerCase().trim() : '';
+      const label     = (labelCol !== null && labelCol >= 0 && row[labelCol]) ? row[labelCol].trim() : '';
+      const isOpen    = (statusCol !== null && statusCol >= 0) ? statusRaw !== 'closed' : true;
+      if (isOpen) {
+        sheetOpen++;
+      } else {
+        sheetClosed++;
+      }
+
+      let geo = parseCoordinatePair(address);
+      if (!geo) {
+        geo = geocode(address);
+      }
+      if (!geo) {
+        geo = await googleGeocode(address);
+      }
+
+      const lat = geo ? geo.lat : null;
+      const lon = geo ? geo.lon : null;
+      if (!geo) {
+        sheetUnmatched++;
+        console.warn(`[${sheet.name}] Could not plot address: "${address}"`);
+      }
+
+      const incident = {
+        index: idx,
+        address,
+        label,
+        isOpen,
+        lat,
+        lon,
+        canonical:   geo ? geo.canonical   : null,
+        matchType:   geo ? geo.matchType   : null,
+        fuzzyStreet: geo ? geo.fuzzyStreet : null,
+        editDist:    geo ? geo.editDist    : null,
+      };
+
+      const shouldShow = geo && (isOpen || showClosedIncidents);
+
+      if (incidentMarkers[key]) {
+        const m = incidentMarkers[key];
+        m._isOpen = isOpen;
+        m._sheetId = sheet.id;
+        if (geo) {
+          m.setLatLng([lat, lon]);
+          if (shouldShow) {
+            if (!map.hasLayer(m)) m.addTo(map);
+          } else {
+            if (map.hasLayer(m)) map.removeLayer(m);
+          }
+        } else {
+          if (map.hasLayer(m)) map.removeLayer(m);
+        }
+        m.setIcon(buildDivIcon(isOpen, sheet.icon.fa, sheet.color));
+        m.setPopupContent(popupHtml(incident, sheet));
+      } else if (geo) {
+        const marker = L.marker([lat, lon], {
+          icon: buildDivIcon(isOpen, sheet.icon.fa, sheet.color)
+        }).bindPopup(popupHtml(incident, sheet));
+        marker._isOpen = isOpen;
+        marker._sheetId = sheet.id;
+        if (shouldShow) {
+          marker.addTo(map);
+        }
+        incidentMarkers[key] = marker;
+      }
+    }
+
+    return {
+      open: sheetOpen,
+      closed: sheetClosed,
+      unmatched: sheetUnmatched,
+      count: dataRows.length
+    };
+  }
+
+  async function fetchAndPlotSheet(sheetId) {
+    const sheet = sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    try {
+      setStatus(`Refreshing "${sheet.name}"…`);
+      const rows = await fetchSheetRows(sheet);
+      sheet.lastRows = rows;
+      const sheetKeys = new Set();
+      const stats = await plotSheetRows(sheet, rows, sheetKeys);
+
+      // Clean up removed rows for this specific sheet
+      Object.keys(incidentMarkers).forEach(k => {
+        if (incidentMarkers[k]._sheetId === sheet.id && !sheetKeys.has(k)) {
+          map.removeLayer(incidentMarkers[k]);
+          delete incidentMarkers[k];
+        }
+      });
+
+      const now = new Date().toLocaleTimeString();
+      const unmatchedNote = stats.unmatched > 0 ? `, ${stats.unmatched} unmatched` : '';
+      setStatus(
+        `Refreshed "${sheet.name}" at ${now} — ${stats.count} incident(s): ` +
+        `${stats.open} open, ${stats.closed} closed${unmatchedNote}`
+      );
+    } catch (err) {
+      setStatus(`Error refreshing "${sheet.name}": ${err.message}`);
+      console.error(`Error refreshing "${sheet.name}":`, err);
+    }
+  }
+
   async function fetchAndPlot() {
-    const validSheets = sheets.filter(s => s.csvUrl);
+    const validSheets = sheets.filter(s => s.rawUrl || s.csvUrl);
     if (validSheets.length === 0) return;
 
     try {
@@ -1107,94 +2917,13 @@
 
       for (const sheet of validSheets) {
         try {
-          const resp = await fetch(sheet.csvUrl, { cache: 'no-store' });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const text = await resp.text();
-          const rows = parseCsv(text);
-
-          if (rows.length > 0 && (!sheet.headers || sheet.headers.length !== rows[0].length)) {
-            sheet.headers = cleanHeaders(rows[0]);
-          }
-
-          const addrCol   = sheet.columnMapping.address ?? 0;
-          const statusCol = sheet.columnMapping.status;
-          const labelCol  = sheet.columnMapping.label;
-
-          const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
-          let sheetOpen = 0;
-          let sheetClosed = 0;
-          let sheetUnmatched = 0;
-
-          dataRows.forEach(function (row, idx) {
-            const key = `${sheet.id}__${idx}`;
-            currentKeys.add(key);
-
-            const address   = (row[addrCol] || '').trim();
-            const statusRaw = (statusCol !== null && statusCol >= 0 && row[statusCol]) ? row[statusCol].toLowerCase().trim() : '';
-            const label     = (labelCol !== null && labelCol >= 0 && row[labelCol]) ? row[labelCol].trim() : '';
-            const isOpen    = (statusCol !== null && statusCol >= 0) ? statusRaw !== 'closed' : true;
-            if (isOpen) {
-              sheetOpen++;
-            } else {
-              sheetClosed++;
-            }
-
-            const geo = geocode(address);
-            const lat = geo ? geo.lat : null;
-            const lon = geo ? geo.lon : null;
-            if (!geo) {
-              sheetUnmatched++;
-              console.warn(`[${sheet.name}] Could not plot address: "${address}"`);
-            }
-
-            const incident = {
-              index: idx,
-              address,
-              label,
-              isOpen,
-              lat,
-              lon,
-              canonical:  geo ? geo.canonical  : null,
-              matchType:  geo ? geo.matchType  : null,
-              fuzzyStreet: geo ? geo.fuzzyStreet : null,
-              editDist:   geo ? geo.editDist   : null,
-            };
-
-            const shouldShow = geo && (isOpen || showClosedIncidents);
-
-            if (incidentMarkers[key]) {
-              const m = incidentMarkers[key];
-              m._isOpen = isOpen;
-              m._sheetId = sheet.id;
-              if (geo) {
-                m.setLatLng([lat, lon]);
-                if (shouldShow) {
-                  if (!map.hasLayer(m)) m.addTo(map);
-                } else {
-                  if (map.hasLayer(m)) map.removeLayer(m);
-                }
-              } else {
-                if (map.hasLayer(m)) map.removeLayer(m);
-              }
-              m.setIcon(buildDivIcon(isOpen, sheet.icon.fa, sheet.color));
-              m.setPopupContent(popupHtml(incident, sheet));
-            } else if (geo) {
-              const marker = L.marker([lat, lon], {
-                icon: buildDivIcon(isOpen, sheet.icon.fa, sheet.color)
-              }).bindPopup(popupHtml(incident, sheet));
-              marker._isOpen = isOpen;
-              marker._sheetId = sheet.id;
-              if (shouldShow) {
-                marker.addTo(map);
-              }
-              incidentMarkers[key] = marker;
-            }
-          });
-
-          totalOpen += sheetOpen;
-          totalClosed += sheetClosed;
-          totalUnmatched += sheetUnmatched;
-          totalIncidents += dataRows.length;
+          const rows = await fetchSheetRows(sheet);
+          sheet.lastRows = rows;
+          const stats = await plotSheetRows(sheet, rows, currentKeys);
+          totalOpen += stats.open;
+          totalClosed += stats.closed;
+          totalUnmatched += stats.unmatched;
+          totalIncidents += stats.count;
         } catch (sheetErr) {
           console.error(`Error fetching sheet "${sheet.name}":`, sheetErr);
         }
@@ -1230,56 +2959,181 @@
     clearMarkers();
     fetchAndPlot();
     if (pollTimer !== null) clearInterval(pollTimer);
-    pollTimer = setInterval(fetchAndPlot, POLL_INTERVAL_MS);
+    if (pollIntervalMs > 0) {
+      pollTimer = setInterval(fetchAndPlot, pollIntervalMs);
+    }
+  }
+
+  function updatePollInterval(ms) {
+    pollIntervalMs = ms;
+    if (pollTimer !== null) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+    if (pollIntervalMs > 0 && hasLoadedMap) {
+      pollTimer = setInterval(fetchAndPlot, pollIntervalMs);
+    }
   }
 
   // ── Color & Icon Picker Builders ─────────────────────────────────────────────
 
+  function normalizeHexColor(val) {
+    if (!val || typeof val !== 'string') return null;
+    let s = val.trim();
+    if (s.startsWith('#')) s = s.slice(1);
+    if (/^[0-9a-fA-F]{3}$/.test(s)) {
+      s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
+    }
+    if (/^[0-9a-fA-F]{6}$/.test(s)) {
+      return '#' + s.toUpperCase();
+    }
+    return null;
+  }
+
   function buildColorPicker(container, currentColor, onSelect) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
-    wrapper.className = 'color-picker-container';
+    wrapper.className = 'color-picker-control';
 
-    let customInput = null;
+    let activeColor = normalizeHexColor(currentColor) || '#E74C3C';
+
+    const customRow = document.createElement('div');
+    customRow.className = 'custom-color-row';
+
+    const pickerBtn = document.createElement('label');
+    pickerBtn.className = 'color-picker-btn-wrapper';
+    pickerBtn.title = 'Click to open color picker';
+    pickerBtn.style.backgroundColor = activeColor;
+
+    const customInput = document.createElement('input');
+    customInput.type = 'color';
+    customInput.className = 'custom-color-input';
+    customInput.value = activeColor.toLowerCase();
+    customInput.title = 'Choose custom color';
+    customInput.setAttribute('aria-label', 'Custom color picker');
+
+    const iconOverlay = document.createElement('i');
+    iconOverlay.className = 'fa-solid fa-eye-dropper color-picker-icon-overlay';
+
+    pickerBtn.appendChild(customInput);
+    pickerBtn.appendChild(iconOverlay);
+
+    const hexInput = document.createElement('input');
+    hexInput.type = 'text';
+    hexInput.className = 'color-hex-input';
+    hexInput.value = activeColor;
+    hexInput.maxLength = 7;
+    hexInput.placeholder = '#E74C3C';
+    hexInput.spellcheck = false;
+    hexInput.setAttribute('aria-label', 'Hex color code');
+    hexInput.title = 'Enter hex color code (e.g. #3498DB)';
+
+    customRow.appendChild(pickerBtn);
+    customRow.appendChild(hexInput);
+
+    const presetsContainer = document.createElement('div');
+    presetsContainer.className = 'color-palette-presets';
+    presetsContainer.setAttribute('role', 'radiogroup');
+    presetsContainer.setAttribute('aria-label', 'Color presets');
+
+    const swatchButtons = [];
+
+    function updateActiveState(colorHex) {
+      activeColor = colorHex;
+      pickerBtn.style.backgroundColor = colorHex;
+      customInput.value = colorHex.toLowerCase();
+      hexInput.value = colorHex;
+      hexInput.classList.remove('invalid');
+
+      swatchButtons.forEach(({ btn, color }) => {
+        if (color.toLowerCase() === colorHex.toLowerCase()) {
+          btn.classList.add('active');
+          btn.setAttribute('aria-checked', 'true');
+        } else {
+          btn.classList.remove('active');
+          btn.setAttribute('aria-checked', 'false');
+        }
+      });
+    }
 
     COLOR_PALETTE.forEach(color => {
       const swatch = document.createElement('button');
       swatch.type = 'button';
-      swatch.className = 'color-swatch' + (color.toLowerCase() === currentColor.toLowerCase() ? ' active' : '');
+      swatch.className = 'color-swatch' + (color.toLowerCase() === activeColor.toLowerCase() ? ' active' : '');
       swatch.style.backgroundColor = color;
       swatch.title = color;
+      swatch.setAttribute('role', 'radio');
+      swatch.setAttribute('aria-label', color);
+      swatch.setAttribute('aria-checked', color.toLowerCase() === activeColor.toLowerCase() ? 'true' : 'false');
+
       swatch.addEventListener('click', function () {
-        wrapper.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
-        swatch.classList.add('active');
-        if (customInput) customInput.value = color;
-        onSelect(color);
+        const norm = normalizeHexColor(color) || color;
+        updateActiveState(norm);
+        onSelect(norm);
       });
-      wrapper.appendChild(swatch);
+
+      presetsContainer.appendChild(swatch);
+      swatchButtons.push({ btn: swatch, color });
     });
 
-    customInput = document.createElement('input');
-    customInput.type = 'color';
-    customInput.className = 'custom-color-input';
-    customInput.value = currentColor.startsWith('#') && currentColor.length === 7 ? currentColor : '#e74c3c';
-    customInput.title = 'Custom color';
     customInput.addEventListener('input', function (e) {
-      wrapper.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
-      onSelect(e.target.value);
+      const norm = normalizeHexColor(e.target.value) || e.target.value;
+      updateActiveState(norm);
+      onSelect(norm);
     });
-    wrapper.appendChild(customInput);
 
+    hexInput.addEventListener('input', function () {
+      const norm = normalizeHexColor(hexInput.value);
+      if (norm) {
+        hexInput.classList.remove('invalid');
+        activeColor = norm;
+        pickerBtn.style.backgroundColor = norm;
+        customInput.value = norm.toLowerCase();
+        swatchButtons.forEach(({ btn, color }) => {
+          if (color.toLowerCase() === norm.toLowerCase()) {
+            btn.classList.add('active');
+            btn.setAttribute('aria-checked', 'true');
+          } else {
+            btn.classList.remove('active');
+            btn.setAttribute('aria-checked', 'false');
+          }
+        });
+        onSelect(norm);
+      } else {
+        hexInput.classList.add('invalid');
+      }
+    });
+
+    hexInput.addEventListener('blur', function () {
+      const norm = normalizeHexColor(hexInput.value);
+      if (norm) {
+        updateActiveState(norm);
+        onSelect(norm);
+      } else {
+        updateActiveState(activeColor);
+      }
+    });
+
+    wrapper.appendChild(customRow);
+    wrapper.appendChild(presetsContainer);
     container.appendChild(wrapper);
   }
 
-  function buildIconPicker(container, currentIcon, onSelect) {
+  function buildIconPicker(container, currentIcon, onSelect, sheetColor) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.className = 'sheet-icon-picker';
 
-    ICON_OPTIONS.forEach(function (opt) {
+    const isPreset = ICON_OPTIONS.some(opt => opt.fa === currentIcon.fa);
+    const optionsToShow = [...ICON_OPTIONS];
+    if (!isPreset && currentIcon && currentIcon.fa) {
+      optionsToShow.unshift(currentIcon);
+    }
+
+    optionsToShow.forEach(function (opt) {
       const btn = document.createElement('span');
       btn.className = 'icon-option' + (opt.fa === currentIcon.fa ? ' active' : '');
-      btn.title = opt.label;
+      btn.title = opt.label || formatIconLabel(opt.fa);
       btn.innerHTML = `<i class="${opt.fa}"></i>`;
       btn.addEventListener('click', function () {
         wrapper.querySelectorAll('.icon-option').forEach(b => b.classList.remove('active'));
@@ -1289,7 +3143,33 @@
       wrapper.appendChild(btn);
     });
 
+    const browseBtn = document.createElement('span');
+    browseBtn.className = 'icon-option btn-browse-fa';
+    browseBtn.title = 'Browse all FontAwesome icons…';
+    browseBtn.innerHTML = '<i class="fa-solid fa-icons"></i>';
+    browseBtn.addEventListener('click', function () {
+      openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
+        onSelect(newIcon);
+      });
+    });
+    wrapper.appendChild(browseBtn);
+
     container.appendChild(wrapper);
+
+    const linkWrap = document.createElement('div');
+    linkWrap.style.marginTop = '4px';
+    const linkBtn = document.createElement('button');
+    linkBtn.type = 'button';
+    linkBtn.className = 'btn-link';
+    linkBtn.style.fontSize = '0.78rem';
+    linkBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Browse all FontAwesome icons…';
+    linkBtn.addEventListener('click', function () {
+      openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
+        onSelect(newIcon);
+      });
+    });
+    linkWrap.appendChild(linkBtn);
+    container.appendChild(linkWrap);
   }
 
   // ── Sheet Modal UI Rendering ─────────────────────────────────────────────────
@@ -1304,11 +3184,13 @@
   const btnUseLocalGeocoder = document.getElementById('btn-use-local-geocoder');
   const submitBtn           = document.getElementById('sheet-submit');
   const sheetCancelBtn      = document.getElementById('sheet-modal-cancel');
+  const sheetCloseBtn       = document.getElementById('sheet-modal-close');
   const errorMsgEl          = document.getElementById('error-msg');
 
   let hasLocalAddresses  = false;
   let isOverridden       = false;
   let localAddressesData = null;
+  let savedSheetsSnapshot = null;
 
   async function tryDetectHeadersForSheet(sheet, cardEl) {
     const card = cardEl || document.querySelector(`.sheet-card[data-sheet-id="${sheet.id}"]`);
@@ -1384,9 +3266,14 @@
           </span>
           <input type="text" class="text-input sheet-name-input" value="${escHtml(sheet.name)}" placeholder="Sheet name" />
         </div>
-        <button type="button" class="btn-remove-sheet ${sheets.length <= 1 ? 'hidden' : ''}">
-          <i class="fa-solid fa-trash"></i> Remove
-        </button>
+        <div class="sheet-card-actions">
+          <button type="button" class="btn-refresh-sheet" title="Refresh this sheet now">
+            <i class="fa-solid fa-rotate"></i> Refresh
+          </button>
+          <button type="button" class="btn-remove-sheet ${sheets.length <= 1 ? 'hidden' : ''}">
+            <i class="fa-solid fa-trash"></i> Remove
+          </button>
+        </div>
       </div>
 
       <label class="field-label">Google Sheet URL</label>
@@ -1432,12 +3319,23 @@
     const badgePreview   = card.querySelector('.sheet-badge-preview');
     const nameInput      = card.querySelector('.sheet-name-input');
     const urlInput       = card.querySelector('.sheet-url-input');
+    const refreshBtn     = card.querySelector('.btn-refresh-sheet');
     const removeBtn      = card.querySelector('.btn-remove-sheet');
     const addrSelect     = card.querySelector('.col-address-select');
     const statusSelect   = card.querySelector('.col-status-select');
     const labelSelect    = card.querySelector('.col-label-select');
     const iconContainer  = card.querySelector('.sheet-icon-picker-container');
     const colorContainer = card.querySelector('.sheet-color-picker-container');
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async function () {
+        refreshBtn.disabled = true;
+        refreshBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing…';
+        await fetchAndPlotSheet(sheet.id);
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Refresh';
+      });
+    }
 
     function updateBadgePreview() {
       badgePreview.style.backgroundColor = sheet.color;
@@ -1500,14 +3398,18 @@
       renderSheetsModal();
     });
 
-    buildIconPicker(iconContainer, sheet.icon, function (newIcon) {
+    function handleIconSelect(newIcon) {
       sheet.icon = newIcon;
       updateBadgePreview();
-    });
+      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
+    }
+
+    buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
 
     buildColorPicker(colorContainer, sheet.color, function (newColor) {
       sheet.color = newColor;
       updateBadgePreview();
+      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
     });
 
     return card;
@@ -1561,6 +3463,7 @@
 
   btnOverrideGeocoder.addEventListener('click', function () {
     isOverridden = true;
+    savedGeocoderOverridden = true;
     geocoderLocalNotice.classList.add('hidden');
     geocoderFieldGroup.classList.remove('hidden');
     btnUseLocalGeocoder.classList.remove('hidden');
@@ -1569,6 +3472,8 @@
 
   btnUseLocalGeocoder.addEventListener('click', function () {
     isOverridden = false;
+    savedGeocoderOverridden = false;
+    savedGeocoderUrl = '';
     geocoderInput.value = '';
     geocoderFieldGroup.classList.add('hidden');
     geocoderLocalNotice.classList.remove('hidden');
@@ -1615,6 +3520,8 @@
     }
 
     const customGeocoderUrl = geocoderInput.value.trim();
+    savedGeocoderUrl = customGeocoderUrl;
+    savedGeocoderOverridden = isOverridden;
     let geocoderUrl = customGeocoderUrl;
     if (!geocoderUrl) {
       if (hasLocalAddresses) {
@@ -1651,8 +3558,11 @@
 
     submitBtn.disabled = false;
     hasLoadedMap = true;
+    savedSheetsSnapshot = JSON.parse(JSON.stringify(sheets));
+    persistAppState();
     submitBtn.textContent = 'Save & Load Map';
     sheetCancelBtn.classList.remove('hidden');
+    if (sheetCloseBtn) sheetCloseBtn.classList.remove('hidden');
 
     sheetModal.classList.add('hidden');
     updateLegend();
@@ -1660,16 +3570,64 @@
     startPolling();
   }
 
-  submitBtn.addEventListener('click', handleSubmit);
-  sheetCancelBtn.addEventListener('click', function () {
+  function openSheetModal() {
+    savedSheetsSnapshot = JSON.parse(JSON.stringify(sheets));
+    renderSheetsModal();
+    clearError();
+    if (hasLoadedMap) {
+      sheetCancelBtn.classList.remove('hidden');
+      if (sheetCloseBtn) sheetCloseBtn.classList.remove('hidden');
+      submitBtn.textContent = 'Save & Load Map';
+    } else {
+      sheetCancelBtn.classList.add('hidden');
+      if (sheetCloseBtn) sheetCloseBtn.classList.add('hidden');
+      submitBtn.textContent = 'Load Map';
+    }
+    sheetModal.classList.remove('hidden');
+  }
+
+  function cancelSheetModal() {
+    if (savedSheetsSnapshot) {
+      sheets = JSON.parse(JSON.stringify(savedSheetsSnapshot));
+      renderSheetsModal();
+    }
+    clearError();
     sheetModal.classList.add('hidden');
-  });
+  }
+
+  submitBtn.addEventListener('click', handleSubmit);
+  sheetCancelBtn.addEventListener('click', cancelSheetModal);
+  if (sheetCloseBtn) {
+    sheetCloseBtn.addEventListener('click', cancelSheetModal);
+  }
   geocoderInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') handleSubmit();
   });
 
   renderSheetsModal();
-  checkLocalAddresses();
+  if (savedAppState && savedAppState.geocoderOverridden && typeof savedAppState.geocoderUrl === 'string') {
+    isOverridden = true;
+    savedGeocoderOverridden = true;
+    savedGeocoderUrl = savedAppState.geocoderUrl;
+    geocoderInput.value = savedAppState.geocoderUrl;
+    geocoderLocalNotice.classList.add('hidden');
+    geocoderFieldGroup.classList.remove('hidden');
+    btnUseLocalGeocoder.classList.remove('hidden');
+  }
+  const savedRefreshSelect = document.getElementById('select-refresh-interval');
+  if (savedRefreshSelect) {
+    savedRefreshSelect.value = String(pollIntervalMs);
+    if (savedRefreshSelect.value !== String(pollIntervalMs)) {
+      savedRefreshSelect.value = String(DEFAULT_POLL_INTERVAL_MS);
+      pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
+    }
+  }
+  loadSavedOAuthConfig();
+  checkLocalAddresses().then(function () {
+    if (savedAppState && sheets.some(sheet => sheet.rawUrl)) {
+      handleSubmit();
+    }
+  });
 
   // ── Column-only change modal ───────────────────────────────────
 
@@ -1677,6 +3635,7 @@
   const columnsContainer      = document.getElementById('columns-modal-container');
   const columnsSaveBtn        = document.getElementById('columns-modal-save');
   const columnsCancelBtn      = document.getElementById('columns-modal-cancel');
+  const columnsCloseBtn       = document.getElementById('columns-modal-close');
   const columnsErrorMsgEl     = document.getElementById('columns-error-msg');
 
   async function openColumnsModal() {
@@ -1737,6 +3696,9 @@
   }
 
   columnsCancelBtn.addEventListener('click', closeColumnsModal);
+  if (columnsCloseBtn) {
+    columnsCloseBtn.addEventListener('click', closeColumnsModal);
+  }
 
   columnsSaveBtn.addEventListener('click', function () {
     const blocks = columnsContainer.querySelectorAll('.sheet-card');
@@ -1758,6 +3720,7 @@
       sheet.columnMapping.label   = lblVal >= 0 ? lblVal : null;
     }
 
+    persistAppState();
     closeColumnsModal();
     renderSheetsModal();
     clearMarkers();
@@ -1771,6 +3734,7 @@
   const iconModal        = document.getElementById('icon-modal');
   const iconsContainer   = document.getElementById('icons-modal-container');
   const iconCloseBtn     = document.getElementById('icon-modal-close');
+  const iconTopCloseBtn  = document.getElementById('icon-modal-top-close');
 
   function openIconsModal() {
     iconsContainer.innerHTML = '';
@@ -1808,17 +3772,24 @@
         badgePreview.innerHTML = `<i class="${sheet.icon.fa}"></i>`;
       }
 
-      buildIconPicker(iconWrap, sheet.icon, function (newIcon) {
+      function handleModalIconSelect(newIcon) {
         sheet.icon = newIcon;
+        persistAppState();
         updateModalBadge();
         refreshIcons();
-      });
+        buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
+      }
 
-      buildColorPicker(colorWrap, sheet.color, function (newColor) {
+      function handleModalColorSelect(newColor) {
         sheet.color = newColor;
+        persistAppState();
         updateModalBadge();
         refreshIcons();
-      });
+        buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
+      }
+
+      buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
+      buildColorPicker(colorWrap, sheet.color, handleModalColorSelect);
 
       iconsContainer.appendChild(block);
     });
@@ -1826,19 +3797,596 @@
     iconModal.classList.remove('hidden');
   }
 
-  iconCloseBtn.addEventListener('click', function () {
+  function closeIconsModal() {
     iconModal.classList.add('hidden');
     renderSheetsModal();
-  });
+  }
+
+  iconCloseBtn.addEventListener('click', closeIconsModal);
+  if (iconTopCloseBtn) {
+    iconTopCloseBtn.addEventListener('click', closeIconsModal);
+  }
 
   document.getElementById('btn-change-icon').addEventListener('click', openIconsModal);
 
   // ── Toolbar: Manage Sheets ────────────────────────────────────
 
-  document.getElementById('btn-change-sheet').addEventListener('click', function () {
-    renderSheetsModal();
-    sheetModal.classList.remove('hidden');
+  document.getElementById('btn-change-sheet').addEventListener('click', openSheetModal);
+
+  // ── Custom feature drawing and management ───────────────────────
+
+  const customFeatureModal = document.getElementById('custom-feature-modal');
+  const customFeatureList = document.getElementById('custom-feature-list');
+  const customFeatureEditor = document.getElementById('custom-feature-editor');
+  const customFeatureType = document.getElementById('custom-feature-type');
+  const customFeatureColor = document.getElementById('custom-feature-color');
+  const customFeatureClosed = document.getElementById('custom-feature-closed');
+  const customFeatureClosedLabel = document.getElementById('custom-feature-closed-label');
+  const customFeatureSaveBtn = document.getElementById('custom-feature-save');
+  const customFeatureCancelBtn = document.getElementById('custom-feature-cancel');
+  const customFeatureError = document.getElementById('custom-feature-error');
+  const customFeatureIconContainer = document.getElementById('custom-feature-icon');
+  let customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+  let editingCustomFeatureId = null;
+  let newCustomFeatureId = null;
+
+  function renderCustomFeatureList() {
+    if (!customFeatureList) return;
+    customFeatureList.innerHTML = '';
+    if (customFeatures.length === 0) {
+      customFeatureList.innerHTML = '<div class="custom-feature-empty">No custom features yet.</div>';
+      return;
+    }
+    customFeatures.forEach(feature => {
+      const item = document.createElement('div');
+      item.className = 'custom-feature-item';
+      const icon = feature.icon || { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+      const isClosedPoint = feature.type === 'point' && feature.closed === true;
+      item.innerHTML = `
+        <span class="custom-feature-icon-preview${isClosedPoint ? ' closed' : ''}" style="background-color:${escHtml(isClosedPoint ? '#7f8c8d' : feature.color)}"><i class="${escHtml(icon.fa)}"></i></span>
+        <span class="custom-feature-name"><strong>${escHtml(feature.label || 'Custom feature')}</strong> (${escHtml(feature.type)})</span>
+        <button type="button" class="btn-remove-sheet" title="Delete feature"><i class="fa-solid fa-trash"></i> Delete</button>
+      `;
+      item.querySelector('button').addEventListener('click', function () {
+        const layer = customFeatureLayers[feature.id];
+        if (layer) map.removeLayer(layer);
+        delete customFeatureLayers[feature.id];
+        customFeatures = customFeatures.filter(candidate => candidate.id !== feature.id);
+        saveCustomFeatures();
+        renderCustomFeatureList();
+      });
+      customFeatureList.appendChild(item);
+    });
+  }
+
+  function resetCustomFeatureForm() {
+    editingCustomFeatureId = null;
+    newCustomFeatureId = null;
+    customFeatureEditor.classList.add('hidden');
+    document.getElementById('custom-feature-label').value = '';
+    document.getElementById('custom-feature-description').value = '';
+    customFeatureError.textContent = '';
+    customFeatureType.value = '';
+    customFeatureColor.value = '#2c7bb6';
+    customFeatureClosed.checked = false;
+    customFeatureClosedLabel.classList.add('hidden');
+    customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+    buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
+      customFeatureIcon = newIcon;
+    }, '#2c7bb6');
+  }
+
+  function discardNewCustomFeature() {
+    if (!newCustomFeatureId) return;
+    customFeatures = customFeatures.filter(feature => feature.id !== newCustomFeatureId);
+    saveCustomFeatures();
+    renderCustomFeatureList();
+    newCustomFeatureId = null;
+  }
+
+  function openCustomFeatureEditor(featureId, draftLayer) {
+    if (newCustomFeatureId && newCustomFeatureId !== featureId) discardNewCustomFeature();
+    const feature = customFeatures.find(candidate => candidate.id === featureId);
+    editingCustomFeatureId = featureId;
+    newCustomFeatureId = feature && !feature.label ? featureId : null;
+    customFeatureModal.classList.remove('hidden');
+    customFeatureError.textContent = '';
+    if (feature) {
+      customFeatureType.value = feature.type;
+      document.getElementById('custom-feature-label').value = feature.label || '';
+      document.getElementById('custom-feature-description').value = feature.description || '';
+      customFeatureColor.value = feature.color || '#2c7bb6';
+      customFeatureClosed.checked = feature.type === 'point' && feature.closed === true;
+      customFeatureClosedLabel.classList.toggle('hidden', feature.type !== 'point');
+      customFeatureIcon = feature.icon || { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+    } else if (draftLayer) {
+      const type = draftLayer instanceof L.Marker ? 'point' :
+        draftLayer instanceof L.Polygon ? 'polygon' : 'line';
+      customFeatureType.value = type;
+      customFeatureColor.value = '#2c7bb6';
+      customFeatureClosed.checked = false;
+      customFeatureClosedLabel.classList.toggle('hidden', type !== 'point');
+      customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+      draftLayer.remove();
+    }
+    buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
+      customFeatureIcon = newIcon;
+    }, customFeatureColor.value);
+    customFeatureEditor.classList.remove('hidden');
+    document.getElementById('custom-feature-label').focus();
+  }
+
+  function openCustomFeatureModal() {
+    renderCustomFeatureList();
+    resetCustomFeatureForm();
+    customFeatureModal.classList.remove('hidden');
+  }
+
+  function closeCustomFeatureModal() {
+    discardNewCustomFeature();
+    resetCustomFeatureForm();
+    customFeatureModal.classList.add('hidden');
+  }
+
+  buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
+    customFeatureIcon = newIcon;
+  }, customFeatureColor.value);
+  customFeatureSaveBtn.addEventListener('click', function () {
+    const label = document.getElementById('custom-feature-label').value.trim();
+    if (!label) {
+      customFeatureError.textContent = 'Please enter a label for this feature.';
+      return;
+    }
+    const feature = customFeatures.find(candidate => candidate.id === editingCustomFeatureId);
+    if (!feature) return;
+    feature.label = label;
+    feature.description = document.getElementById('custom-feature-description').value.trim();
+    feature.color = customFeatureColor.value;
+    feature.closed = feature.type === 'point' && customFeatureClosed.checked;
+    feature.icon = customFeatureIcon;
+    saveCustomFeatures();
+    const layer = customFeatureLayers[feature.id];
+    if (layer) map.removeLayer(layer);
+    renderCustomFeature(feature);
+    renderCustomFeatureList();
+    resetCustomFeatureForm();
   });
+  customFeatureCancelBtn.addEventListener('click', function () {
+    discardNewCustomFeature();
+    resetCustomFeatureForm();
+  });
+  document.getElementById('btn-custom-features').addEventListener('click', openCustomFeatureModal);
+  document.getElementById('custom-feature-modal-close').addEventListener('click', closeCustomFeatureModal);
+  customFeatureModal.addEventListener('click', function (e) {
+    if (e.target === customFeatureModal) closeCustomFeatureModal();
+  });
+
+  const customFeatureDrawControl = new L.Control.Draw({
+    position: 'topright',
+    draw: {
+      marker: true,
+      polyline: { shapeOptions: { color: '#2c7bb6', weight: 3 } },
+      polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#2c7bb6' } },
+      rectangle: false,
+      circle: false,
+      circlemarker: false
+    },
+    edit: false
+  });
+  map.addControl(customFeatureDrawControl);
+  map.on(L.Draw.Event.CREATED, function (event) {
+    const layer = event.layer;
+    const type = event.layerType === 'marker' ? 'point' :
+      event.layerType === 'polygon' ? 'polygon' : 'line';
+    const latlngs = type === 'point' ? null : layer.getLatLngs();
+    const points = latlngs && Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
+    const coordinates = type === 'point'
+      ? [layer.getLatLng().lat, layer.getLatLng().lng]
+      : points.map(latlng => [latlng.lat, latlng.lng]);
+    const feature = {
+      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type,
+      coordinates,
+      label: '',
+      description: '',
+      color: '#2c7bb6',
+      closed: false,
+      icon: { fa: 'fa-solid fa-location-dot', label: 'Pin' }
+    };
+    customFeatures.push(feature);
+    openCustomFeatureEditor(feature.id, layer);
+  });
+  loadCustomFeatures();
+  renderAllCustomFeatures();
+
+  // ── FontAwesome Icon Picker Modal State & Helpers ───────────────────────────
+
+  const faPickerModal    = document.getElementById('fa-picker-modal');
+  const faPickerCloseBtn = document.getElementById('fa-picker-close');
+  const faSearchInput    = document.getElementById('fa-search-input');
+  const faSearchClearBtn = document.getElementById('fa-search-clear');
+  const faStyleSelect    = document.getElementById('fa-style-select');
+  const faPickerBody     = document.getElementById('fa-picker-body');
+  const faIconGrid       = document.getElementById('fa-icon-grid');
+  const faNoResults      = document.getElementById('fa-no-results');
+  const faQueryText      = document.getElementById('fa-query-text');
+  const faResultsCount   = document.getElementById('fa-results-count');
+  const faCustomInput    = document.getElementById('fa-custom-class-input');
+  const faPreviewBadge   = document.getElementById('fa-preview-badge');
+  const faPreviewIcon    = document.getElementById('fa-preview-icon');
+  const faSelectedName   = document.getElementById('fa-selected-name');
+  const faSelectedClass  = document.getElementById('fa-selected-class');
+  const faPickerCancel   = document.getElementById('fa-picker-cancel');
+  const faPickerSubmit   = document.getElementById('fa-picker-submit');
+
+  let faPickerCallback        = null;
+  let faPickerCurrentSelected = { fa: 'fa-solid fa-bell-concierge', label: 'Emergency' };
+  let faPickerActiveStyle     = 'fa-solid';
+  let faPickerActiveCategory  = 'all';
+  let faPickerSearchQuery     = '';
+  let faRenderedCount         = 0;
+  const FA_CHUNK_SIZE         = 120;
+  let faFilteredList          = [];
+  let allAvailableFaIcons     = [];
+
+  function normalizeFaClass(input, currentStyle) {
+    if (!input) return `${currentStyle || 'fa-solid'} fa-bell-concierge`;
+    const trimmed = input.trim();
+    if (/^fa-(solid|regular|brands)\s+fa-[\w-]+$/.test(trimmed)) {
+      return trimmed;
+    }
+    if (/^fa-(solid|regular|brands)\s+[\w-]+$/.test(trimmed)) {
+      const parts = trimmed.split(/\s+/);
+      return `${parts[0]} fa-${parts[1].replace(/^fa-/, '')}`;
+    }
+    if (/^fa-[\w-]+$/.test(trimmed)) {
+      return `${currentStyle || 'fa-solid'} ${trimmed}`;
+    }
+    if (/^[\w-]+$/.test(trimmed)) {
+      return `${currentStyle || 'fa-solid'} fa-${trimmed}`;
+    }
+    return trimmed;
+  }
+
+  function updateSelectionPreview(iconClass, label) {
+    if (faPreviewIcon) faPreviewIcon.className = iconClass;
+    if (faSelectedName) faSelectedName.textContent = label || formatIconLabel(iconClass);
+    if (faSelectedClass) faSelectedClass.textContent = iconClass;
+  }
+
+  function selectIconTile(name, fullClass, tileEl) {
+    faIconGrid.querySelectorAll('.fa-icon-tile.active').forEach(t => t.classList.remove('active'));
+    if (tileEl) tileEl.classList.add('active');
+
+    const label = formatIconLabel(name);
+    faPickerCurrentSelected = { fa: fullClass, label: label };
+    if (faCustomInput) faCustomInput.value = fullClass;
+    updateSelectionPreview(fullClass, label);
+  }
+
+  function getFilteredFaIcons() {
+    if (allAvailableFaIcons.length === 0) {
+      allAvailableFaIcons = getCompleteFaIconsList();
+    }
+    let list = allAvailableFaIcons;
+    if (faPickerActiveCategory !== 'all' && FA_CATEGORIES[faPickerActiveCategory]) {
+      const catSet = new Set(FA_CATEGORIES[faPickerActiveCategory]);
+      list = list.filter(name => catSet.has(name));
+    }
+    if (faPickerSearchQuery) {
+      const q = faPickerSearchQuery.toLowerCase();
+      list = list.filter(name => name.toLowerCase().includes(q));
+    }
+    return list;
+  }
+
+  function renderIconGrid(resetScroll) {
+    faFilteredList = getFilteredFaIcons();
+
+    if (resetScroll) {
+      faIconGrid.innerHTML = '';
+      faRenderedCount = 0;
+      if (faPickerBody) faPickerBody.scrollTop = 0;
+    }
+
+    if (faFilteredList.length === 0) {
+      faIconGrid.classList.add('hidden');
+      faNoResults.classList.remove('hidden');
+      if (faQueryText) faQueryText.textContent = faPickerSearchQuery;
+      if (faResultsCount) faResultsCount.textContent = '0 icons';
+      return;
+    }
+
+    faIconGrid.classList.remove('hidden');
+    faNoResults.classList.add('hidden');
+    if (faResultsCount) {
+      faResultsCount.textContent = `${faFilteredList.length} icon${faFilteredList.length === 1 ? '' : 's'}`;
+    }
+
+    const nextBatch = faFilteredList.slice(faRenderedCount, faRenderedCount + FA_CHUNK_SIZE);
+    const fragment = document.createDocumentFragment();
+
+    const currentClean = faPickerCurrentSelected.fa.replace(/^fa-(solid|regular|brands)\s+/, '').replace(/^fa-/, '');
+
+    nextBatch.forEach(name => {
+      const tile = document.createElement('div');
+      tile.className = 'fa-icon-tile';
+      tile.dataset.iconName = name;
+      const fullClass = `${faPickerActiveStyle} fa-${name}`;
+      if (name === currentClean) {
+        tile.classList.add('active');
+      }
+      tile.title = `${formatIconLabel(name)} (${fullClass})`;
+      tile.innerHTML = `
+        <i class="${fullClass}"></i>
+        <span class="fa-icon-tile-name">${escHtml(name)}</span>
+      `;
+
+      tile.addEventListener('click', function () {
+        selectIconTile(name, fullClass, tile);
+      });
+
+      tile.addEventListener('dblclick', function () {
+        selectIconTile(name, fullClass, tile);
+        confirmIconSelection();
+      });
+
+      fragment.appendChild(tile);
+    });
+
+    faIconGrid.appendChild(fragment);
+    faRenderedCount += nextBatch.length;
+  }
+
+  function confirmIconSelection() {
+    if (!faPickerCurrentSelected || !faPickerCurrentSelected.fa) return;
+    faPickerModal.classList.add('hidden');
+    if (typeof faPickerCallback === 'function') {
+      faPickerCallback(faPickerCurrentSelected);
+    }
+  }
+
+  function closeFontAwesomePicker() {
+    faPickerModal.classList.add('hidden');
+    faPickerCallback = null;
+  }
+
+  function openFontAwesomePickerDialog(currentIcon, badgeColor, onSelect) {
+    faPickerCallback = onSelect;
+    const iconFa = currentIcon && currentIcon.fa ? currentIcon.fa : 'fa-solid fa-bell-concierge';
+    const iconLabel = currentIcon && currentIcon.label ? currentIcon.label : formatIconLabel(iconFa);
+    faPickerCurrentSelected = { fa: iconFa, label: iconLabel };
+
+    if (iconFa.startsWith('fa-regular') || iconFa.startsWith('far ')) {
+      faPickerActiveStyle = 'fa-regular';
+    } else if (iconFa.startsWith('fa-brands') || iconFa.startsWith('fab ')) {
+      faPickerActiveStyle = 'fa-brands';
+    } else {
+      faPickerActiveStyle = 'fa-solid';
+    }
+
+    if (faStyleSelect) faStyleSelect.value = faPickerActiveStyle;
+    if (faPreviewBadge) faPreviewBadge.style.backgroundColor = badgeColor || '#e74c3c';
+
+    if (faSearchInput) {
+      faSearchInput.value = '';
+      faPickerSearchQuery = '';
+    }
+    if (faSearchClearBtn) faSearchClearBtn.classList.add('hidden');
+
+    faPickerActiveCategory = 'all';
+    document.querySelectorAll('.fa-filter-chip').forEach(c => {
+      if (c.dataset.filter === 'all') c.classList.add('active');
+      else c.classList.remove('active');
+    });
+
+    if (faCustomInput) faCustomInput.value = iconFa;
+
+    updateSelectionPreview(iconFa, iconLabel);
+    renderIconGrid(true);
+
+    faPickerModal.classList.remove('hidden');
+    setTimeout(() => {
+      if (faSearchInput) faSearchInput.focus();
+    }, 50);
+  }
+
+  if (faPickerCloseBtn) faPickerCloseBtn.addEventListener('click', closeFontAwesomePicker);
+  if (faPickerCancel) faPickerCancel.addEventListener('click', closeFontAwesomePicker);
+  if (faPickerSubmit) faPickerSubmit.addEventListener('click', confirmIconSelection);
+
+  if (faSearchInput) {
+    faSearchInput.addEventListener('input', function (e) {
+      faPickerSearchQuery = e.target.value.trim();
+      if (faSearchClearBtn) {
+        if (faPickerSearchQuery) faSearchClearBtn.classList.remove('hidden');
+        else faSearchClearBtn.classList.add('hidden');
+      }
+      renderIconGrid(true);
+    });
+  }
+
+  if (faSearchClearBtn) {
+    faSearchClearBtn.addEventListener('click', function () {
+      if (faSearchInput) {
+        faSearchInput.value = '';
+        faPickerSearchQuery = '';
+        faSearchClearBtn.classList.add('hidden');
+        faSearchInput.focus();
+      }
+      renderIconGrid(true);
+    });
+  }
+
+  if (faStyleSelect) {
+    faStyleSelect.addEventListener('change', function () {
+      faPickerActiveStyle = faStyleSelect.value;
+      const currentClean = faPickerCurrentSelected.fa.replace(/^fa-(solid|regular|brands)\s+/, '').replace(/^fa-/, '');
+      const newFullClass = `${faPickerActiveStyle} fa-${currentClean}`;
+      faPickerCurrentSelected.fa = newFullClass;
+      if (faCustomInput) faCustomInput.value = newFullClass;
+      updateSelectionPreview(newFullClass, faPickerCurrentSelected.label);
+      renderIconGrid(true);
+    });
+  }
+
+  document.querySelectorAll('.fa-filter-chip').forEach(chip => {
+    chip.addEventListener('click', function () {
+      document.querySelectorAll('.fa-filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      faPickerActiveCategory = chip.dataset.filter || 'all';
+      renderIconGrid(true);
+    });
+  });
+
+  if (faPickerBody) {
+    faPickerBody.addEventListener('scroll', function () {
+      if (faPickerBody.scrollTop + faPickerBody.clientHeight >= faPickerBody.scrollHeight - 80) {
+        if (faRenderedCount < faFilteredList.length) {
+          renderIconGrid(false);
+        }
+      }
+    });
+  }
+
+  if (faCustomInput) {
+    faCustomInput.addEventListener('input', function () {
+      const val = faCustomInput.value.trim();
+      if (!val) {
+        updateSelectionPreview('fa-solid fa-question', 'No icon');
+        return;
+      }
+      const fullClass = normalizeFaClass(val, faPickerActiveStyle);
+      const label = formatIconLabel(val);
+      faPickerCurrentSelected = { fa: fullClass, label: label };
+      updateSelectionPreview(fullClass, label);
+
+      const cleanName = val.replace(/^fa-(solid|regular|brands)\s+/, '').replace(/^fa-/, '');
+      faIconGrid.querySelectorAll('.fa-icon-tile.active').forEach(t => t.classList.remove('active'));
+      const matching = faIconGrid.querySelector(`.fa-icon-tile[data-icon-name="${cleanName}"]`);
+      if (matching) matching.classList.add('active');
+    });
+  }
+
+  // ── Global Escape key and overlay backdrop dismiss ───────────
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (!commitInfoModal.classList.contains('hidden')) {
+        closeCommitInfoModal();
+      } else if (faPickerModal && !faPickerModal.classList.contains('hidden')) {
+        closeFontAwesomePicker();
+      } else if (!columnsModal.classList.contains('hidden')) {
+        closeColumnsModal();
+      } else if (!iconModal.classList.contains('hidden')) {
+        closeIconsModal();
+      } else if (customFeatureModal && !customFeatureModal.classList.contains('hidden')) {
+        closeCustomFeatureModal();
+      } else if (!sheetModal.classList.contains('hidden') && hasLoadedMap) {
+        cancelSheetModal();
+      }
+    }
+  });
+
+  if (faPickerModal) {
+    faPickerModal.addEventListener('click', function (e) {
+      if (e.target === faPickerModal) {
+        closeFontAwesomePicker();
+      }
+    });
+  }
+
+  sheetModal.addEventListener('click', function (e) {
+    if (e.target === sheetModal && hasLoadedMap) {
+      cancelSheetModal();
+    }
+  });
+
+  columnsModal.addEventListener('click', function (e) {
+    if (e.target === columnsModal) {
+      closeColumnsModal();
+    }
+  });
+
+  iconModal.addEventListener('click', function (e) {
+    if (e.target === iconModal) {
+      closeIconsModal();
+    }
+  });
+
+  // ── Toolbar & OAuth Event Handlers ────────────────────────────
+
+  const btnRefreshAll = document.getElementById('btn-refresh-all');
+  if (btnRefreshAll) {
+    btnRefreshAll.addEventListener('click', async function () {
+      btnRefreshAll.disabled = true;
+      btnRefreshAll.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing…';
+      await fetchAndPlot();
+      btnRefreshAll.disabled = false;
+      btnRefreshAll.innerHTML = '<i class="fa-solid fa-rotate"></i> Refresh All';
+    });
+  }
+
+  const btnExportMap = document.getElementById('btn-export-map');
+  if (btnExportMap) {
+    btnExportMap.addEventListener('click', exportMapSnapshot);
+  }
+
+  const btnImportMap = document.getElementById('btn-import-map');
+  const mapFileInput = document.getElementById('map-file-input');
+  if (btnImportMap && mapFileInput) {
+    btnImportMap.addEventListener('click', function () {
+      mapFileInput.click();
+    });
+    mapFileInput.addEventListener('change', async function () {
+      const [file] = mapFileInput.files || [];
+      mapFileInput.value = '';
+      if (!file) return;
+      try {
+        await importMapSnapshot(file);
+      } catch (err) {
+        showError(`Could not load map file: ${err.message}`);
+        sheetModal.classList.remove('hidden');
+      }
+    });
+  }
+
+  const selectRefreshInterval = document.getElementById('select-refresh-interval');
+  if (selectRefreshInterval) {
+    selectRefreshInterval.addEventListener('change', function () {
+      const ms = parseInt(selectRefreshInterval.value, 10) || 0;
+      updatePollInterval(ms);
+      persistAppState();
+    });
+  }
+
+  const btnOAuthAuth = document.getElementById('btn-oauth-auth');
+  if (btnOAuthAuth) {
+    btnOAuthAuth.addEventListener('click', function () {
+      if (isGoogleAuthenticated()) {
+        signOutGoogle();
+      } else {
+        requestGoogleSignIn(function () {
+          if (hasLoadedMap) fetchAndPlot();
+        });
+      }
+    });
+  }
+
+  const btnGoogleAuthStatus = document.getElementById('btn-google-auth-status');
+  if (btnGoogleAuthStatus) {
+    btnGoogleAuthStatus.addEventListener('click', function () {
+      if (isGoogleAuthenticated()) {
+        signOutGoogle();
+      } else {
+        requestGoogleSignIn(function () {
+          if (hasLoadedMap) fetchAndPlot();
+        });
+      }
+    });
+  }
+
+  loadSavedOAuthConfig();
 
   document.getElementById('btn-clear-features').addEventListener('click', clearCustomFeatures);
 

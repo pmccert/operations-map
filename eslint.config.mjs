@@ -15,6 +15,7 @@ export default [
       globals: {
         ...globals.browser,
         L: "readonly",
+        google: "readonly",
       }
     },
     rules: {
