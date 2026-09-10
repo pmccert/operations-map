@@ -1631,18 +1631,27 @@ const ALL_FA_ICONS = [
   };
 
   const thirdPartyLayers = {
-    'Known Fire Incidents': L.layerGroup(),
-    'ADS-B Aircraft': L.layerGroup()
+    'Known Fire Incidents': {
+      layer: L.layerGroup(),
+      activated: false,
+      icon: 'fa-solid fa-fire',
+      color: '#d35400'
+    },
+    'ADS-B Aircraft': {
+      layer: L.layerGroup(),
+      activated: false,
+      icon: 'fa-solid fa-plane',
+      color: '#2980b9'
+    }
   };
-  const thirdPartyLayerActivated = {
-    'Known Fire Incidents': false,
-    'ADS-B Aircraft': false
-  };
+  const thirdPartyOverlayLayers = Object.fromEntries(
+    Object.entries(thirdPartyLayers).map(([name, config]) => [name, config.layer])
+  );
 
   let currentBaseLayer = baseLayers['OpenStreetMap'];
 
   baseLayers['OpenStreetMap'].addTo(map);
-  L.control.layers(baseLayers, thirdPartyLayers, { position: 'topright', collapsed: false }).addTo(map);
+  L.control.layers(baseLayers, thirdPartyOverlayLayers, { position: 'topright', collapsed: false }).addTo(map);
   if (savedAppState && typeof savedAppState.baseLayer === 'string' && baseLayers[savedAppState.baseLayer]) {
     map.removeLayer(baseLayers['OpenStreetMap']);
     currentBaseLayer = baseLayers[savedAppState.baseLayer];
@@ -1708,16 +1717,16 @@ const ALL_FA_ICONS = [
   });
 
   map.on('overlayadd', function (e) {
-    const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name] === e.layer);
+    const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
-      thirdPartyLayerActivated[layerName] = true;
+      thirdPartyLayers[layerName].activated = true;
       updateLegend();
       loadThirdPartyLayer(layerName);
     }
   });
 
   map.on('overlayremove', function (e) {
-    const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name] === e.layer);
+    const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) updateLegend();
   });
 
@@ -1771,18 +1780,8 @@ const ALL_FA_ICONS = [
 
   function loadSavedOAuthConfig() {
     try {
-      const savedToken = localStorage.getItem('pmc_google_access_token');
-      const savedExp = localStorage.getItem('pmc_google_token_expiry');
-      if (savedToken && savedExp) {
-        const exp = parseInt(savedExp, 10);
-        if (Date.now() < exp) {
-          googleAccessToken = savedToken;
-          googleTokenExpiry = exp;
-        } else {
-          localStorage.removeItem('pmc_google_access_token');
-          localStorage.removeItem('pmc_google_token_expiry');
-        }
-      }
+      localStorage.removeItem('pmc_google_access_token');
+      localStorage.removeItem('pmc_google_token_expiry');
     } catch (_) {
       // Storage unavailable or blocked
     }
@@ -1835,12 +1834,6 @@ const ALL_FA_ICONS = [
           googleAccessToken = resp.access_token;
           const expiresIn = (parseInt(resp.expires_in, 10) || 3600) * 1000;
           googleTokenExpiry = Date.now() + expiresIn - 60000;
-          try {
-            localStorage.setItem('pmc_google_access_token', googleAccessToken);
-            localStorage.setItem('pmc_google_token_expiry', String(googleTokenExpiry));
-          } catch (_) {
-            // Ignore storage quota or disabled errors
-          }
           updateOAuthUI();
           if (callback) callback();
         }
@@ -1981,7 +1974,7 @@ const ALL_FA_ICONS = [
   }
 
   async function loadFireIncidents() {
-    const layer = thirdPartyLayers['Known Fire Incidents'];
+    const layer = thirdPartyLayers['Known Fire Incidents'].layer;
     const response = await fetch(THIRD_PARTY_ENDPOINTS.fires, { cache: 'no-store' });
     if (!response.ok) throw new Error(`Fire incidents request failed (${response.status})`);
     const data = await response.json();
@@ -2028,7 +2021,7 @@ const ALL_FA_ICONS = [
   }
 
   async function loadAdsbAircraft() {
-    const layer = thirdPartyLayers['ADS-B Aircraft'];
+    const layer = thirdPartyLayers['ADS-B Aircraft'].layer;
     const response = await fetch(THIRD_PARTY_ENDPOINTS.adsb, { cache: 'no-store' });
     if (!response.ok) throw new Error(`ADS-B request failed (${response.status})`);
     const data = await response.json();
@@ -2244,18 +2237,16 @@ const ALL_FA_ICONS = [
       `;
     });
 
-    const thirdPartyItemsHtml = Object.keys(thirdPartyLayers)
-      .filter(name => thirdPartyLayerActivated[name])
-      .map(name => {
+    const thirdPartyItemsHtml = Object.entries(thirdPartyLayers)
+      .filter(([, config]) => config.activated)
+      .map(([name, config]) => {
         const isFireLayer = name === 'Known Fire Incidents';
-        const icon = isFireLayer ? 'fa-solid fa-fire' : 'fa-solid fa-plane';
-        const color = isFireLayer ? '#d35400' : '#2980b9';
         const id = `toggle-third-party-${isFireLayer ? 'fires' : 'adsb'}`;
         return `
           <div class="legend-item legend-third-party" title="${escHtml(name)}">
             <label class="legend-checkbox-label" for="${id}">
-              <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(thirdPartyLayers[name]) ? 'checked' : ''} />
-              <span class="legend-icon" style="background-color: ${color};"><i class="${icon}"></i></span>
+              <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(config.layer) ? 'checked' : ''} />
+              <span class="legend-icon" style="background-color: ${config.color};"><i class="${config.icon}"></i></span>
               <span class="legend-sheet-name">${escHtml(name)}</span>
             </label>
           </div>
@@ -2918,7 +2909,11 @@ const ALL_FA_ICONS = [
   }
 
   function clearCustomFeatures() {
-    clearMarkers();
+    Object.values(customFeatureLayers).forEach(layer => map.removeLayer(layer));
+    customFeatureLayers = {};
+    customFeatures = [];
+    saveCustomFeatures();
+    renderCustomFeatureList();
     setStatus('Map cleared — custom features removed.');
   }
 
@@ -2951,12 +2946,12 @@ const ALL_FA_ICONS = [
       updateClosedMarkersVisibility();
     }
     if (e.target && e.target.dataset.thirdPartyLayer) {
-      const layer = thirdPartyLayers[e.target.dataset.thirdPartyLayer];
-      if (layer) {
+      const layerConfig = thirdPartyLayers[e.target.dataset.thirdPartyLayer];
+      if (layerConfig) {
         if (e.target.checked) {
-          map.addLayer(layer);
+          map.addLayer(layerConfig.layer);
         } else {
-          map.removeLayer(layer);
+          map.removeLayer(layerConfig.layer);
         }
       }
     }
@@ -3813,7 +3808,6 @@ const ALL_FA_ICONS = [
       pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
     }
   }
-  loadSavedOAuthConfig();
   checkLocalAddresses().then(function () {
     if (savedAppState && sheets.some(sheet => sheet.rawUrl)) {
       handleSubmit();
