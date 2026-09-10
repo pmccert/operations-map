@@ -96,6 +96,13 @@ The application operates without a dedicated backend server, resolving incident 
   * If a tile set is selected that does not support the requested zoom level (e.g., current zoom exceeds the active tile layer's `maxZoom` or is below `minZoom`), the application shall display a small error alert in the lower-right hand corner indicating that the requested zoom level is not available for this base map.
   * The alert shall automatically dismiss when the map zoom level returns to a supported range or when switching to a basemap that supports the current zoom level.
 
+* **FR-3.4: Third-Party Map Layers**
+  * The map shall provide selectable overlay layers for known fire incidents
+    (National Interagency Fire Center data) and nearby ADS-B aircraft.
+  * Third-party overlays shall load on demand when selected from the layer menu,
+    appear as entries in the legend while enabled, and be hideable from that
+    legend without changing configured Google Sheet incidents.
+
 ---
 
 ### 2.4 Incident Marker Rendering & Status
