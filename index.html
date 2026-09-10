@@ -3228,17 +3228,6 @@ const ALL_FA_ICONS = [
     setStatus('Custom features removed.');
   }
 
-  function refreshIcons() {
-    Object.values(incidentMarkers).forEach(m => {
-      const sheet = sheets.find(s => s.id === m._sheetId);
-      if (sheet) {
-        const style = getIncidentStyle(sheet, m._categoryValue);
-        m.setIcon(buildDivIcon(m._isOpen, style.icon.fa, style.color));
-      }
-    });
-    updateLegend();
-  }
-
   function updateClosedMarkersVisibility() {
     Object.values(incidentMarkers).forEach(m => {
       if (!m._isOpen) {
