@@ -1199,6 +1199,7 @@
   <button class="toolbar-btn" id="btn-change-sheet" title="Change / Manage Sheets"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
   <button class="toolbar-btn" id="btn-change-columns"><i class="fa-solid fa-table-columns"></i> Change Columns</button>
   <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-palette"></i> Change Icons &amp; Colors</button>
+  <button class="toolbar-btn" id="btn-clear-features" title="Remove all incident features from the map"><i class="fa-solid fa-trash-can"></i> Clear Features</button>
   <button class="toolbar-btn" id="btn-custom-features"><i class="fa-solid fa-draw-polygon"></i> Custom Features</button>
   <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
   <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
@@ -2891,6 +2892,11 @@ const ALL_FA_ICONS = [
     incidentMarkers = {};
   }
 
+  function clearCustomFeatures() {
+    clearMarkers();
+    setStatus('Map cleared — custom features removed.');
+  }
+
   function refreshIcons() {
     Object.values(incidentMarkers).forEach(m => {
       const sheet = sheets.find(s => s.id === m._sheetId);
@@ -4543,6 +4549,8 @@ const ALL_FA_ICONS = [
   }
 
   loadSavedOAuthConfig();
+
+  document.getElementById('btn-clear-features').addEventListener('click', clearCustomFeatures);
 
 })();
 </script>
