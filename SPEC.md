@@ -65,8 +65,14 @@ The application operates without a dedicated backend server, resolving incident 
   * When local `addresses.json` is detected, the UI shall default to using it and display an **Override** button allowing the user to provide an external geocoder URL.
   * If overridden, a **Use local file** button shall allow reverting back to the local source.
 
-* **FR-2.6: Unmatched Address Handling**
-  * If an address cannot be resolved via exact or fuzzy matching, the marker shall not be plotted on the map.
+* **FR-2.6: Google Geocoding API Fallback**
+  * When an address cannot be resolved via exact or fuzzy matching against `addresses.json`, the application shall attempt resolution via the Google Maps Geocoding API if configured (`GOOGLE_GEOCODING_API_KEY`).
+  * The application shall dynamically load the Google Maps JavaScript API client when a valid API key is present.
+  * Lookups shall be disambiguated with Pine Mountain Club, CA geographic context and cached in `localStorage` (`pmc_google_geocode_cache`) to prevent redundant requests across 30-second polling cycles.
+  * Addresses resolved via Google Geocoding shall be flagged with `matchType: 'google'` and displayed in the popup with a `(Google Geocoded)` badge.
+
+* **FR-2.7: Unmatched Address Handling**
+  * If an address cannot be resolved via exact matching, fuzzy matching, or Google Geocoding fallback, the marker shall not be plotted on the map.
   * Unmatched addresses shall be logged to the browser console and counted in the status bar summary.
 
 ---
@@ -77,11 +83,25 @@ The application operates without a dedicated backend server, resolving incident 
   * The map shall initialize centered on **Pine Mountain Club, CA** (`34.857`, `-119.155`) at zoom level `13`.
 
 * **FR-3.2: Basemap Switcher**
-  * The map shall provide an interactive basemap layer control positioned at the top-right containing four selectable basemaps:
+  * The map shall provide an interactive basemap layer control positioned at the top-right containing selectable basemaps:
     1. **OpenStreetMap** (Default basemap, max zoom 19)
     2. **OpenTopoMap** (Hillshaded terrain, max zoom 17)
     3. **USGS Topo** (USGS National Map topographic tiles, max zoom 20)
     4. **USGS Imagery** (USGS National Map aerial imagery tiles, max zoom 20)
+    5. **USGS Imagery Topo** (USGS National Map aerial imagery with topographic and road overlay, max zoom 20)
+    6. **Esri World Imagery** (Esri high-resolution satellite imagery tiles, max zoom 19)
+    7. **Esri Clarity** (Esri cloud-free archival high-resolution satellite imagery tiles, max zoom 19)
+
+* **FR-3.3: Basemap Zoom Availability Alert**
+  * If a tile set is selected that does not support the requested zoom level (e.g., current zoom exceeds the active tile layer's `maxZoom` or is below `minZoom`), the application shall display a small error alert in the lower-right hand corner indicating that the requested zoom level is not available for this base map.
+  * The alert shall automatically dismiss when the map zoom level returns to a supported range or when switching to a basemap that supports the current zoom level.
+
+* **FR-3.4: Third-Party Map Layers**
+  * The map shall provide selectable overlay layers for known fire incidents
+    (National Interagency Fire Center data) and nearby ADS-B aircraft.
+  * Third-party overlays shall load on demand when selected from the layer menu,
+    appear as entries in the legend while enabled, and be hideable from that
+    legend without changing configured Google Sheet incidents.
 
 ---
 
@@ -112,6 +132,7 @@ The application operates without a dedicated backend server, resolving incident 
     * **Resolved Address:**
       * Exact matches: Display canonical address.
       * Fuzzy matches: Display canonical address with a `(fuzzy)` indicator and an edit distance tooltip.
+      * Google Geocoded matches: Display resolved address with a `(Google Geocoded)` indicator.
       * Unmatched / error states: Display warning note and raw input address.
     * **Coordinates:** Latitude and longitude formatted to 5 decimal places (e.g., `Lat: 34.85700, Lon: -119.15500`).
 
@@ -134,7 +155,7 @@ The application operates without a dedicated backend server, resolving incident 
 ### 2.7 Icon and Color Customization System
 
 * **FR-7.1: Selectable Font Awesome Incident Icons & Colors**
-  * The application shall support selecting an active incident icon from 10 Font Awesome 6 vector icons for each sheet:
+  * The application shall support selecting an active incident icon from 10 Font Awesome 6 vector quick presets for each sheet:
     1. **Emergency** (`fa-solid fa-bell-concierge`) — *Default*
     2. **Fire** (`fa-solid fa-fire`)
     3. **Medical** (`fa-solid fa-kit-medical`)
@@ -145,7 +166,8 @@ The application operates without a dedicated backend server, resolving incident 
     8. **Rescue** (`fa-solid fa-person-falling`)
     9. **Pin** (`fa-solid fa-location-dot`)
     10. **Star** (`fa-solid fa-star`)
-  * The application shall provide a color selection palette (with custom color input) allowing each sheet to have a distinct badge color.
+  * The application shall provide an interactive Font Awesome icon picker dialog allowing users to browse, search (by keyword/name), filter by category (Emergency, Medical, Transport, Warning, Maps, Nature, All), switch styles (Solid, Regular, Brands), or input any custom Font Awesome icon class with live preview.
+  * The application shall provide an integrated color picker, direct hex code input, and preset color palette allowing each sheet to have any custom badge color.
 
 * **FR-7.2: Icon & Color Updates Across Components**
   * Selecting an icon or color for any sheet shall immediately update:
@@ -158,7 +180,7 @@ The application operates without a dedicated backend server, resolving incident 
 
 * **FR-8.1: Top-Left Toolbar**
   * A fixed floating toolbar shall provide three direct actions:
-    * **Manage Sheets:** Opens the full sheet configuration modal to add, rename, edit URLs, customize icons/colors, adjust column mappings, or delete sheets.
+    * **Manage Sheets:** Opens the full sheet configuration modal to add, rename, edit URLs, customize icons/colors, adjust column mappings, or delete sheets; includes a **Cancel** action to discard uncommitted changes and return to the active map.
     * **Change Columns:** Opens a dedicated modal to adjust column assignments for each sheet; applying changes immediately re-parses and re-plots data.
     * **Change Icons & Colors:** Opens a dedicated modal to pick new icons and colors for each sheet.
 
@@ -170,6 +192,16 @@ The application operates without a dedicated backend server, resolving incident 
 
 * **FR-8.3: Commit Metadata Display**
   * A discreet floating badge in the lower-left corner shall display the deployed commit ID (with a direct link to the commit on GitHub) and the commit timestamp/date for version tracking.
+
+### 2.9 Custom Map Features
+
+* **FR-8.4: User-Drawn Geometries**
+  * The application shall allow users to draw points, lines, and polygons directly on the map.
+  * Each feature shall have a custom color, FontAwesome icon, and label, plus an optional description stored locally in the browser.
+  * The description shall not be displayed in the map popup or otherwise rendered on the map.
+* **FR-8.5: Local Persistence & Management**
+  * Custom features shall be persisted in browser local storage and restored when the map is reopened.
+  * Users shall be able to delete saved custom features from the Custom Features dialog.
 
 ---
 
