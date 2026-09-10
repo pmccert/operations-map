@@ -176,6 +176,15 @@ The application operates without a dedicated backend server, resolving incident 
     * All active markers corresponding to that sheet currently rendered on the map.
     * The sheet's preview in the map legend and dialog badge previews.
 
+* **FR-7.3: Dropdown Category Styling**
+  * Users shall be able to select an optional Category column for each sheet.
+  * When a Category column is selected, the application shall use the Google Sheets API
+    (when authenticated) to read its data-validation dropdown options, including options
+    sourced from another cell range.
+  * Each discovered category option shall support its own FontAwesome icon and background
+    color. Category styling shall override the sheet default for open incident markers,
+    while preserving the existing grey rendering for closed incidents.
+
 ---
 
 ### 2.8 Runtime Toolbar & Modal Controls

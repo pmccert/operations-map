@@ -171,13 +171,18 @@
     }
     .column-mapping-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
       margin-bottom: 12px;
     }
     @media (max-width: 540px) {
       .column-mapping-grid {
         grid-template-columns: 1fr;
+      }
+    }
+    @media (min-width: 541px) and (max-width: 760px) {
+      .column-mapping-grid {
+        grid-template-columns: 1fr 1fr;
       }
     }
     .sub-field-label {
@@ -216,6 +221,71 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+    }
+    .category-options-section {
+      border-top: 1px solid #d0d7de;
+      margin-top: 12px;
+      padding-top: 10px;
+    }
+    .category-options-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .category-options-note {
+      color: #666;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      margin-bottom: 8px;
+    }
+    .category-style-list {
+      display: grid;
+      gap: 8px;
+    }
+    .category-style-item {
+      display: grid;
+      grid-template-columns: minmax(100px, 1fr) minmax(170px, 1.2fr) minmax(130px, 1fr);
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .category-style-value {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+    .category-style-icon .sheet-icon-picker {
+      gap: 4px;
+    }
+    .category-style-icon .icon-option {
+      width: 28px;
+      height: 28px;
+      font-size: 0.82rem;
+    }
+    .category-style-color .color-palette-presets {
+      gap: 4px;
+    }
+    .category-style-color .color-swatch {
+      width: 20px;
+      height: 20px;
+    }
+    .category-style-empty {
+      color: #777;
+      font-size: 0.82rem;
+      padding: 6px 0;
+    }
+    @media (max-width: 620px) {
+      .category-style-item {
+        grid-template-columns: 1fr;
+      }
     }
 
     /* ── Icon & Color pickers ────────────────────────────────── */
@@ -1918,11 +1988,13 @@ const ALL_FA_ICONS = [
       columnMapping: {
         address: 0,
         status: 1,
-        label: 2
+        label: 2,
+        category: null
       },
       headers: null,
       icon: ICON_OPTIONS[idx],
-      color: COLOR_PALETTE[colorIdx]
+      color: COLOR_PALETTE[colorIdx],
+      categoryOptions: []
     };
     sheetIdCounter++;
     return sheet;
@@ -1938,8 +2010,21 @@ const ALL_FA_ICONS = [
         restored.columnMapping = {
           address: Number.isInteger(savedSheet.columnMapping.address) ? savedSheet.columnMapping.address : 0,
           status: Number.isInteger(savedSheet.columnMapping.status) ? savedSheet.columnMapping.status : null,
-          label: Number.isInteger(savedSheet.columnMapping.label) ? savedSheet.columnMapping.label : null
+          label: Number.isInteger(savedSheet.columnMapping.label) ? savedSheet.columnMapping.label : null,
+          category: Number.isInteger(savedSheet.columnMapping.category) ? savedSheet.columnMapping.category : null
         };
+      }
+      if (Array.isArray(savedSheet.categoryOptions)) {
+        restored.categoryOptions = savedSheet.categoryOptions
+          .filter(option => option && typeof option.value === 'string')
+          .map((option, optionIndex) => ({
+            value: option.value.trim(),
+            icon: option.icon && typeof option.icon.fa === 'string'
+              ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
+              : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
+            color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
+          }))
+          .filter(option => option.value);
       }
       if (savedSheet.headers && Array.isArray(savedSheet.headers)) restored.headers = savedSheet.headers;
       if (savedSheet.icon && typeof savedSheet.icon.fa === 'string') {
@@ -1966,7 +2051,8 @@ const ALL_FA_ICONS = [
         columnMapping: sheet.columnMapping,
         headers: sheet.headers,
         icon: sheet.icon,
-        color: sheet.color
+        color: sheet.color,
+        categoryOptions: sheet.categoryOptions
       })),
       baseLayer: Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap',
       enabledThirdPartyLayers: Object.entries(thirdPartyLayers)
@@ -2145,6 +2231,7 @@ const ALL_FA_ICONS = [
         headers: sheet.headers,
         icon: sheet.icon,
         color: sheet.color,
+        categoryOptions: sheet.categoryOptions,
         rows: Array.isArray(sheet.lastRows) ? sheet.lastRows : []
       }))
     };
@@ -2167,7 +2254,10 @@ const ALL_FA_ICONS = [
     const columnMapping = {
       address: Number.isInteger(value.columnMapping.address) ? value.columnMapping.address : 0,
       status: value.columnMapping.status === null ? null : Number.isInteger(value.columnMapping.status) ? value.columnMapping.status : 1,
-      label: value.columnMapping.label === null ? null : Number.isInteger(value.columnMapping.label) ? value.columnMapping.label : 2
+      label: value.columnMapping.label === null ? null : Number.isInteger(value.columnMapping.label) ? value.columnMapping.label : 2,
+      category: value.columnMapping.category === null || value.columnMapping.category === undefined
+        ? null
+        : Number.isInteger(value.columnMapping.category) ? value.columnMapping.category : null
     };
     if (columnMapping.address < 0 || value.rows.some(row => !Array.isArray(row))) {
       throw new Error(`Invalid row or address column in sheet ${index + 1}.`);
@@ -2181,6 +2271,18 @@ const ALL_FA_ICONS = [
       headers: Array.isArray(value.headers) ? value.headers : null,
       icon: value.icon && typeof value.icon.fa === 'string' ? value.icon : ICON_OPTIONS[0],
       color: typeof value.color === 'string' ? value.color : COLOR_PALETTE[index % COLOR_PALETTE.length],
+      categoryOptions: Array.isArray(value.categoryOptions)
+        ? value.categoryOptions
+          .filter(option => option && typeof option.value === 'string')
+          .map((option, optionIndex) => ({
+            value: option.value.trim(),
+            icon: option.icon && typeof option.icon.fa === 'string'
+              ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
+              : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
+            color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
+          }))
+          .filter(option => option.value)
+        : [],
       importedRows: value.rows,
       lastRows: value.rows
     };
@@ -2388,8 +2490,8 @@ const ALL_FA_ICONS = [
     return null;
   }
 
-  async function fetchGoogleSheetRows(spreadsheetId, gid, accessToken) {
-    const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(sheetId,title))`;
+  async function fetchGoogleSheetMetadata(spreadsheetId, accessToken, fields) {
+    const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=${encodeURIComponent(fields)}`;
     const metaResp = await fetch(metaUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -2397,7 +2499,10 @@ const ALL_FA_ICONS = [
       }
     });
     if (!metaResp.ok) throw new Error(`Google Sheets metadata failed with HTTP ${metaResp.status}`);
-    const meta = await metaResp.json();
+    return metaResp.json();
+  }
+
+  function getGoogleSheetTitle(meta, gid) {
     let sheetTitle = null;
     if (meta.sheets && meta.sheets.length > 0) {
       if (gid !== null && gid !== undefined) {
@@ -2411,6 +2516,16 @@ const ALL_FA_ICONS = [
       }
     }
     if (!sheetTitle) sheetTitle = 'Sheet1';
+    return sheetTitle;
+  }
+
+  async function fetchGoogleSheetRows(spreadsheetId, gid, accessToken) {
+    const meta = await fetchGoogleSheetMetadata(
+      spreadsheetId,
+      accessToken,
+      'sheets(properties(sheetId,title))'
+    );
+    const sheetTitle = getGoogleSheetTitle(meta, gid);
 
     const range = `'${sheetTitle.replace(/'/g, "''")}'!A:ZZ`;
     const valuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueRenderOption=FORMATTED_VALUE`;
@@ -2423,6 +2538,74 @@ const ALL_FA_ICONS = [
     if (!valuesResp.ok) throw new Error(`Google Sheets values failed with HTTP ${valuesResp.status}`);
     const data = await valuesResp.json();
     return data.values || [];
+  }
+
+  async function fetchGoogleSheetColumnOptions(spreadsheetId, gid, columnIndex, accessToken) {
+    const metadata = await fetchGoogleSheetMetadata(
+      spreadsheetId,
+      accessToken,
+      'sheets(properties(sheetId,title))'
+    );
+    const sheetTitle = getGoogleSheetTitle(metadata, gid);
+    const column = colLetter(columnIndex);
+    const range = `'${sheetTitle.replace(/'/g, "''")}'!${column}:${column}`;
+    const fields = 'sheets(data(rowData(values(dataValidation(condition(type,values(userEnteredValue)))))))';
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?includeGridData=true&ranges=${encodeURIComponent(range)}&fields=${encodeURIComponent(fields)}`;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+    if (!response.ok) throw new Error(`Google Sheets validation lookup failed with HTTP ${response.status}`);
+
+    const data = await response.json();
+    const rows = data.sheets && data.sheets[0] && data.sheets[0].data &&
+      data.sheets[0].data[0] && data.sheets[0].data[0].rowData
+      ? data.sheets[0].data[0].rowData
+      : [];
+    const options = new Set();
+    const rangeReferences = new Set();
+    rows.forEach(row => {
+      const validation = row.values && row.values[0] && row.values[0].dataValidation;
+      const condition = validation && validation.condition;
+      if (!condition || !Array.isArray(condition.values)) return;
+      condition.values.forEach(option => {
+        const value = option && option.userEnteredValue;
+        if (typeof value !== 'string' || !value.trim()) return;
+        if (condition.type === 'ONE_OF_RANGE') {
+          rangeReferences.add(value.trim());
+        } else {
+          options.add(value.trim());
+        }
+      });
+    });
+
+    for (const reference of rangeReferences) {
+      const sourceRange = reference.includes('!')
+        ? reference
+        : `'${sheetTitle.replace(/'/g, "''")}'!${reference}`;
+      const valuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(sourceRange)}?valueRenderOption=FORMATTED_VALUE`;
+      const valuesResponse = await fetch(valuesUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
+        }
+      });
+      if (!valuesResponse.ok) {
+        console.warn(`Google Sheets dropdown range lookup failed with HTTP ${valuesResponse.status}`);
+        continue;
+      }
+      const rangeData = await valuesResponse.json();
+      (rangeData.values || []).forEach(row => {
+        (Array.isArray(row) ? row : [row]).forEach(value => {
+          if (value !== undefined && value !== null && String(value).trim()) {
+            options.add(String(value).trim());
+          }
+        });
+      });
+    }
+    return Array.from(options);
   }
 
   async function fetchSheetRows(sheet) {
@@ -3045,7 +3228,8 @@ const ALL_FA_ICONS = [
     Object.values(incidentMarkers).forEach(m => {
       const sheet = sheets.find(s => s.id === m._sheetId);
       if (sheet) {
-        m.setIcon(buildDivIcon(m._isOpen, sheet.icon.fa, sheet.color));
+        const style = getIncidentStyle(sheet, m._categoryValue);
+        m.setIcon(buildDivIcon(m._isOpen, style.icon.fa, style.color));
       }
     });
     updateLegend();
@@ -3091,6 +3275,7 @@ const ALL_FA_ICONS = [
     const addrCol   = sheet.columnMapping.address ?? 0;
     const statusCol = sheet.columnMapping.status;
     const labelCol  = sheet.columnMapping.label;
+    const categoryCol = sheet.columnMapping.category;
 
     const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
     let sheetOpen = 0;
@@ -3105,6 +3290,8 @@ const ALL_FA_ICONS = [
       const address   = (row[addrCol] || '').trim();
       const statusRaw = (statusCol !== null && statusCol >= 0 && row[statusCol]) ? row[statusCol].toLowerCase().trim() : '';
       const label     = (labelCol !== null && labelCol >= 0 && row[labelCol]) ? row[labelCol].trim() : '';
+      const categoryValue = (categoryCol !== null && categoryCol !== undefined && categoryCol >= 0 &&
+        row[categoryCol] !== undefined) ? String(row[categoryCol]).trim() : '';
       const isOpen    = (statusCol !== null && statusCol >= 0) ? statusRaw !== 'closed' : true;
       if (isOpen) {
         sheetOpen++;
@@ -3139,6 +3326,7 @@ const ALL_FA_ICONS = [
           value: row[fieldIdx] || ''
         })),
         isOpen,
+        categoryValue,
         lat,
         lon,
         canonical:   geo ? geo.canonical   : null,
@@ -3146,6 +3334,7 @@ const ALL_FA_ICONS = [
         fuzzyStreet: geo ? geo.fuzzyStreet : null,
         editDist:    geo ? geo.editDist    : null,
       };
+      const incidentStyle = getIncidentStyle(sheet, categoryValue);
 
       const shouldShow = geo && (isOpen || showClosedIncidents);
 
@@ -3153,6 +3342,7 @@ const ALL_FA_ICONS = [
         const m = incidentMarkers[key];
         m._isOpen = isOpen;
         m._sheetId = sheet.id;
+        m._categoryValue = categoryValue;
         m._isOutOfRange = geo ? isMoreThanOneDegreeFromPmc(lat, lon) : false;
         if (geo) {
           m.setLatLng([lat, lon]);
@@ -3164,14 +3354,15 @@ const ALL_FA_ICONS = [
         } else {
           if (map.hasLayer(m)) map.removeLayer(m);
         }
-        m.setIcon(buildDivIcon(isOpen, sheet.icon.fa, sheet.color));
+        m.setIcon(buildDivIcon(isOpen, incidentStyle.icon.fa, incidentStyle.color));
         m.setPopupContent(popupHtml(incident, sheet));
       } else if (geo) {
         const marker = L.marker([lat, lon], {
-          icon: buildDivIcon(isOpen, sheet.icon.fa, sheet.color)
+          icon: buildDivIcon(isOpen, incidentStyle.icon.fa, incidentStyle.color)
         }).bindPopup(popupHtml(incident, sheet));
         marker._isOpen = isOpen;
         marker._sheetId = sheet.id;
+        marker._categoryValue = categoryValue;
         marker._isOutOfRange = isMoreThanOneDegreeFromPmc(lat, lon);
         if (shouldShow) {
           marker.addTo(map);
@@ -3490,6 +3681,82 @@ const ALL_FA_ICONS = [
     container.appendChild(linkWrap);
   }
 
+  function getCategoryStyle(sheet, categoryValue) {
+    const normalizedValue = String(categoryValue || '').trim().toLowerCase();
+    if (!normalizedValue || !Array.isArray(sheet.categoryOptions)) return null;
+    return sheet.categoryOptions.find(option =>
+      option.value.toLowerCase() === normalizedValue
+    ) || null;
+  }
+
+  function getIncidentStyle(sheet, categoryValue) {
+    const categoryStyle = getCategoryStyle(sheet, categoryValue);
+    return categoryStyle || { icon: sheet.icon, color: sheet.color };
+  }
+
+  function updateCategoryOptions(sheet, values) {
+    const previous = Array.isArray(sheet.categoryOptions) ? sheet.categoryOptions : [];
+    const previousByValue = new Map(previous.map(option => [option.value.toLowerCase(), option]));
+    sheet.categoryOptions = values.map((value, index) => {
+      const trimmedValue = String(value).trim();
+      const existing = previousByValue.get(trimmedValue.toLowerCase());
+      return existing || {
+        value: trimmedValue,
+        icon: ICON_OPTIONS[index % ICON_OPTIONS.length],
+        color: COLOR_PALETTE[index % COLOR_PALETTE.length]
+      };
+    });
+  }
+
+  function renderCategoryStyles(container, sheet, onChange) {
+    if (!container) return;
+    container.innerHTML = '';
+    if (!sheet.columnMapping || sheet.columnMapping.category === null ||
+        sheet.columnMapping.category === undefined || sheet.categoryOptions.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'category-style-empty';
+      empty.textContent = sheet.columnMapping && sheet.columnMapping.category !== null &&
+        sheet.columnMapping.category !== undefined
+        ? 'No dropdown options were found for this column.'
+        : 'Select a Category column to configure per-option styles.';
+      container.appendChild(empty);
+      return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'category-style-list';
+    sheet.categoryOptions.forEach(option => {
+      const item = document.createElement('div');
+      item.className = 'category-style-item';
+      const valueEl = document.createElement('div');
+      valueEl.className = 'category-style-value';
+      valueEl.title = option.value;
+      valueEl.textContent = option.value;
+
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'category-style-icon';
+      const colorWrap = document.createElement('div');
+      colorWrap.className = 'category-style-color';
+      function updateCategoryIcon(newIcon) {
+        option.icon = newIcon;
+        if (typeof onChange === 'function') onChange();
+        buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color);
+      }
+      buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color);
+      buildColorPicker(colorWrap, option.color, function (newColor) {
+        option.color = newColor;
+        if (typeof onChange === 'function') onChange();
+        buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color);
+      });
+
+      item.appendChild(valueEl);
+      item.appendChild(iconWrap);
+      item.appendChild(colorWrap);
+      list.appendChild(item);
+    });
+    container.appendChild(list);
+  }
+
   // ── Sheet Modal UI Rendering ─────────────────────────────────────────────────
 
   const sheetModal          = document.getElementById('sheet-modal');
@@ -3516,6 +3783,7 @@ const ALL_FA_ICONS = [
     const addrSelect = card ? card.querySelector('.col-address-select') : null;
     const statusSelect = card ? card.querySelector('.col-status-select') : null;
     const labelSelect = card ? card.querySelector('.col-label-select') : null;
+    const categorySelect = card ? card.querySelector('.col-category-select') : null;
 
     const converted = toCsvUrl(sheet.rawUrl);
     if (!converted) {
@@ -3555,12 +3823,20 @@ const ALL_FA_ICONS = [
         if (rows.length > 0 && rows[0].length > 0) {
           const headers = cleanHeaders(rows[0]);
           if (headers.length > 0) {
+            const existingCategoryColumn = sheet.columnMapping && sheet.columnMapping.category;
             sheet.headers = headers;
             sheet.columnMapping = autoDetectColumns(sheet.headers);
+            sheet.columnMapping.category = Number.isInteger(existingCategoryColumn)
+              ? existingCategoryColumn
+              : null;
             if (addrSelect) populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
             if (statusSelect) populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
             if (labelSelect) populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
+            if (categorySelect) populateSelect(categorySelect, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
             if (statusEl) statusEl.textContent = `Detected ${sheet.headers.length} columns`;
+            if (categorySelect && sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
+              inspectCategoryOptions(sheet, card);
+            }
             return;
           }
         }
@@ -3568,6 +3844,65 @@ const ALL_FA_ICONS = [
       if (statusEl) statusEl.textContent = '';
     } catch (_) {
       if (statusEl) statusEl.textContent = '';
+    }
+  }
+
+  function getUniqueColumnValues(rows, columnIndex) {
+    const values = new Set();
+    if (!Array.isArray(rows) || columnIndex === null || columnIndex === undefined) return [];
+    rows.slice(1).forEach(row => {
+      const value = row && row[columnIndex] !== undefined ? String(row[columnIndex]).trim() : '';
+      if (value) values.add(value);
+    });
+    return Array.from(values);
+  }
+
+  async function inspectCategoryOptions(sheet, cardEl, fallbackRows) {
+    const card = cardEl || document.querySelector(`.sheet-card[data-sheet-id="${sheet.id}"]`);
+    const statusEl = card ? card.querySelector('.category-detect-status') : null;
+    const stylesEl = card ? card.querySelector('.category-style-container') : null;
+    const categoryColumn = sheet.columnMapping && sheet.columnMapping.category;
+    if (categoryColumn === null || categoryColumn === undefined || categoryColumn < 0) {
+      sheet.categoryOptions = [];
+      renderCategoryStyles(stylesEl, sheet);
+      if (statusEl) statusEl.textContent = '';
+      return;
+    }
+
+    if (statusEl) statusEl.textContent = 'Reading dropdown options…';
+    let values = [];
+    const details = parseGoogleSheetDetails(sheet.rawUrl);
+    if (details && isGoogleAuthenticated()) {
+      try {
+        values = await fetchGoogleSheetColumnOptions(
+          details.spreadsheetId,
+          details.gid,
+          categoryColumn,
+          googleAccessToken
+        );
+      } catch (err) {
+        console.warn(`Could not read dropdown options for "${sheet.name}":`, err);
+      }
+    }
+
+    if (values.length === 0) {
+      let rows = fallbackRows || sheet.lastRows || sheet.importedRows;
+      if (!rows) {
+        try {
+          rows = await fetchSheetRows(sheet);
+        } catch (err) {
+          console.warn(`Could not read category values for "${sheet.name}":`, err);
+        }
+      }
+      values = getUniqueColumnValues(rows, categoryColumn);
+    }
+
+    updateCategoryOptions(sheet, values);
+    renderCategoryStyles(stylesEl, sheet);
+    if (statusEl) {
+      statusEl.textContent = values.length > 0
+        ? `${values.length} option${values.length === 1 ? '' : 's'} found`
+        : 'No options found';
     }
   }
 
@@ -3620,6 +3955,21 @@ const ALL_FA_ICONS = [
           <label class="sub-field-label">Label</label>
           <select class="select-input col-label-select"></select>
         </div>
+        <div>
+          <label class="sub-field-label">Category</label>
+          <select class="select-input col-category-select"></select>
+        </div>
+      </div>
+      <div class="category-options-section">
+        <div class="category-options-header">
+          <label class="field-label" style="margin-bottom: 0;">Category Styles</label>
+          <span class="category-detect-status"></span>
+        </div>
+        <div class="category-options-note">
+          Select a dropdown column to assign a FontAwesome icon and background color to each option.
+          Sign in with Google to read its configured dropdown choices.
+        </div>
+        <div class="category-style-container"></div>
       </div>
 
       <div class="sheet-styling-grid">
@@ -3642,6 +3992,7 @@ const ALL_FA_ICONS = [
     const addrSelect     = card.querySelector('.col-address-select');
     const statusSelect   = card.querySelector('.col-status-select');
     const labelSelect    = card.querySelector('.col-label-select');
+    const categorySelect = card.querySelector('.col-category-select');
     const iconContainer  = card.querySelector('.sheet-icon-picker-container');
     const colorContainer = card.querySelector('.sheet-color-picker-container');
 
@@ -3693,6 +4044,8 @@ const ALL_FA_ICONS = [
     populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
     populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
     populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
+    populateSelect(categorySelect, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
+    renderCategoryStyles(card.querySelector('.category-style-container'), sheet);
 
     if (sheet.rawUrl && (!sheet.headers || sheet.headers.length === 0)) {
       tryDetectHeadersForSheet(sheet, card);
@@ -3708,6 +4061,11 @@ const ALL_FA_ICONS = [
     labelSelect.addEventListener('change', function () {
       const val = parseInt(labelSelect.value, 10);
       sheet.columnMapping.label = val >= 0 ? val : null;
+    });
+    categorySelect.addEventListener('change', function () {
+      const val = parseInt(categorySelect.value, 10);
+      sheet.columnMapping.category = val >= 0 ? val : null;
+      inspectCategoryOptions(sheet, card);
     });
 
     removeBtn.addEventListener('click', function () {
@@ -3729,6 +4087,10 @@ const ALL_FA_ICONS = [
       updateBadgePreview();
       buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
     });
+
+    if (sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
+      inspectCategoryOptions(sheet, card, sheet.lastRows || sheet.importedRows);
+    }
 
     return card;
   }
@@ -3987,16 +4349,22 @@ const ALL_FA_ICONS = [
             <label class="sub-field-label">Label</label>
             <select class="select-input col-modal-label"></select>
           </div>
+          <div>
+            <label class="sub-field-label">Category</label>
+            <select class="select-input col-modal-category"></select>
+          </div>
         </div>
       `;
 
       const addrSel   = block.querySelector('.col-modal-addr');
       const statusSel = block.querySelector('.col-modal-status');
       const labelSel  = block.querySelector('.col-modal-label');
+      const categorySel = block.querySelector('.col-modal-category');
 
       populateSelect(addrSel, sheet.headers, sheet.columnMapping.address, true, null);
       populateSelect(statusSel, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
       populateSelect(labelSel, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
+      populateSelect(categorySel, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
 
       columnsContainer.appendChild(block);
     });
@@ -4027,10 +4395,12 @@ const ALL_FA_ICONS = [
       }
       const statVal = parseInt(block.querySelector('.col-modal-status').value, 10);
       const lblVal  = parseInt(block.querySelector('.col-modal-label').value, 10);
+      const categoryVal = parseInt(block.querySelector('.col-modal-category').value, 10);
 
       sheet.columnMapping.address = addrVal;
       sheet.columnMapping.status  = statVal >= 0 ? statVal : null;
       sheet.columnMapping.label   = lblVal >= 0 ? lblVal : null;
+      sheet.columnMapping.category = categoryVal >= 0 ? categoryVal : null;
     }
 
     persistAppState();
@@ -4074,11 +4444,19 @@ const ALL_FA_ICONS = [
             <div class="icon-modal-color-picker"></div>
           </div>
         </div>
+        <div class="category-options-section">
+          <div class="category-options-header">
+            <label class="field-label" style="margin-bottom: 0;">Category Styles</label>
+          </div>
+          <div class="category-options-note">Customize each selected category without changing the sheet default.</div>
+          <div class="icon-modal-category-styles"></div>
+        </div>
       `;
 
       const badgePreview = block.querySelector('.icon-modal-badge');
       const iconWrap     = block.querySelector('.icon-modal-icon-picker');
       const colorWrap    = block.querySelector('.icon-modal-color-picker');
+      const categoryStylesWrap = block.querySelector('.icon-modal-category-styles');
 
       function updateModalBadge() {
         badgePreview.style.backgroundColor = sheet.color;
@@ -4103,6 +4481,10 @@ const ALL_FA_ICONS = [
 
       buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
       buildColorPicker(colorWrap, sheet.color, handleModalColorSelect);
+      renderCategoryStyles(categoryStylesWrap, sheet, function () {
+        persistAppState();
+        refreshIcons();
+      });
 
       iconsContainer.appendChild(block);
     });
