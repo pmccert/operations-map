@@ -796,11 +796,47 @@
     #toolbar {
       position: fixed;
       top: 10px;
-      left: 10px;
+      left: 50px;
       z-index: 500;
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
+    }
+    .toolbar-menu {
+      position: relative;
+    }
+    .toolbar-menu-trigger {
+      list-style: none;
+    }
+    .toolbar-menu-trigger::-webkit-details-marker {
+      display: none;
+    }
+    .toolbar-menu-trigger::after {
+      content: '▾';
+      font-size: 0.72rem;
+      margin-left: 2px;
+    }
+    .toolbar-menu[open] .toolbar-menu-trigger::after {
+      content: '▴';
+    }
+    .toolbar-menu-content {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      display: grid;
+      gap: 4px;
+      min-width: 220px;
+      padding: 6px;
+      background: rgba(255,255,255,0.96);
+      border: 1px solid #aaa;
+      border-radius: 5px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .toolbar-menu-content .toolbar-btn,
+    .toolbar-menu-content .toolbar-select {
+      width: 100%;
+      box-sizing: border-box;
+      justify-content: flex-start;
+    }
+    .toolbar-menu-content .toolbar-select {
+      min-height: 29px;
     }
     .toolbar-btn {
       background: rgba(255,255,255,0.92);
@@ -1113,41 +1149,6 @@
   </div>
 </div>
 
-<!-- ── Column-only change modal ─────────────────────────────────── -->
-<div id="columns-modal" class="modal-overlay hidden">
-  <div class="modal-box">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-      <h2 style="margin-bottom: 0;">Select Sheet Columns</h2>
-      <button type="button" id="columns-modal-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
-    </div>
-    <p>
-      Choose which columns in your Google Sheets contain the incident data.
-    </p>
-    <div id="columns-modal-container" style="margin-bottom: 18px;"></div>
-    <div style="display: flex; gap: 8px;">
-      <button id="columns-modal-save" class="btn-primary" style="flex: 1;">Apply Changes</button>
-      <button type="button" id="columns-modal-cancel" class="btn-secondary" style="padding: 9px 16px; font-size: 1rem;">Cancel</button>
-    </div>
-    <div id="columns-error-msg" class="error-msg"></div>
-  </div>
-</div>
-
-<!-- ── Icon & Color change modal ────────────────────────────────── -->
-<div id="icon-modal" class="modal-overlay hidden">
-  <div class="modal-box">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-      <h2 style="margin-bottom: 0;">Change Sheet Icons &amp; Colors</h2>
-      <button type="button" id="icon-modal-top-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
-    </div>
-
-    <p>
-      Customize the incident icon and marker color for each sheet.
-    </p>
-    <div id="icons-modal-container" style="margin-bottom: 18px;"></div>
-    <button id="icon-modal-close" class="btn-primary">Done</button>
-  </div>
-</div>
-
 <!-- ── Custom feature modal ─────────────────────────────────────── -->
 <div id="custom-feature-modal" class="modal-overlay hidden">
   <div class="modal-box">
@@ -1285,23 +1286,26 @@
 
 <!-- Toolbar -->
 <div id="toolbar">
-  <button class="toolbar-btn" id="btn-change-sheet" title="Change / Manage Sheets"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
-  <button class="toolbar-btn" id="btn-change-columns"><i class="fa-solid fa-table-columns"></i> Change Columns</button>
-  <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-palette"></i> Change Icons &amp; Colors</button>
-  <button class="toolbar-btn" id="btn-clear-features" title="Remove all custom features from the map"><i class="fa-solid fa-trash-can"></i> Clear Custom Features</button>
-  <button class="toolbar-btn" id="btn-custom-features"><i class="fa-solid fa-draw-polygon"></i> Custom Features</button>
-  <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
-  <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
-  <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
-  <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
-  <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
-    <option value="0">Auto-refresh: Off</option>
-    <option value="15000">Auto-refresh: 15s</option>
-    <option value="30000" selected>Auto-refresh: 30s</option>
-    <option value="60000">Auto-refresh: 1m</option>
-    <option value="300000">Auto-refresh: 5m</option>
-  </select>
-  <button class="toolbar-btn" id="btn-google-auth-status" title="Google Authentication Status"><i class="fa-brands fa-google"></i> <span id="google-auth-btn-text">Sign In</span></button>
+  <details class="toolbar-menu">
+    <summary class="toolbar-btn toolbar-menu-trigger" title="Open map actions"><i class="fa-solid fa-bars"></i> Map Actions</summary>
+    <div class="toolbar-menu-content">
+      <button class="toolbar-btn" id="btn-change-sheet" title="Change / Manage Sheets"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
+      <button class="toolbar-btn" id="btn-clear-features" title="Remove all custom features from the map"><i class="fa-solid fa-trash-can"></i> Clear Custom Features</button>
+      <button class="toolbar-btn" id="btn-custom-features"><i class="fa-solid fa-draw-polygon"></i> Custom Features</button>
+      <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
+      <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
+      <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
+      <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
+      <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
+        <option value="0">Auto-refresh: Off</option>
+        <option value="15000">Auto-refresh: 15s</option>
+        <option value="30000" selected>Auto-refresh: 30s</option>
+        <option value="60000">Auto-refresh: 1m</option>
+        <option value="300000">Auto-refresh: 5m</option>
+      </select>
+      <button class="toolbar-btn" id="btn-google-auth-status" title="Google Authentication Status"><i class="fa-brands fa-google"></i> <span id="google-auth-btn-text">Sign In</span></button>
+    </div>
+  </details>
 </div>
 
 <!-- Status bar -->
@@ -4304,206 +4308,6 @@ const ALL_FA_ICONS = [
     }
   });
 
-  // ── Column-only change modal ───────────────────────────────────
-
-  const columnsModal          = document.getElementById('columns-modal');
-  const columnsContainer      = document.getElementById('columns-modal-container');
-  const columnsSaveBtn        = document.getElementById('columns-modal-save');
-  const columnsCancelBtn      = document.getElementById('columns-modal-cancel');
-  const columnsCloseBtn       = document.getElementById('columns-modal-close');
-  const columnsErrorMsgEl     = document.getElementById('columns-error-msg');
-
-  async function openColumnsModal() {
-    columnsContainer.innerHTML = '';
-    if (columnsErrorMsgEl) columnsErrorMsgEl.textContent = '';
-
-    for (const sheet of sheets) {
-      if (sheet.rawUrl && (!sheet.headers || sheet.headers.length === 0)) {
-        await tryDetectHeadersForSheet(sheet);
-      }
-    }
-
-    sheets.forEach((sheet) => {
-      const block = document.createElement('div');
-      block.className = 'sheet-card';
-      block.dataset.sheetId = sheet.id;
-      block.innerHTML = `
-        <div class="sheet-card-header" style="margin-bottom: 8px;">
-          <div class="sheet-card-title-group">
-            <span class="sheet-badge-preview" style="background-color: ${sheet.color};">
-              <i class="${sheet.icon.fa}"></i>
-            </span>
-            <strong style="font-size: 0.95rem;">${escHtml(sheet.name)}</strong>
-          </div>
-        </div>
-        <div class="column-mapping-grid">
-          <div>
-            <label class="sub-field-label">Address *</label>
-            <select class="select-input col-modal-addr"></select>
-          </div>
-          <div>
-            <label class="sub-field-label">Status</label>
-            <select class="select-input col-modal-status"></select>
-          </div>
-          <div>
-            <label class="sub-field-label">Label</label>
-            <select class="select-input col-modal-label"></select>
-          </div>
-          <div>
-            <label class="sub-field-label">Category</label>
-            <select class="select-input col-modal-category"></select>
-          </div>
-        </div>
-      `;
-
-      const addrSel   = block.querySelector('.col-modal-addr');
-      const statusSel = block.querySelector('.col-modal-status');
-      const labelSel  = block.querySelector('.col-modal-label');
-      const categorySel = block.querySelector('.col-modal-category');
-
-      populateSelect(addrSel, sheet.headers, sheet.columnMapping.address, true, null);
-      populateSelect(statusSel, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
-      populateSelect(labelSel, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
-      populateSelect(categorySel, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
-
-      columnsContainer.appendChild(block);
-    });
-
-    columnsModal.classList.remove('hidden');
-  }
-
-  function closeColumnsModal() {
-    columnsModal.classList.add('hidden');
-  }
-
-  columnsCancelBtn.addEventListener('click', closeColumnsModal);
-  if (columnsCloseBtn) {
-    columnsCloseBtn.addEventListener('click', closeColumnsModal);
-  }
-
-  columnsSaveBtn.addEventListener('click', function () {
-    const blocks = columnsContainer.querySelectorAll('.sheet-card');
-    for (const block of blocks) {
-      const sheetId = block.dataset.sheetId;
-      const sheet = sheets.find(s => s.id === sheetId);
-      if (!sheet) continue;
-
-      const addrVal = parseInt(block.querySelector('.col-modal-addr').value, 10);
-      if (isNaN(addrVal) || addrVal < 0) {
-        if (columnsErrorMsgEl) columnsErrorMsgEl.textContent = `Please select a valid Address Column for "${sheet.name}".`;
-        return;
-      }
-      const statVal = parseInt(block.querySelector('.col-modal-status').value, 10);
-      const lblVal  = parseInt(block.querySelector('.col-modal-label').value, 10);
-      const categoryVal = parseInt(block.querySelector('.col-modal-category').value, 10);
-
-      sheet.columnMapping.address = addrVal;
-      sheet.columnMapping.status  = statVal >= 0 ? statVal : null;
-      sheet.columnMapping.label   = lblVal >= 0 ? lblVal : null;
-      sheet.columnMapping.category = categoryVal >= 0 ? categoryVal : null;
-    }
-
-    persistAppState();
-    closeColumnsModal();
-    renderSheetsModal();
-    clearMarkers();
-    fetchAndPlot();
-  });
-
-  document.getElementById('btn-change-columns').addEventListener('click', openColumnsModal);
-
-  // ── Icon & Color change modal ──────────────────────────────────
-
-  const iconModal        = document.getElementById('icon-modal');
-  const iconsContainer   = document.getElementById('icons-modal-container');
-  const iconCloseBtn     = document.getElementById('icon-modal-close');
-  const iconTopCloseBtn  = document.getElementById('icon-modal-top-close');
-
-  function openIconsModal() {
-    iconsContainer.innerHTML = '';
-
-    sheets.forEach((sheet) => {
-      const block = document.createElement('div');
-      block.className = 'sheet-card';
-      block.innerHTML = `
-        <div class="sheet-card-header" style="margin-bottom: 10px;">
-          <div class="sheet-card-title-group">
-            <span class="sheet-badge-preview icon-modal-badge" style="background-color: ${sheet.color};">
-              <i class="${sheet.icon.fa}"></i>
-            </span>
-            <strong style="font-size: 0.95rem;">${escHtml(sheet.name)}</strong>
-          </div>
-        </div>
-        <div class="sheet-styling-grid">
-          <div>
-            <label class="field-label">Icon</label>
-            <div class="icon-modal-icon-picker"></div>
-          </div>
-          <div>
-            <label class="field-label">Color</label>
-            <div class="icon-modal-color-picker"></div>
-          </div>
-        </div>
-        <div class="category-options-section">
-          <div class="category-options-header">
-            <label class="field-label" style="margin-bottom: 0;">Category Styles</label>
-          </div>
-          <div class="category-options-note">Customize each selected category without changing the sheet default.</div>
-          <div class="icon-modal-category-styles"></div>
-        </div>
-      `;
-
-      const badgePreview = block.querySelector('.icon-modal-badge');
-      const iconWrap     = block.querySelector('.icon-modal-icon-picker');
-      const colorWrap    = block.querySelector('.icon-modal-color-picker');
-      const categoryStylesWrap = block.querySelector('.icon-modal-category-styles');
-
-      function updateModalBadge() {
-        badgePreview.style.backgroundColor = sheet.color;
-        badgePreview.innerHTML = `<i class="${sheet.icon.fa}"></i>`;
-      }
-
-      function handleModalIconSelect(newIcon) {
-        sheet.icon = newIcon;
-        persistAppState();
-        updateModalBadge();
-        refreshIcons();
-        buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
-      }
-
-      function handleModalColorSelect(newColor) {
-        sheet.color = newColor;
-        persistAppState();
-        updateModalBadge();
-        refreshIcons();
-        buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
-      }
-
-      buildIconPicker(iconWrap, sheet.icon, handleModalIconSelect, sheet.color);
-      buildColorPicker(colorWrap, sheet.color, handleModalColorSelect);
-      renderCategoryStyles(categoryStylesWrap, sheet, function () {
-        persistAppState();
-        refreshIcons();
-      });
-
-      iconsContainer.appendChild(block);
-    });
-
-    iconModal.classList.remove('hidden');
-  }
-
-  function closeIconsModal() {
-    iconModal.classList.add('hidden');
-    renderSheetsModal();
-  }
-
-  iconCloseBtn.addEventListener('click', closeIconsModal);
-  if (iconTopCloseBtn) {
-    iconTopCloseBtn.addEventListener('click', closeIconsModal);
-  }
-
-  document.getElementById('btn-change-icon').addEventListener('click', openIconsModal);
-
   // ── Toolbar: Manage Sheets ────────────────────────────────────
 
   document.getElementById('btn-change-sheet').addEventListener('click', openSheetModal);
@@ -4971,10 +4775,6 @@ const ALL_FA_ICONS = [
         closeCommitInfoModal();
       } else if (faPickerModal && !faPickerModal.classList.contains('hidden')) {
         closeFontAwesomePicker();
-      } else if (!columnsModal.classList.contains('hidden')) {
-        closeColumnsModal();
-      } else if (!iconModal.classList.contains('hidden')) {
-        closeIconsModal();
       } else if (customFeatureModal && !customFeatureModal.classList.contains('hidden')) {
         closeCustomFeatureModal();
       } else if (!sheetModal.classList.contains('hidden') && hasLoadedMap) {
@@ -4994,18 +4794,6 @@ const ALL_FA_ICONS = [
   sheetModal.addEventListener('click', function (e) {
     if (e.target === sheetModal && hasLoadedMap) {
       cancelSheetModal();
-    }
-  });
-
-  columnsModal.addEventListener('click', function (e) {
-    if (e.target === columnsModal) {
-      closeColumnsModal();
-    }
-  });
-
-  iconModal.addEventListener('click', function (e) {
-    if (e.target === iconModal) {
-      closeIconsModal();
     }
   });
 

@@ -12,7 +12,7 @@ publicly accessible Google Sheet.
   Each sheet can have its own name, Google Sheets URL, column mapping, icon, and badge color.
 * **Configurable column mapping per sheet** — automatically detects and allows you to select
   which sheet columns contain the incident address, open/closed status, and label/description for each sheet.
-  Change column mapping at any time via the **Change Columns** toolbar button.
+  Change column mapping at any time in the **Manage Sheets** dialog.
 * **Dropdown category styling** — select a category column to inspect its Google Sheets dropdown
   options, then assign each option its own FontAwesome icon and marker background color.
 * **Address-based geocoding** — incidents are specified as street addresses (e.g.
@@ -39,7 +39,7 @@ publicly accessible Google Sheet.
   faded and greyscale by default; open incidents display in the sheet's chosen colour. An interactive
   legend on the map displays entries for every configured sheet with its icon and color, along with a checkbox to show or hide closed incidents.
 * **Customizable icon & color per sheet** — choose from preset Font Awesome vector icons
-  (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin, star) or browse/search the full Font Awesome icon library in the icon picker dialog, and pick from a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Change Icons & Colors**.
+  (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin, star) or browse/search the full Font Awesome icon library in the icon picker dialog, and pick from a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Manage Sheets**.
 * **Custom map features** — draw points, lines, and polygons on the map with a custom
   color, FontAwesome icon, and label. An optional description is stored locally in
   the browser for reference but is not displayed on the map.
@@ -114,8 +114,8 @@ setup dialog or via the toolbar:
     Click a feature to set or edit its label, icon, color, and private description;
     use **Custom Features** to manage saved features.
 9.  Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
-10. Use **Manage Sheets**, **Change Columns**, or **Change Icons & Colors** in the top-left
-    toolbar at any time.
+10. Use **Manage Sheets** in the top-left **Map Actions** menu at any time to edit
+     sheet URLs, column mappings, icons, and colors.
 11. Use **Save Map File** to export the current configuration and loaded data. Use
     **Load Map File** in another browser to restore it; the imported snapshot is
     displayed first and then normal sheet refresh resumes.
