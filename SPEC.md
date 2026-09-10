@@ -46,6 +46,8 @@ The application operates without a dedicated backend server, resolving incident 
   * Incident address strings shall be parsed into a numeric house number (with optional letter suffix, e.g., `1234` or `1234A`) and a street name.
   * US ZIP codes (5-digit `93222` and ZIP+4 `93222-1234`) and trailing commas shall be stripped before lookup.
   * Addresses without a valid leading house number shall be treated as unplottable.
+  * Open Location Codes (Plus Codes), including full codes and shortened codes
+    relative to Pine Mountain Club, shall be decoded directly to coordinates.
 
 * **FR-2.2: Street Normalization**
   * Street names shall be normalized by converting to lowercase, stripping punctuation, collapsing whitespace, and expanding common road and directional abbreviations (e.g., `dr` → `drive`, `ave` → `avenue`, `st` → `street`, `rd` → `road`, `hwy` → `highway`, `n`/`s`/`e`/`w` → `north`/`south`/`east`/`west`).
