@@ -1699,21 +1699,44 @@ const ALL_FA_ICONS = [
   const zoomAlert = document.getElementById('zoom-alert');
   const zoomAlertText = document.getElementById('zoom-alert-text');
 
-  function checkZoomAvailability() {
-    if (!currentBaseLayer || !zoomAlert) return;
+  function isMoreThanOneDegreeFromPmc(lat, lon) {
+    const toRadians = degrees => degrees * Math.PI / 180;
+    const latDelta = toRadians(lat - PMC_LAT);
+    const lonDelta = toRadians(lon - PMC_LNG);
+    const meanLat = toRadians((lat + PMC_LAT) / 2);
+    const distanceRadians = Math.sqrt(
+      (latDelta * latDelta) + (Math.cos(meanLat) * lonDelta * Math.cos(meanLat) * lonDelta)
+    );
+    return distanceRadians > toRadians(1);
+  }
+
+  function updateMapAlerts() {
+    if (!zoomAlert) return;
     const currentZoom = map.getZoom();
-    const maxZoom = currentBaseLayer.options && currentBaseLayer.options.maxZoom !== undefined
+    const maxZoom = currentBaseLayer && currentBaseLayer.options &&
+      currentBaseLayer.options.maxZoom !== undefined
       ? currentBaseLayer.options.maxZoom
       : Infinity;
-    const minZoom = currentBaseLayer.options && currentBaseLayer.options.minZoom !== undefined
+    const minZoom = currentBaseLayer && currentBaseLayer.options &&
+      currentBaseLayer.options.minZoom !== undefined
       ? currentBaseLayer.options.minZoom
       : 0;
+    const alertMessages = [];
+    if (currentZoom > maxZoom || currentZoom < minZoom) {
+      alertMessages.push('The requested zoom level is not available for this base map.');
+    }
 
-    const isUnsupported = currentZoom > maxZoom || currentZoom < minZoom;
-    if (isUnsupported) {
-      if (zoomAlertText) {
-        zoomAlertText.textContent = 'The requested zoom level is not available for this base map.';
-      }
+    const outOfRangeCount = Object.values(incidentMarkers)
+      .filter(marker => marker._isOutOfRange).length;
+    if (outOfRangeCount > 0) {
+      const pointLabel = outOfRangeCount === 1 ? 'point is' : 'points are';
+      alertMessages.push(
+        `${outOfRangeCount} plotted ${pointLabel} more than 1° from Pine Mountain Club.`
+      );
+    }
+
+    if (alertMessages.length > 0) {
+      if (zoomAlertText) zoomAlertText.textContent = alertMessages.join(' ');
       zoomAlert.classList.remove('hidden');
     } else {
       zoomAlert.classList.add('hidden');
@@ -1723,7 +1746,7 @@ const ALL_FA_ICONS = [
   map.on('baselayerchange', function (e) {
     currentBaseLayer = e.layer;
     persistAppState();
-    checkZoomAvailability();
+    updateMapAlerts();
   });
 
   map.on('overlayadd', function (e) {
@@ -1747,17 +1770,17 @@ const ALL_FA_ICONS = [
 
   map.on('zoomend', function () {
     persistAppState();
-    checkZoomAvailability();
+    updateMapAlerts();
   });
 
   map.on('moveend', persistAppState);
 
-  checkZoomAvailability();
+  let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
+  updateMapAlerts();
 
   // ── State ────────────────────────────────────────────────────────────────────
 
   let pollTimer = null;
-  let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
   let showClosedIncidents = savedAppState && typeof savedAppState.showClosedIncidents === 'boolean'
     ? savedAppState.showClosedIncidents
     : true;
@@ -2918,6 +2941,7 @@ const ALL_FA_ICONS = [
   function clearMarkers() {
     Object.values(incidentMarkers).forEach(m => map.removeLayer(m));
     incidentMarkers = {};
+    updateMapAlerts();
   }
 
   function clearCustomFeatures() {
@@ -3038,6 +3062,7 @@ const ALL_FA_ICONS = [
         const m = incidentMarkers[key];
         m._isOpen = isOpen;
         m._sheetId = sheet.id;
+        m._isOutOfRange = geo ? isMoreThanOneDegreeFromPmc(lat, lon) : false;
         if (geo) {
           m.setLatLng([lat, lon]);
           if (shouldShow) {
@@ -3056,6 +3081,7 @@ const ALL_FA_ICONS = [
         }).bindPopup(popupHtml(incident, sheet));
         marker._isOpen = isOpen;
         marker._sheetId = sheet.id;
+        marker._isOutOfRange = isMoreThanOneDegreeFromPmc(lat, lon);
         if (shouldShow) {
           marker.addTo(map);
         }
@@ -3063,6 +3089,7 @@ const ALL_FA_ICONS = [
       }
     }
 
+    updateMapAlerts();
     return {
       open: sheetOpen,
       closed: sheetClosed,
@@ -3088,6 +3115,7 @@ const ALL_FA_ICONS = [
           delete incidentMarkers[k];
         }
       });
+      updateMapAlerts();
 
       const now = new Date().toLocaleTimeString();
       const unmatchedNote = stats.unmatched > 0 ? `, ${stats.unmatched} unmatched` : '';
@@ -3133,6 +3161,7 @@ const ALL_FA_ICONS = [
           delete incidentMarkers[k];
         }
       });
+      updateMapAlerts();
 
       const now = new Date().toLocaleTimeString();
       const unmatchedNote = totalUnmatched > 0 ? `, ${totalUnmatched} unmatched` : '';
