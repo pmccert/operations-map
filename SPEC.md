@@ -33,7 +33,7 @@ The application operates without a dedicated backend server, resolving incident 
   * Fallbacks if keywords do not match: Column A (`0`) for Address, Column B (`1`) for Status (if present), Column C (`2`) for Label (if present).
 
 * **FR-1.5: Configurable Column Mapping per Sheet**
-  * Users shall be able to manually select and override the Address, Status, and Label columns individually for each configured sheet in the startup/configuration dialog and at runtime via the **Change Columns** toolbar button.
+  * Users shall be able to manually select and override the Address, Status, and Label columns individually for each configured sheet in the startup/configuration dialog and at runtime via the **Manage Sheets** dialog.
   * **Address Column:** Required; must reference a valid column.
   * **Status Column:** Optional; can be mapped to a specific column or set to `(None — Always Open)`.
   * **Label Column:** Optional; can be mapped to a specific column or set to `(None — Default #)`.
@@ -181,10 +181,8 @@ The application operates without a dedicated backend server, resolving incident 
 ### 2.8 Runtime Toolbar & Modal Controls
 
 * **FR-8.1: Top-Left Toolbar**
-  * A fixed floating toolbar shall provide three direct actions:
+  * A fixed floating **Map Actions** menu shall provide:
     * **Manage Sheets:** Opens the full sheet configuration modal to add, rename, edit URLs, customize icons/colors, adjust column mappings, or delete sheets; includes a **Cancel** action to discard uncommitted changes and return to the active map.
-    * **Change Columns:** Opens a dedicated modal to adjust column assignments for each sheet; applying changes immediately re-parses and re-plots data.
-    * **Change Icons & Colors:** Opens a dedicated modal to pick new icons and colors for each sheet.
 
 * **FR-8.2: Status Bar Feedback**
   * A bottom-center floating pill shall report operational status and diagnostics:
