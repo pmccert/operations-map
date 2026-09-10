@@ -558,6 +558,7 @@
   <button class="toolbar-btn" id="btn-change-sheet"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
   <button class="toolbar-btn" id="btn-change-columns"><i class="fa-solid fa-table-columns"></i> Change Columns</button>
   <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-palette"></i> Change Icons &amp; Colors</button>
+  <button class="toolbar-btn" id="btn-clear-features" title="Remove all incident features from the map"><i class="fa-solid fa-trash-can"></i> Clear Features</button>
 </div>
 
 <!-- Status bar -->
@@ -1054,6 +1055,11 @@
   function clearMarkers() {
     Object.values(incidentMarkers).forEach(m => map.removeLayer(m));
     incidentMarkers = {};
+  }
+
+  function clearCustomFeatures() {
+    clearMarkers();
+    setStatus('Map cleared — custom features removed.');
   }
 
   function refreshIcons() {
@@ -1833,6 +1839,8 @@
     renderSheetsModal();
     sheetModal.classList.remove('hidden');
   });
+
+  document.getElementById('btn-clear-features').addEventListener('click', clearCustomFeatures);
 
 })();
 </script>
