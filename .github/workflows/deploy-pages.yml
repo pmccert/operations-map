@@ -74,8 +74,6 @@ jobs:
           python-version: '3.14'
 
       - name: Inject commit info into index.html
-        env:
-          GOOGLE_GEOCODING_API_KEY: ${{ secrets.GOOGLE_GEOCODING_API_KEY }}
         run: |
           export COMMIT_HASH=$(git rev-parse --short HEAD)
           export COMMIT_TIME=$(git log -1 --format="%cd" --date=iso)
@@ -83,7 +81,6 @@ jobs:
           import os, re
           h = os.environ['COMMIT_HASH']
           t = os.environ['COMMIT_TIME']
-          k = os.environ.get('GOOGLE_GEOCODING_API_KEY', '')
           with open('index.html', 'r', encoding='utf-8') as f:
               content = f.read()
           content = re.sub(r'<a\s+([^>]*?)href=\"https://github\.com/phargogh/pmccert-map-data-from-google-sheet/commit/[^\"]*\"([^>]*)>[^<]*</a>',
@@ -92,8 +89,6 @@ jobs:
           content = re.sub(r'<span id=\"commit-date\">[^<]*</span>',
                            f'<span id=\"commit-date\">{t}</span>',
                            content)
-          if k:
-              content = content.replace('__GOOGLE_GEOCODING_API_KEY__', k)
           with open('index.html', 'w', encoding='utf-8') as f:
               f.write(content)
           "
@@ -107,4 +102,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
-

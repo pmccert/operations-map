@@ -855,6 +855,25 @@
       font-weight: bold;
       color: #fff;
     }
+    .incident-fields {
+      width: 100%;
+      margin-top: 6px;
+      border-collapse: collapse;
+      line-height: 1.35;
+    }
+    .incident-fields th,
+    .incident-fields td {
+      padding: 3px 5px;
+      border-top: 1px solid #e5e5e5;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    .incident-fields th {
+      color: #666;
+      font-weight: 600;
+      white-space: nowrap;
+    }
     .badge-open   { background: #e74c3c; }
     .badge-closed { background: #7f8c8d; }
 
@@ -1199,7 +1218,7 @@
   <button class="toolbar-btn" id="btn-change-sheet" title="Change / Manage Sheets"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
   <button class="toolbar-btn" id="btn-change-columns"><i class="fa-solid fa-table-columns"></i> Change Columns</button>
   <button class="toolbar-btn" id="btn-change-icon"><i class="fa-solid fa-palette"></i> Change Icons &amp; Colors</button>
-  <button class="toolbar-btn" id="btn-clear-features" title="Remove all incident features from the map"><i class="fa-solid fa-trash-can"></i> Clear Features</button>
+  <button class="toolbar-btn" id="btn-clear-features" title="Remove all custom features from the map"><i class="fa-solid fa-trash-can"></i> Clear Custom Features</button>
   <button class="toolbar-btn" id="btn-custom-features"><i class="fa-solid fa-draw-polygon"></i> Custom Features</button>
   <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
   <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
@@ -1230,7 +1249,7 @@
     </div>
     <div class="commit-info-details">
       <div>Commit: <a href="https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/11b0c42" target="_blank" rel="noopener noreferrer">11b0c42</a></div>
-      <div>Timestamp: 2026-09-04 21:20:49 -0700</div>
+      <div>Timestamp: <span id="commit-date">2026-09-04 21:20:49 -0700</span></div>
       <div>Website: <a href="https://pmccert.com" target="_blank" rel="noopener noreferrer">pmccert.com</a></div>
     </div>
     <button type="button" id="commit-info-done" class="btn-secondary">Close</button>
@@ -1619,18 +1638,30 @@ const ALL_FA_ICONS = [
   };
 
   const thirdPartyLayers = {
-    'Known Fire Incidents': L.layerGroup(),
-    'ADS-B Aircraft': L.layerGroup()
+    'Known Fire Incidents': {
+      layer: L.layerGroup(),
+      activated: false,
+      icon: 'fa-solid fa-fire',
+      color: '#d35400'
+    },
+    'ADS-B Aircraft': {
+      layer: L.layerGroup(),
+      activated: false,
+      icon: 'fa-solid fa-plane',
+      color: '#2980b9'
+    }
   };
-  const thirdPartyLayerActivated = {
-    'Known Fire Incidents': false,
-    'ADS-B Aircraft': false
-  };
+  const thirdPartyOverlayLayers = Object.fromEntries(
+    Object.entries(thirdPartyLayers).map(([name, config]) => [name, config.layer])
+  );
+  const savedThirdPartyLayerNames = savedAppState && Array.isArray(savedAppState.enabledThirdPartyLayers)
+    ? savedAppState.enabledThirdPartyLayers
+    : [];
 
   let currentBaseLayer = baseLayers['OpenStreetMap'];
 
   baseLayers['OpenStreetMap'].addTo(map);
-  L.control.layers(baseLayers, thirdPartyLayers, { position: 'topright', collapsed: false }).addTo(map);
+  L.control.layers(baseLayers, thirdPartyOverlayLayers, { position: 'topright', collapsed: false }).addTo(map);
   if (savedAppState && typeof savedAppState.baseLayer === 'string' && baseLayers[savedAppState.baseLayer]) {
     map.removeLayer(baseLayers['OpenStreetMap']);
     currentBaseLayer = baseLayers[savedAppState.baseLayer];
@@ -1696,17 +1727,22 @@ const ALL_FA_ICONS = [
   });
 
   map.on('overlayadd', function (e) {
-    const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name] === e.layer);
+    const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
-      thirdPartyLayerActivated[layerName] = true;
+      thirdPartyLayers[layerName].activated = true;
+      persistAppState();
       updateLegend();
       loadThirdPartyLayer(layerName);
     }
   });
 
   map.on('overlayremove', function (e) {
-    const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name] === e.layer);
-    if (layerName) updateLegend();
+    const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
+    if (layerName) {
+      thirdPartyLayers[layerName].activated = false;
+      persistAppState();
+      updateLegend();
+    }
   });
 
   map.on('zoomend', function () {
@@ -1757,20 +1793,10 @@ const ALL_FA_ICONS = [
   const GOOGLE_OAUTH_CLIENT_ID = '737731486205-pnrigt0btu2aeqam7ulqghl37apbph3l.apps.googleusercontent.com';
   let tokenClient = null;
 
-  function loadSavedOAuthConfig() {
+  function clearLegacyOAuthStorage() {
     try {
-      const savedToken = localStorage.getItem('pmc_google_access_token');
-      const savedExp = localStorage.getItem('pmc_google_token_expiry');
-      if (savedToken && savedExp) {
-        const exp = parseInt(savedExp, 10);
-        if (Date.now() < exp) {
-          googleAccessToken = savedToken;
-          googleTokenExpiry = exp;
-        } else {
-          localStorage.removeItem('pmc_google_access_token');
-          localStorage.removeItem('pmc_google_token_expiry');
-        }
-      }
+      localStorage.removeItem('pmc_google_access_token');
+      localStorage.removeItem('pmc_google_token_expiry');
     } catch (_) {
       // Storage unavailable or blocked
     }
@@ -1823,12 +1849,6 @@ const ALL_FA_ICONS = [
           googleAccessToken = resp.access_token;
           const expiresIn = (parseInt(resp.expires_in, 10) || 3600) * 1000;
           googleTokenExpiry = Date.now() + expiresIn - 60000;
-          try {
-            localStorage.setItem('pmc_google_access_token', googleAccessToken);
-            localStorage.setItem('pmc_google_token_expiry', String(googleTokenExpiry));
-          } catch (_) {
-            // Ignore storage quota or disabled errors
-          }
           updateOAuthUI();
           if (callback) callback();
         }
@@ -1859,12 +1879,6 @@ const ALL_FA_ICONS = [
     }
     googleAccessToken = null;
     googleTokenExpiry = 0;
-    try {
-      localStorage.removeItem('pmc_google_access_token');
-      localStorage.removeItem('pmc_google_token_expiry');
-    } catch (_) {
-      // Ignore storage error
-    }
     updateOAuthUI();
   }
 
@@ -1932,6 +1946,9 @@ const ALL_FA_ICONS = [
         color: sheet.color
       })),
       baseLayer: Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap',
+      enabledThirdPartyLayers: Object.entries(thirdPartyLayers)
+        .filter(([, config]) => map.hasLayer(config.layer))
+        .map(([name]) => name),
       showClosedIncidents,
       pollIntervalMs,
       geocoderUrl: savedGeocoderUrl,
@@ -1969,7 +1986,7 @@ const ALL_FA_ICONS = [
   }
 
   async function loadFireIncidents() {
-    const layer = thirdPartyLayers['Known Fire Incidents'];
+    const layer = thirdPartyLayers['Known Fire Incidents'].layer;
     const response = await fetch(THIRD_PARTY_ENDPOINTS.fires, { cache: 'no-store' });
     if (!response.ok) throw new Error(`Fire incidents request failed (${response.status})`);
     const data = await response.json();
@@ -2016,7 +2033,7 @@ const ALL_FA_ICONS = [
   }
 
   async function loadAdsbAircraft() {
-    const layer = thirdPartyLayers['ADS-B Aircraft'];
+    const layer = thirdPartyLayers['ADS-B Aircraft'].layer;
     const response = await fetch(THIRD_PARTY_ENDPOINTS.adsb, { cache: 'no-store' });
     if (!response.ok) throw new Error(`ADS-B request failed (${response.status})`);
     const data = await response.json();
@@ -2232,18 +2249,16 @@ const ALL_FA_ICONS = [
       `;
     });
 
-    const thirdPartyItemsHtml = Object.keys(thirdPartyLayers)
-      .filter(name => thirdPartyLayerActivated[name])
-      .map(name => {
+    const thirdPartyItemsHtml = Object.entries(thirdPartyLayers)
+      .filter(([, config]) => config.activated)
+      .map(([name, config]) => {
         const isFireLayer = name === 'Known Fire Incidents';
-        const icon = isFireLayer ? 'fa-solid fa-fire' : 'fa-solid fa-plane';
-        const color = isFireLayer ? '#d35400' : '#2980b9';
         const id = `toggle-third-party-${isFireLayer ? 'fires' : 'adsb'}`;
         return `
           <div class="legend-item legend-third-party" title="${escHtml(name)}">
             <label class="legend-checkbox-label" for="${id}">
-              <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(thirdPartyLayers[name]) ? 'checked' : ''} />
-              <span class="legend-icon" style="background-color: ${color};"><i class="${icon}"></i></span>
+              <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(config.layer) ? 'checked' : ''} />
+              <span class="legend-icon" style="background-color: ${config.color};"><i class="${config.icon}"></i></span>
               <span class="legend-sheet-name">${escHtml(name)}</span>
             </label>
           </div>
@@ -2863,6 +2878,9 @@ const ALL_FA_ICONS = [
   function popupHtml(incident, sheet) {
     const statusLabel = incident.isOpen ? 'Open' : 'Closed';
     const badgeBg = incident.isOpen ? sheet.color : '#7f8c8d';
+    const fieldsHtml = incident.fields.map(field =>
+      `<tr><th scope="row">${escHtml(field.name)}</th><td>${escHtml(field.value)}</td></tr>`
+    ).join('');
     let locationLine;
     if (incident.matchType === 'exact') {
       locationLine = `<span title="Exact address match">${escHtml(incident.canonical)}</span>`;
@@ -2891,6 +2909,9 @@ const ALL_FA_ICONS = [
         <span class="badge" style="background-color: ${badgeBg};">${statusLabel}</span><br>
         ${locationLine}
         ${incident.lat != null ? `<br><small>Lat: ${incident.lat.toFixed(5)}, Lon: ${incident.lon.toFixed(5)}</small>` : ''}
+        <table class="incident-fields" aria-label="Spreadsheet fields">
+          <tbody>${fieldsHtml}</tbody>
+        </table>
       </div>`;
   }
 
@@ -2900,8 +2921,12 @@ const ALL_FA_ICONS = [
   }
 
   function clearCustomFeatures() {
-    clearMarkers();
-    setStatus('Map cleared — custom features removed.');
+    Object.values(customFeatureLayers).forEach(layer => map.removeLayer(layer));
+    customFeatureLayers = {};
+    customFeatures = [];
+    saveCustomFeatures();
+    renderCustomFeatureList();
+    setStatus('Custom features removed.');
   }
 
   function refreshIcons() {
@@ -2933,12 +2958,12 @@ const ALL_FA_ICONS = [
       updateClosedMarkersVisibility();
     }
     if (e.target && e.target.dataset.thirdPartyLayer) {
-      const layer = thirdPartyLayers[e.target.dataset.thirdPartyLayer];
-      if (layer) {
+      const layerConfig = thirdPartyLayers[e.target.dataset.thirdPartyLayer];
+      if (layerConfig) {
         if (e.target.checked) {
-          map.addLayer(layer);
+          map.addLayer(layerConfig.layer);
         } else {
-          map.removeLayer(layer);
+          map.removeLayer(layerConfig.layer);
         }
       }
     }
@@ -2994,6 +3019,10 @@ const ALL_FA_ICONS = [
         index: idx,
         address,
         label,
+        fields: Array.from({ length: Math.max(row.length, sheet.headers ? sheet.headers.length : 0) }, (_, fieldIdx) => ({
+          name: (sheet.headers && sheet.headers[fieldIdx]) || `Column ${colLetter(fieldIdx)}`,
+          value: row[fieldIdx] || ''
+        })),
         isOpen,
         lat,
         lon,
@@ -3791,7 +3820,6 @@ const ALL_FA_ICONS = [
       pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
     }
   }
-  loadSavedOAuthConfig();
   checkLocalAddresses().then(function () {
     if (savedAppState && sheets.some(sheet => sheet.rawUrl)) {
       handleSubmit();
@@ -4555,7 +4583,15 @@ const ALL_FA_ICONS = [
     });
   }
 
-  loadSavedOAuthConfig();
+  clearLegacyOAuthStorage();
+  savedThirdPartyLayerNames.forEach(function (layerName) {
+    const layerConfig = thirdPartyLayers[layerName];
+    if (!layerConfig) return;
+    layerConfig.activated = true;
+    map.addLayer(layerConfig.layer);
+    loadThirdPartyLayer(layerName);
+  });
+  updateLegend();
 
   document.getElementById('btn-clear-features').addEventListener('click', clearCustomFeatures);
 
