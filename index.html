@@ -2212,12 +2212,20 @@ const ALL_FA_ICONS = [
 
   function updateSharedMapAlertTimer() {
     if (!sharedMapState) return;
-    if (sharedMapAlertTimer) {
-      clearInterval(sharedMapAlertTimer);
-      sharedMapAlertTimer = null;
+    if (!sharedMapState.nextRefreshAt) {
+      if (sharedMapAlertTimer) {
+        clearInterval(sharedMapAlertTimer);
+        sharedMapAlertTimer = null;
+      }
+      return;
     }
-    if (!sharedMapState.nextRefreshAt) return;
+    if (sharedMapAlertTimer) return;
     sharedMapAlertTimer = setInterval(function () {
+      if (!sharedMapState || !sharedMapState.nextRefreshAt) {
+        clearInterval(sharedMapAlertTimer);
+        sharedMapAlertTimer = null;
+        return;
+      }
       updateMapAlerts();
     }, 1000);
   }
@@ -2353,6 +2361,7 @@ const ALL_FA_ICONS = [
     lastLoadedAt: null,
     nextRefreshAt: null,
     baseLayerNotice: '',
+    pollingActive: false,
     syncTimer: null,
     writeTimer: null,
     writeInFlight: false,
@@ -3401,8 +3410,9 @@ const ALL_FA_ICONS = [
   }
 
   function stopSharedMapPolling() {
+    sharedMapState.pollingActive = false;
     if (sharedMapState.syncTimer) {
-      clearInterval(sharedMapState.syncTimer);
+      clearTimeout(sharedMapState.syncTimer);
       sharedMapState.syncTimer = null;
     }
     if (sharedMapState.writeTimer) {
@@ -3507,13 +3517,17 @@ const ALL_FA_ICONS = [
 
   function startSharedMapPolling() {
     if (!sharedMapState.fileId) return;
-    if (sharedMapState.syncTimer) clearInterval(sharedMapState.syncTimer);
-    sharedMapState.nextRefreshAt = Date.now() + SHARED_MAP_POLL_INTERVAL_MS;
-    updateSharedMapAlertTimer();
-    updateMapAlerts();
-    sharedMapState.syncTimer = setInterval(async function () {
+    sharedMapState.pollingActive = true;
+    if (sharedMapState.syncTimer) clearTimeout(sharedMapState.syncTimer);
+    function scheduleNextSharedMapPoll() {
+      if (!sharedMapState.fileId || !sharedMapState.pollingActive) return;
       sharedMapState.nextRefreshAt = Date.now() + SHARED_MAP_POLL_INTERVAL_MS;
+      sharedMapState.syncTimer = setTimeout(runSharedMapPoll, SHARED_MAP_POLL_INTERVAL_MS);
+      updateSharedMapAlertTimer();
       updateMapAlerts();
+    }
+    async function runSharedMapPoll() {
+      sharedMapState.syncTimer = null;
       try {
         const meta = await driveFetchMetadata(sharedMapState.fileId);
         const remoteVersion = meta.version || null;
@@ -3540,8 +3554,11 @@ const ALL_FA_ICONS = [
         if (err && err.code !== 'shared-map-auth') {
           console.warn('Shared map poll failed:', err);
         }
+      } finally {
+        scheduleNextSharedMapPoll();
       }
-    }, SHARED_MAP_POLL_INTERVAL_MS);
+    }
+    scheduleNextSharedMapPoll();
   }
 
   async function connectSharedMapFile(fileId, options = {}) {
