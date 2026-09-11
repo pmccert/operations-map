@@ -5923,7 +5923,7 @@ const ALL_FA_ICONS = [
       pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
     }
   }
-  loadDisasterModes()
+  const startupInitializationPromise = loadDisasterModes()
     .then(function () {
       if (!hasSavedSheetsState) {
         applyDisasterModeSelection(selectedDisasterModeId);
@@ -6667,6 +6667,7 @@ const ALL_FA_ICONS = [
   async function handleGoogleSignInSuccess() {
     try {
       if (sharedMapState.fileId) {
+        await startupInitializationPromise;
         await connectSharedMapFile(sharedMapState.fileId, { loadNow: true });
         setStatus('Shared map loaded from Google Drive.');
       } else if (hasLoadedMap) {
@@ -6713,6 +6714,9 @@ const ALL_FA_ICONS = [
   updateLegend();
   if (sharedMapState.fileId) {
     ensureGoogleAuth()
+      .then(function () {
+        return startupInitializationPromise;
+      })
       .then(function () {
         return connectSharedMapFile(sharedMapState.fileId, { loadNow: true });
       })
