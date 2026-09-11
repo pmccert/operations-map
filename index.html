@@ -2227,6 +2227,10 @@ const ALL_FA_ICONS = [
         return;
       }
       updateMapAlerts();
+      if (Date.now() >= sharedMapState.nextRefreshAt) {
+        clearInterval(sharedMapAlertTimer);
+        sharedMapAlertTimer = null;
+      }
     }, 1000);
   }
 
