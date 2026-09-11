@@ -6,7 +6,7 @@
   <title>PMC CERT Map</title>
 
   <!-- Google Identity Services (GIS) -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script id="google-gis-client" src="https://accounts.google.com/gsi/client" async defer></script>
 
   <!-- Font Awesome 6 Free (CDN) -->
   <link
@@ -908,6 +908,11 @@
       gap: 5px;
     }
     .toolbar-btn:hover { background: #e8f0fe; }
+    .toolbar-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
     .toolbar-file-input { display: none; }
     .toolbar-select {
       background: rgba(255,255,255,0.92);
@@ -1357,6 +1362,10 @@
       <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
       <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
       <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
+      <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
+      <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
+      <button class="toolbar-btn" id="btn-copy-viewer-url" title="Copy read-only viewer URL"><i class="fa-solid fa-link"></i> Copy Viewer URL</button>
+      <button class="toolbar-btn" id="btn-open-editor-url" title="Open URL for editing mode"><i class="fa-solid fa-pen-to-square"></i> Open Editor URL</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
       <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
         <option value="0">Auto-refresh: Off</option>
@@ -1365,6 +1374,7 @@
         <option value="60000">Auto-refresh: 1m</option>
         <option value="300000">Auto-refresh: 5m</option>
       </select>
+      <button class="toolbar-btn" id="btn-shared-map-status" disabled title="Google Drive shared map status"><i class="fa-brands fa-google-drive"></i> <span id="shared-map-status-text">Shared map: Off</span></button>
       <button class="toolbar-btn" id="btn-google-auth-status" title="Google Authentication Status"><i class="fa-brands fa-google"></i> <span id="google-auth-btn-text">Sign In</span></button>
     </div>
   </details>
@@ -1415,6 +1425,8 @@
   const PMC_LAT = 34.857;
   const PMC_LNG = -119.155;
   const DEFAULT_POLL_INTERVAL_MS = 30000;
+  const SUPPORTED_POLL_INTERVAL_MS = [0, 15000, 30000, 60000, 300000];
+  const SHARED_MAP_POLL_INTERVAL_MS = 15000;
   const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';
   const APP_STATE_KEY = 'pmc_cert_map_state';
   const DISASTER_MODES_URL = 'assets/disaster-modes.json';
@@ -1478,6 +1490,14 @@
       }
     ]
   };
+  const DRIVE_JSON_MIME_TYPE = 'application/json';
+  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
+  const DRIVE_READONLY_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+  const SHEETS_READONLY_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+  const OAUTH_SCOPES = `${SHEETS_READONLY_SCOPE} ${DRIVE_SCOPE} ${DRIVE_READONLY_SCOPE}`;
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialSharedMapFileId = urlParams.get('mapFileId');
+  const forcedViewerMode = urlParams.get('mode') === 'view';
 
   function readAppState() {
     try {
@@ -1866,9 +1886,13 @@ const ALL_FA_ICONS = [
     : [];
 
   let currentBaseLayer = baseLayers['OpenStreetMap'];
+  let mapLayersControl = null;
+  let mapLayersControlAttached = false;
 
   baseLayers['OpenStreetMap'].addTo(map);
-  L.control.layers(baseLayers, thirdPartyOverlayLayers, { position: 'topright', collapsed: false }).addTo(map);
+  mapLayersControl = L.control.layers(baseLayers, thirdPartyOverlayLayers, { position: 'topright', collapsed: false });
+  mapLayersControl.addTo(map);
+  mapLayersControlAttached = true;
   if (savedAppState && typeof savedAppState.baseLayer === 'string' && baseLayers[savedAppState.baseLayer]) {
     map.removeLayer(baseLayers['OpenStreetMap']);
     currentBaseLayer = baseLayers[savedAppState.baseLayer];
@@ -1994,6 +2018,22 @@ const ALL_FA_ICONS = [
   let hasLoadedMap = false;
   let customFeatures = [];
   let customFeatureLayers = {};
+  let mapIsReadOnly = false;
+  let remoteApplyInProgress = false;
+  let customFeatureDrawControl = null;
+  let customFeatureDrawControlAttached = false;
+  const sharedMapState = {
+    fileId: initialSharedMapFileId || null,
+    fileName: '',
+    canEdit: false,
+    lastVersion: null,
+    lastModifiedTime: null,
+    syncTimer: null,
+    writeTimer: null,
+    writeInFlight: false,
+    dirty: false,
+    pendingReason: ''
+  };
 
   function loadCustomFeatures() {
     try {
@@ -2013,15 +2053,21 @@ const ALL_FA_ICONS = [
     } catch (err) {
       console.warn('Could not save custom map features:', err);
     }
+    syncSharedMapAfterLocalChange('custom-features');
+  }
+
+  function normalizePollIntervalMs(value) {
+    return SUPPORTED_POLL_INTERVAL_MS.includes(value) ? value : DEFAULT_POLL_INTERVAL_MS;
   }
 
   let pollIntervalMs = savedAppState && Number.isFinite(savedAppState.pollIntervalMs)
-    ? savedAppState.pollIntervalMs
+    ? normalizePollIntervalMs(savedAppState.pollIntervalMs)
     : DEFAULT_POLL_INTERVAL_MS;
   let googleAccessToken = null;
   let googleTokenExpiry = 0;
   const GOOGLE_OAUTH_CLIENT_ID = '737731486205-pnrigt0btu2aeqam7ulqghl37apbph3l.apps.googleusercontent.com';
   let tokenClient = null;
+  let googleIdentityServicesReadyPromise = null;
 
   function clearLegacyOAuthStorage() {
     try {
@@ -2042,7 +2088,7 @@ const ALL_FA_ICONS = [
 
     if (isAuthed) {
       if (statusText) {
-        statusText.textContent = 'Signed in to Google (Sheets API active).';
+        statusText.textContent = 'Signed in to Google (Sheets + Drive access active).';
         statusText.style.color = '#27ae60';
       }
       if (authBtn) authBtn.textContent = 'Sign out';
@@ -2050,7 +2096,7 @@ const ALL_FA_ICONS = [
       if (toolbarBtn) toolbarBtn.title = 'Google Account: Signed In (Click to Sign Out)';
     } else {
       if (statusText) {
-        statusText.textContent = 'Not signed in (using public CSV export).';
+        statusText.textContent = 'Not signed in (public CSV only; Drive sharing unavailable).';
         statusText.style.color = '#666';
       }
       if (authBtn) authBtn.textContent = 'Sign in with Google';
@@ -2063,17 +2109,51 @@ const ALL_FA_ICONS = [
     return Boolean(googleAccessToken && Date.now() < googleTokenExpiry);
   }
 
-  function initTokenClient(callback) {
+  function waitForGoogleIdentityServices() {
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      return Promise.resolve();
+    }
+    if (googleIdentityServicesReadyPromise) return googleIdentityServicesReadyPromise;
+    const gisScript = document.getElementById('google-gis-client');
+    if (!gisScript) {
+      return Promise.reject(new Error('Google Identity Services library not loaded.'));
+    }
+    googleIdentityServicesReadyPromise = new Promise((resolve, reject) => {
+      function handleLoad() {
+        if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+          cleanup();
+          resolve();
+        } else {
+          cleanup();
+          reject(new Error('Google Identity Services library not loaded.'));
+        }
+      }
+      function handleError() {
+        cleanup();
+        reject(new Error('Could not load Google Identity Services library.'));
+      }
+      function cleanup() {
+        gisScript.removeEventListener('load', handleLoad);
+        gisScript.removeEventListener('error', handleError);
+      }
+      gisScript.addEventListener('load', handleLoad);
+      gisScript.addEventListener('error', handleError);
+    });
+    return googleIdentityServicesReadyPromise;
+  }
+
+  function initTokenClient(callback, onError) {
     if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
       return null;
     }
     try {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_OAUTH_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        scope: OAUTH_SCOPES,
         callback: (resp) => {
           if (resp.error) {
             console.error('Google OAuth error:', resp);
+            if (onError) onError(resp);
             return;
           }
           googleAccessToken = resp.access_token;
@@ -2090,13 +2170,29 @@ const ALL_FA_ICONS = [
     }
   }
 
-  function requestGoogleSignIn(callback) {
-    const client = initTokenClient(callback);
-    if (client) {
-      client.requestAccessToken({ prompt: '' });
-    } else {
-      alert('Google Identity Services library not yet loaded. Please check your network connection.');
-    }
+  function requestGoogleSignIn(callback, onError) {
+    waitForGoogleIdentityServices()
+      .then(function () {
+        const client = initTokenClient(callback, onError);
+        if (client) {
+          client.requestAccessToken({ prompt: 'consent' });
+        } else {
+          throw new Error('Google Identity Services library not loaded.');
+        }
+      })
+      .catch(function (err) {
+        alert(err.message || 'Google Identity Services library not yet loaded. Please check your network connection.');
+        if (onError) onError(err);
+      });
+  }
+
+  function ensureGoogleAuth() {
+    if (isGoogleAuthenticated()) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      requestGoogleSignIn(resolve, function (err) {
+        reject(err || new Error('Google sign-in failed.'));
+      });
+    });
   }
 
   function signOutGoogle() {
@@ -2109,6 +2205,10 @@ const ALL_FA_ICONS = [
     }
     googleAccessToken = null;
     googleTokenExpiry = 0;
+    if (sharedMapState.fileId) {
+      stopSharedMapPolling();
+      setReadOnlyMode(true, 'Signed out. Sign in again to sync this shared map from Google Drive.');
+    }
     updateOAuthUI();
   }
 
@@ -2207,6 +2307,7 @@ const ALL_FA_ICONS = [
         zoom: map.getZoom()
       }
     });
+    syncSharedMapAfterLocalChange('app-state');
   }
 
   function getSelectedDisasterMode() {
@@ -2245,6 +2346,201 @@ const ALL_FA_ICONS = [
 
   const statusBar = document.getElementById('status-bar');
   function setStatus(msg) { statusBar.textContent = msg; }
+
+  function sharedMapBaseUrl() {
+    return `${window.location.origin}${window.location.pathname}`;
+  }
+
+  function buildSharedMapUrl(fileId, forceView) {
+    const params = new URLSearchParams();
+    params.set('mapFileId', fileId);
+    if (forceView) params.set('mode', 'view');
+    return `${sharedMapBaseUrl()}?${params.toString()}`;
+  }
+
+  function extractDriveFileId(input) {
+    const value = String(input || '').trim();
+    if (!value) return '';
+    const urlMatch = value.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+    if (urlMatch) return urlMatch[1];
+    const queryMatch = value.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+    if (queryMatch) return queryMatch[1];
+    return /^[a-zA-Z0-9_-]{20,}$/.test(value) ? value : '';
+  }
+
+  function updateSharedMapStatusLabel() {
+    const statusTextEl = document.getElementById('shared-map-status-text');
+    if (!statusTextEl) return;
+    if (!sharedMapState.fileId) {
+      statusTextEl.textContent = 'Shared map: Off';
+      return;
+    }
+    const roleText = mapIsReadOnly ? 'View-only' : 'Editor';
+    const versionText = sharedMapState.lastVersion ? `v${sharedMapState.lastVersion}` : 'unversioned';
+    const nameText = sharedMapState.fileName || sharedMapState.fileId;
+    statusTextEl.textContent = `Shared map: ${roleText} (${versionText}) — ${nameText}`;
+  }
+
+  function updateReadOnlyUI() {
+    const disableIds = [
+      'btn-add-sheet',
+      'btn-change-sheet',
+      'btn-clear-features',
+      'btn-custom-features',
+      'btn-import-map',
+      'btn-override-geocoder',
+      'btn-use-local-geocoder',
+      'sheet-submit'
+    ];
+    disableIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = mapIsReadOnly;
+    });
+    const refreshSelect = document.getElementById('select-refresh-interval');
+    if (refreshSelect) refreshSelect.disabled = mapIsReadOnly;
+    const geocoderUrlInput = document.getElementById('geocoder-url');
+    if (geocoderUrlInput) geocoderUrlInput.disabled = mapIsReadOnly;
+    if (customFeatureDrawControl) {
+      if (mapIsReadOnly && customFeatureDrawControlAttached) {
+        map.removeControl(customFeatureDrawControl);
+        customFeatureDrawControlAttached = false;
+      } else if (!mapIsReadOnly && !customFeatureDrawControlAttached) {
+        map.addControl(customFeatureDrawControl);
+        customFeatureDrawControlAttached = true;
+      }
+    }
+    if (mapLayersControl) {
+      if (mapIsReadOnly && mapLayersControlAttached) {
+        map.removeControl(mapLayersControl);
+        mapLayersControlAttached = false;
+      } else if (!mapIsReadOnly && !mapLayersControlAttached) {
+        mapLayersControl.addTo(map);
+        mapLayersControlAttached = true;
+      }
+    }
+  }
+
+  function setReadOnlyMode(readOnly, reason) {
+    const changed = mapIsReadOnly !== Boolean(readOnly);
+    mapIsReadOnly = Boolean(readOnly);
+    updateReadOnlyUI();
+    if (changed) {
+      const activeSheetModal = document.getElementById('sheet-modal');
+      if (activeSheetModal && !activeSheetModal.classList.contains('hidden')) {
+        renderSheetsModal();
+      }
+      renderCustomFeatureList();
+      updateCustomFeatureEditorReadOnlyState();
+    }
+    updateSharedMapStatusLabel();
+    if (mapIsReadOnly && reason) {
+      setStatus(reason);
+    }
+  }
+
+  function createSharedMapAuthError(message) {
+    const err = new Error(message);
+    err.code = 'shared-map-auth';
+    return err;
+  }
+
+  function handleSharedMapAuthFailure(message) {
+    const statusMessage = message || 'Google sign-in expired. Sign in again to sync this shared map from Google Drive.';
+    googleAccessToken = null;
+    googleTokenExpiry = 0;
+    updateOAuthUI();
+    if (sharedMapState.fileId) {
+      stopSharedMapPolling();
+      setReadOnlyMode(true, statusMessage);
+    }
+    return createSharedMapAuthError(statusMessage);
+  }
+
+  function driveAuthHeaders() {
+    return {
+      Authorization: 'Bearer ' + googleAccessToken
+    };
+  }
+
+  async function driveFetchMetadata(fileId) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    const fields = [
+      'id',
+      'name',
+      'modifiedTime',
+      'version',
+      'capabilities(canEdit)'
+    ].join(',');
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}`,
+      {
+        headers: driveAuthHeaders(),
+        cache: 'no-store'
+      }
+    );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
+    if (!resp.ok) throw new Error(`Google Drive metadata request failed (${resp.status}).`);
+    return resp.json();
+  }
+
+  async function driveFetchJson(fileId) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+      {
+        headers: driveAuthHeaders(),
+        cache: 'no-store'
+      }
+    );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
+    if (!resp.ok) throw new Error(`Google Drive file download failed (${resp.status}).`);
+    return resp.json();
+  }
+
+  async function driveCreateJsonFile(filename, payload) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    const boundary = `pmcCertBoundary${Date.now().toString(16)}`;
+    const body =
+      `--${boundary}\r\n` +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      `${JSON.stringify({ name: filename, mimeType: DRIVE_JSON_MIME_TYPE })}\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Type: ${DRIVE_JSON_MIME_TYPE}; charset=UTF-8\r\n\r\n` +
+      `${JSON.stringify(payload, null, 2)}\r\n` +
+      `--${boundary}--`;
+    const resp = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime,version,capabilities(canEdit)',
+      {
+        method: 'POST',
+        headers: {
+          ...driveAuthHeaders(),
+          'Content-Type': `multipart/related; boundary=${boundary}`
+        },
+        body
+      }
+    );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
+    if (!resp.ok) throw new Error(`Google Drive file create failed (${resp.status}).`);
+    return resp.json();
+  }
+
+  async function driveUpdateJsonFile(fileId, payload) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    const resp = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,name,modifiedTime,version`,
+      {
+        method: 'PATCH',
+        headers: {
+          ...driveAuthHeaders(),
+          'Content-Type': `${DRIVE_JSON_MIME_TYPE}; charset=UTF-8`
+        },
+        body: JSON.stringify(payload, null, 2)
+      }
+    );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
+    if (!resp.ok) throw new Error(`Google Drive file update failed (${resp.status}).`);
+    return resp.json();
+  }
 
   const THIRD_PARTY_ENDPOINTS = {
     fires: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Fire_Perimeters/FeatureServer/0/query?where=1%3D1&geometry=-119.7%2C34.4%2C-118.6%2C35.3&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=geojson',
@@ -2383,9 +2679,13 @@ const ALL_FA_ICONS = [
   }
 
   function mapSnapshot() {
+    const baseLayerName = Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap';
+    const enabledThirdPartyLayers = Object.entries(thirdPartyLayers)
+      .filter(([, config]) => map.hasLayer(config.layer))
+      .map(([name]) => name);
     return {
       format: 'pmc-cert-map',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       disasterModeId: selectedDisasterModeId,
       pollIntervalMs,
@@ -2393,6 +2693,26 @@ const ALL_FA_ICONS = [
         url: geocoderInput.value.trim(),
         useLocalFile: !isOverridden
       },
+      mapView: {
+        lat: map.getCenter().lat,
+        lng: map.getCenter().lng,
+        zoom: map.getZoom()
+      },
+      baseLayer: baseLayerName,
+      enabledThirdPartyLayers,
+      showClosedIncidents,
+      customFeatures: customFeatures.map(feature => ({
+        id: feature.id,
+        type: feature.type,
+        coordinates: feature.coordinates,
+        label: feature.label || '',
+        description: feature.description || '',
+        color: feature.color,
+        closed: feature.closed === true,
+        icon: feature.icon && typeof feature.icon.fa === 'string'
+          ? { fa: feature.icon.fa, label: feature.icon.label || formatIconLabel(feature.icon.fa) }
+          : { fa: 'fa-solid fa-location-dot', label: 'Pin' }
+      })),
       sheets: sheets.map(sheet => ({
         id: sheet.id,
         name: sheet.name,
@@ -2418,10 +2738,10 @@ const ALL_FA_ICONS = [
 
   function validateImportedSheet(value, index) {
     if (!value || typeof value !== 'object' || typeof value.name !== 'string' ||
-        typeof value.rawUrl !== 'string' || !value.columnMapping ||
-        !Array.isArray(value.rows)) {
+        typeof value.rawUrl !== 'string' || !value.columnMapping) {
       throw new Error(`Invalid sheet data at position ${index + 1}.`);
     }
+    const rows = Array.isArray(value.rows) ? value.rows : [];
     const columnMapping = {
       address: Number.isInteger(value.columnMapping.address) ? value.columnMapping.address : 0,
       status: value.columnMapping.status === null ? null : Number.isInteger(value.columnMapping.status) ? value.columnMapping.status : 1,
@@ -2430,7 +2750,7 @@ const ALL_FA_ICONS = [
         ? null
         : Number.isInteger(value.columnMapping.category) ? value.columnMapping.category : null
     };
-    if (columnMapping.address < 0 || value.rows.some(row => !Array.isArray(row))) {
+    if (columnMapping.address < 0 || rows.some(row => !Array.isArray(row))) {
       throw new Error(`Invalid row or address column in sheet ${index + 1}.`);
     }
     return {
@@ -2454,53 +2774,275 @@ const ALL_FA_ICONS = [
           }))
           .filter(option => option.value)
         : [],
-      importedRows: value.rows,
-      lastRows: value.rows
+      importedRows: rows,
+      lastRows: rows
     };
+  }
+
+  function normalizeImportedCustomFeatures(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter(feature => feature && typeof feature === 'object')
+      .map((feature, index) => {
+        const type = feature.type === 'point' || feature.type === 'line' || feature.type === 'polygon'
+          ? feature.type
+          : null;
+        if (!type) return null;
+        const coordinates = feature.coordinates;
+        const validPoint = type === 'point' &&
+          Array.isArray(coordinates) &&
+          coordinates.length === 2 &&
+          Number.isFinite(coordinates[0]) &&
+          Number.isFinite(coordinates[1]);
+        const validShape = type !== 'point' &&
+          Array.isArray(coordinates) &&
+          coordinates.length > 1 &&
+          coordinates.every(coord => Array.isArray(coord) && coord.length === 2 &&
+            Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
+        if (!validPoint && !validShape) return null;
+        const color = normalizeHexColor(feature.color) || '#2C7BB6';
+        const icon = feature.icon && typeof feature.icon.fa === 'string'
+          ? { fa: feature.icon.fa, label: feature.icon.label || formatIconLabel(feature.icon.fa) }
+          : { fa: 'fa-solid fa-location-dot', label: 'Pin' };
+        return {
+          id: typeof feature.id === 'string' && feature.id ? feature.id : `custom_${Date.now()}_${index}`,
+          type,
+          coordinates,
+          label: typeof feature.label === 'string' ? feature.label : '',
+          description: typeof feature.description === 'string' ? feature.description : '',
+          color,
+          closed: type === 'point' && feature.closed === true,
+          icon
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function applySharedLayerState(baseLayerName, enabledLayerNames) {
+    if (typeof baseLayerName === 'string' && baseLayers[baseLayerName] && currentBaseLayer !== baseLayers[baseLayerName]) {
+      if (map.hasLayer(currentBaseLayer)) map.removeLayer(currentBaseLayer);
+      currentBaseLayer = baseLayers[baseLayerName];
+      currentBaseLayer.addTo(map);
+    }
+    const enabled = Array.isArray(enabledLayerNames) ? new Set(enabledLayerNames) : new Set();
+    Object.entries(thirdPartyLayers).forEach(([name, config]) => {
+      const shouldEnable = enabled.has(name);
+      config.activated = shouldEnable;
+      if (shouldEnable && !map.hasLayer(config.layer)) {
+        map.addLayer(config.layer);
+        loadThirdPartyLayer(name);
+      } else if (!shouldEnable && map.hasLayer(config.layer)) {
+        map.removeLayer(config.layer);
+      }
+    });
+  }
+
+  async function applyMapSnapshot(parsed, options = {}) {
+    if (!parsed || parsed.format !== 'pmc-cert-map' || !Array.isArray(parsed.sheets)) {
+      throw new Error('This is not a valid PMC CERT map file.');
+    }
+    if (parsed.version !== 1 && parsed.version !== 2) {
+      throw new Error(`Unsupported map file version: ${parsed.version}`);
+    }
+
+    const importedSheets = parsed.sheets.map(validateImportedSheet);
+    const importedCustomFeatures = normalizeImportedCustomFeatures(parsed.customFeatures);
+    remoteApplyInProgress = options.remote === true;
+    try {
+      sheets = importedSheets;
+      if (typeof parsed.disasterModeId === 'string' && parsed.disasterModeId.trim()) {
+        selectedDisasterModeId = parsed.disasterModeId.trim();
+      } else if (!disasterModes.modes.some(mode => mode.id === selectedDisasterModeId)) {
+        selectedDisasterModeId = disasterModes.defaultModeId;
+      }
+      pendingDisasterRuntime = cloneJson(getSelectedDisasterMode() ? getSelectedDisasterMode().preset : {});
+      customFeatures = importedCustomFeatures;
+      saveCustomFeatures();
+      renderAllCustomFeatures();
+      renderCustomFeatureList();
+      const numericIds = importedSheets
+        .map(sheet => Number.parseInt(sheet.id.replace(/^sheet_/, ''), 10))
+        .filter(Number.isInteger);
+      sheetIdCounter = Math.max(0, ...numericIds) + 1;
+
+      pollIntervalMs = Number.isInteger(parsed.pollIntervalMs) && parsed.pollIntervalMs >= 0
+        ? normalizePollIntervalMs(parsed.pollIntervalMs)
+        : DEFAULT_POLL_INTERVAL_MS;
+      const refreshSelect = document.getElementById('select-refresh-interval');
+      if (refreshSelect) refreshSelect.value = String(pollIntervalMs);
+      if (parsed.geocoder && typeof parsed.geocoder.url === 'string') {
+        isOverridden = parsed.geocoder.useLocalFile !== true;
+        geocoderInput.value = isOverridden ? parsed.geocoder.url : '';
+        savedGeocoderUrl = geocoderInput.value;
+        savedGeocoderOverridden = isOverridden;
+      } else {
+        isOverridden = false;
+        geocoderInput.value = '';
+        savedGeocoderUrl = '';
+        savedGeocoderOverridden = false;
+      }
+      if (typeof parsed.showClosedIncidents === 'boolean') {
+        showClosedIncidents = parsed.showClosedIncidents;
+      }
+      if (parsed.version === 2 || typeof parsed.baseLayer === 'string' || Array.isArray(parsed.enabledThirdPartyLayers)) {
+        applySharedLayerState(parsed.baseLayer, parsed.enabledThirdPartyLayers);
+      }
+      if (parsed.mapView &&
+          Number.isFinite(parsed.mapView.lat) &&
+          Number.isFinite(parsed.mapView.lng) &&
+          Number.isFinite(parsed.mapView.zoom)) {
+        map.setView([parsed.mapView.lat, parsed.mapView.lng], parsed.mapView.zoom);
+      }
+      geocoderIndex = null;
+      hasLoadedMap = false;
+      renderSheetsModal();
+      await checkLocalAddresses();
+      await handleSubmit({ allowReadOnly: true, skipSharedWrite: options.skipSharedWrite === true });
+      if (!errorMsgEl.textContent && !options.silent) {
+        setStatus(options.remote
+          ? 'Shared map updated from Google Drive.'
+          : 'Map file loaded. Live refresh will continue when sheet access is available.');
+      }
+    } finally {
+      remoteApplyInProgress = false;
+    }
   }
 
   async function importMapSnapshot(file) {
     const parsed = JSON.parse(await file.text());
-    if (!parsed || parsed.format !== 'pmc-cert-map' || parsed.version !== 1 ||
-        !Array.isArray(parsed.sheets)) {
-      throw new Error('This is not a valid PMC CERT map file.');
-    }
+    await applyMapSnapshot(parsed);
+  }
 
-    const importedSheets = parsed.sheets.map(validateImportedSheet);
-    sheets = importedSheets;
-    if (typeof parsed.disasterModeId === 'string' && parsed.disasterModeId.trim()) {
-      selectedDisasterModeId = parsed.disasterModeId.trim();
+  function stopSharedMapPolling() {
+    if (sharedMapState.syncTimer) {
+      clearInterval(sharedMapState.syncTimer);
+      sharedMapState.syncTimer = null;
     }
-    const numericIds = importedSheets
-      .map(sheet => Number.parseInt(sheet.id.replace(/^sheet_/, ''), 10))
-      .filter(Number.isInteger);
-    sheetIdCounter = Math.max(0, ...numericIds) + 1;
+    if (sharedMapState.writeTimer) {
+      clearTimeout(sharedMapState.writeTimer);
+      sharedMapState.writeTimer = null;
+    }
+  }
 
-    pollIntervalMs = Number.isInteger(parsed.pollIntervalMs) && parsed.pollIntervalMs >= 0
-      ? parsed.pollIntervalMs
-      : DEFAULT_POLL_INTERVAL_MS;
-    selectRefreshInterval.value = String(pollIntervalMs);
-    if (parsed.geocoder && typeof parsed.geocoder.url === 'string') {
-      isOverridden = parsed.geocoder.useLocalFile !== true;
-      geocoderInput.value = isOverridden ? parsed.geocoder.url : '';
-      savedGeocoderUrl = geocoderInput.value;
-      savedGeocoderOverridden = isOverridden;
-    } else {
-      isOverridden = false;
-      geocoderInput.value = '';
-      savedGeocoderUrl = '';
-      savedGeocoderOverridden = false;
+  async function refreshSharedMapMetadata() {
+    if (!sharedMapState.fileId) return null;
+    const metadata = await driveFetchMetadata(sharedMapState.fileId);
+    sharedMapState.fileName = metadata.name || sharedMapState.fileId;
+    sharedMapState.canEdit = metadata.capabilities && metadata.capabilities.canEdit === true;
+    sharedMapState.lastVersion = metadata.version || null;
+    sharedMapState.lastModifiedTime = metadata.modifiedTime || null;
+    setReadOnlyMode(forcedViewerMode || !sharedMapState.canEdit,
+      forcedViewerMode
+        ? 'Viewer URL active: editing is disabled.'
+        : sharedMapState.canEdit
+          ? ''
+          : 'Shared map is view-only for this account.');
+    updateSharedMapStatusLabel();
+    return metadata;
+  }
+
+  async function pullSharedMapFromDrive(options = {}) {
+    if (!sharedMapState.fileId) return;
+    const previousVersion = sharedMapState.lastVersion;
+    const metadata = await refreshSharedMapMetadata();
+    if (!metadata) return;
+    const hasChanged = options.force === true ||
+      !previousVersion ||
+      String(metadata.version || '') !== String(previousVersion || '');
+    if (!hasChanged) return;
+    const payload = await driveFetchJson(sharedMapState.fileId);
+    await applyMapSnapshot(payload, { remote: true, skipSharedWrite: true, silent: options.silent === true });
+    sharedMapState.lastVersion = metadata.version || sharedMapState.lastVersion;
+    sharedMapState.lastModifiedTime = metadata.modifiedTime || sharedMapState.lastModifiedTime;
+    updateSharedMapStatusLabel();
+  }
+
+  async function flushSharedMapWrite() {
+    if (!sharedMapState.fileId || !sharedMapState.canEdit || mapIsReadOnly) return;
+    if (!sharedMapState.dirty || sharedMapState.writeInFlight || remoteApplyInProgress) return;
+    sharedMapState.writeInFlight = true;
+    try {
+      const remoteMeta = await driveFetchMetadata(sharedMapState.fileId);
+      const remoteVersion = remoteMeta.version || null;
+      if (sharedMapState.lastVersion && remoteVersion && String(remoteVersion) !== String(sharedMapState.lastVersion)) {
+        const shouldReload = window.confirm(
+          'This shared map changed in Google Drive since your last sync. Reload the newer version now?'
+        );
+        if (shouldReload) {
+          await pullSharedMapFromDrive({ force: true });
+        } else {
+          setStatus('Shared map write canceled due to version conflict.');
+        }
+        sharedMapState.dirty = false;
+        return;
+      }
+      const updated = await driveUpdateJsonFile(sharedMapState.fileId, mapSnapshot());
+      sharedMapState.fileName = updated.name || sharedMapState.fileName;
+      sharedMapState.lastVersion = updated.version || sharedMapState.lastVersion;
+      sharedMapState.lastModifiedTime = updated.modifiedTime || sharedMapState.lastModifiedTime;
+      sharedMapState.dirty = false;
+      updateSharedMapStatusLabel();
+    } catch (err) {
+      console.error('Shared map save failed:', err);
+      setStatus(`Could not save shared map: ${err.message}`);
+    } finally {
+      sharedMapState.writeInFlight = false;
     }
-    renderDisasterModePicker();
-    pendingDisasterRuntime = cloneJson(getSelectedDisasterMode() ? getSelectedDisasterMode().preset : {});
-    geocoderIndex = null;
-    hasLoadedMap = false;
-    renderSheetsModal();
-    await checkLocalAddresses();
-    await handleSubmit();
-    if (!errorMsgEl.textContent) {
-      setStatus('Map file loaded. Live refresh will continue when sheet access is available.');
+  }
+
+  function queueSharedMapWrite(reason) {
+    if (!sharedMapState.fileId || !sharedMapState.canEdit || mapIsReadOnly || remoteApplyInProgress) return;
+    sharedMapState.dirty = true;
+    sharedMapState.pendingReason = reason || '';
+    if (sharedMapState.writeTimer) clearTimeout(sharedMapState.writeTimer);
+    sharedMapState.writeTimer = setTimeout(flushSharedMapWrite, 1200);
+  }
+
+  function syncSharedMapAfterLocalChange(reason) {
+    queueSharedMapWrite(reason);
+  }
+
+  function persistSharedMapLinkInUrl() {
+    if (!sharedMapState.fileId) return;
+    window.history.replaceState({}, '', buildSharedMapUrl(sharedMapState.fileId, forcedViewerMode));
+  }
+
+  function startSharedMapPolling() {
+    if (!sharedMapState.fileId) return;
+    if (sharedMapState.syncTimer) clearInterval(sharedMapState.syncTimer);
+    sharedMapState.syncTimer = setInterval(async function () {
+      try {
+        const meta = await driveFetchMetadata(sharedMapState.fileId);
+        const remoteVersion = meta.version || null;
+        const hasChanged = sharedMapState.lastVersion && remoteVersion &&
+          String(remoteVersion) !== String(sharedMapState.lastVersion);
+        if (hasChanged && !sharedMapState.writeInFlight) {
+          sharedMapState.fileName = meta.name || sharedMapState.fileName;
+          const payload = await driveFetchJson(sharedMapState.fileId);
+          await applyMapSnapshot(payload, { remote: true, skipSharedWrite: true, silent: true });
+          sharedMapState.lastVersion = remoteVersion;
+          sharedMapState.lastModifiedTime = meta.modifiedTime || sharedMapState.lastModifiedTime;
+          updateSharedMapStatusLabel();
+          setStatus('Shared map changes loaded from Google Drive.');
+        }
+      } catch (err) {
+        if (err && err.code !== 'shared-map-auth') {
+          console.warn('Shared map poll failed:', err);
+        }
+      }
+    }, SHARED_MAP_POLL_INTERVAL_MS);
+  }
+
+  async function connectSharedMapFile(fileId, options = {}) {
+    sharedMapState.fileId = fileId;
+    await refreshSharedMapMetadata();
+    persistSharedMapLinkInUrl();
+    if (options.loadNow) {
+      const payload = await driveFetchJson(sharedMapState.fileId);
+      await applyMapSnapshot(payload, { remote: true, skipSharedWrite: true, silent: true });
     }
+    startSharedMapPolling();
+    updateSharedMapStatusLabel();
   }
   /* eslint-enable no-use-before-define */
 
@@ -2562,7 +3104,7 @@ const ALL_FA_ICONS = [
         return `
           <div class="legend-item legend-third-party" title="${escHtml(name)}">
             <label class="legend-checkbox-label" for="${id}">
-              <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(config.layer) ? 'checked' : ''} />
+              <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(config.layer) ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
               <span class="legend-icon" style="background-color: ${config.color};"><i class="${config.icon}"></i></span>
               <span class="legend-sheet-name">${escHtml(name)}</span>
             </label>
@@ -2578,7 +3120,7 @@ const ALL_FA_ICONS = [
       <div class="legend-status-section" style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #ddd;">
         <div class="legend-item">
           <label class="legend-checkbox-label" for="toggle-closed-incidents" title="Show or hide closed incidents">
-            <input type="checkbox" id="toggle-closed-incidents" ${showClosedIncidents ? 'checked' : ''} />
+            <input type="checkbox" id="toggle-closed-incidents" ${showClosedIncidents ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
             <span class="legend-icon legend-icon-closed"><i class="fa-solid fa-ban"></i></span>
             <span>Closed</span>
           </label>
@@ -3396,6 +3938,10 @@ const ALL_FA_ICONS = [
   }
 
   function clearCustomFeatures() {
+    if (mapIsReadOnly) {
+      setStatus('Custom feature edits are disabled in view-only mode.');
+      return;
+    }
     Object.values(customFeatureLayers).forEach(layer => map.removeLayer(layer));
     customFeatureLayers = {};
     customFeatures = [];
@@ -3417,6 +3963,9 @@ const ALL_FA_ICONS = [
   }
 
   document.addEventListener('change', function (e) {
+    if (mapIsReadOnly && (e.target?.id === 'toggle-closed-incidents' || e.target?.dataset?.thirdPartyLayer)) {
+      return;
+    }
     if (e.target && e.target.id === 'toggle-closed-incidents') {
       showClosedIncidents = e.target.checked;
       persistAppState();
@@ -3574,6 +4123,7 @@ const ALL_FA_ICONS = [
         `Refreshed "${sheet.name}" at ${now} — ${stats.count} incident(s): ` +
         `${stats.open} open, ${stats.closed} closed${unmatchedNote}`
       );
+      syncSharedMapAfterLocalChange('sheet-refresh');
     } catch (err) {
       setStatus(`Error refreshing "${sheet.name}": ${err.message}`);
       console.error(`Error refreshing "${sheet.name}":`, err);
@@ -3627,6 +4177,7 @@ const ALL_FA_ICONS = [
           `${totalOpen} open, ${totalClosed} closed${unmatchedNote}`
         );
       }
+      syncSharedMapAfterLocalChange('sheet-refresh');
     } catch (err) {
       setStatus(`Error: ${err.message}`);
       console.error('Fetch error:', err);
@@ -3643,7 +4194,7 @@ const ALL_FA_ICONS = [
   }
 
   function updatePollInterval(ms) {
-    pollIntervalMs = ms;
+    pollIntervalMs = normalizePollIntervalMs(ms);
     if (pollTimer !== null) {
       clearInterval(pollTimer);
       pollTimer = null;
@@ -3765,10 +4316,11 @@ const ALL_FA_ICONS = [
     };
   }
 
-  function buildColorPicker(container, currentColor, onSelect) {
+  function buildColorPicker(container, currentColor, onSelect, options = {}) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.className = 'color-picker-control';
+    const disabled = options.disabled === true;
 
     let activeColor = normalizeHexColor(currentColor) || '#E74C3C';
 
@@ -3786,6 +4338,7 @@ const ALL_FA_ICONS = [
     customInput.value = activeColor.toLowerCase();
     customInput.title = 'Choose custom color';
     customInput.setAttribute('aria-label', 'Custom color picker');
+    customInput.disabled = disabled;
 
     const iconOverlay = document.createElement('i');
     iconOverlay.className = 'fa-solid fa-eye-dropper color-picker-icon-overlay';
@@ -3802,6 +4355,7 @@ const ALL_FA_ICONS = [
     hexInput.spellcheck = false;
     hexInput.setAttribute('aria-label', 'Hex color code');
     hexInput.title = 'Enter hex color code (e.g. #3498DB)';
+    hexInput.disabled = disabled;
 
     customRow.appendChild(pickerBtn);
     customRow.appendChild(hexInput);
@@ -3840,64 +4394,72 @@ const ALL_FA_ICONS = [
       swatch.setAttribute('role', 'radio');
       swatch.setAttribute('aria-label', color);
       swatch.setAttribute('aria-checked', color.toLowerCase() === activeColor.toLowerCase() ? 'true' : 'false');
+      swatch.disabled = disabled;
 
-      swatch.addEventListener('click', function () {
-        const norm = normalizeHexColor(color) || color;
-        updateActiveState(norm);
-        onSelect(norm);
-      });
+      if (!disabled) {
+        swatch.addEventListener('click', function () {
+          const norm = normalizeHexColor(color) || color;
+          updateActiveState(norm);
+          onSelect(norm);
+        });
+      }
 
       presetsContainer.appendChild(swatch);
       swatchButtons.push({ btn: swatch, color });
     });
 
-    customInput.addEventListener('input', function (e) {
-      const norm = normalizeHexColor(e.target.value) || e.target.value;
-      updateActiveState(norm);
-      onSelect(norm);
-    });
-
-    hexInput.addEventListener('input', function () {
-      const norm = normalizeHexColor(hexInput.value);
-      if (norm) {
-        hexInput.classList.remove('invalid');
-        activeColor = norm;
-        pickerBtn.style.backgroundColor = norm;
-        customInput.value = norm.toLowerCase();
-        swatchButtons.forEach(({ btn, color }) => {
-          if (color.toLowerCase() === norm.toLowerCase()) {
-            btn.classList.add('active');
-            btn.setAttribute('aria-checked', 'true');
-          } else {
-            btn.classList.remove('active');
-            btn.setAttribute('aria-checked', 'false');
-          }
-        });
-        onSelect(norm);
-      } else {
-        hexInput.classList.add('invalid');
-      }
-    });
-
-    hexInput.addEventListener('blur', function () {
-      const norm = normalizeHexColor(hexInput.value);
-      if (norm) {
+    if (!disabled) {
+      customInput.addEventListener('input', function (e) {
+        const norm = normalizeHexColor(e.target.value) || e.target.value;
         updateActiveState(norm);
         onSelect(norm);
-      } else {
-        updateActiveState(activeColor);
-      }
-    });
+      });
+
+      hexInput.addEventListener('input', function () {
+        const norm = normalizeHexColor(hexInput.value);
+        if (norm) {
+          hexInput.classList.remove('invalid');
+          activeColor = norm;
+          pickerBtn.style.backgroundColor = norm;
+          customInput.value = norm.toLowerCase();
+          swatchButtons.forEach(({ btn, color }) => {
+            if (color.toLowerCase() === norm.toLowerCase()) {
+              btn.classList.add('active');
+              btn.setAttribute('aria-checked', 'true');
+            } else {
+              btn.classList.remove('active');
+              btn.setAttribute('aria-checked', 'false');
+            }
+          });
+          onSelect(norm);
+        } else {
+          hexInput.classList.add('invalid');
+        }
+      });
+
+      hexInput.addEventListener('blur', function () {
+        const norm = normalizeHexColor(hexInput.value);
+        if (norm) {
+          updateActiveState(norm);
+          onSelect(norm);
+        } else {
+          updateActiveState(activeColor);
+        }
+      });
+    }
 
     wrapper.appendChild(customRow);
     wrapper.appendChild(presetsContainer);
     container.appendChild(wrapper);
   }
 
-  function buildIconPicker(container, currentIcon, onSelect, sheetColor) {
+  function buildIconPicker(container, currentIcon, onSelect, sheetColor, options = {}) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.className = 'sheet-icon-picker';
+    const disabled = options.disabled === true;
+    wrapper.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    if (disabled) wrapper.style.opacity = '0.6';
 
     const isPreset = ICON_OPTIONS.some(opt => opt.fa === currentIcon.fa);
     const optionsToShow = [...ICON_OPTIONS];
@@ -3910,11 +4472,13 @@ const ALL_FA_ICONS = [
       btn.className = 'icon-option' + (opt.fa === currentIcon.fa ? ' active' : '');
       btn.title = opt.label || formatIconLabel(opt.fa);
       btn.innerHTML = `<i class="${opt.fa}"></i>`;
-      btn.addEventListener('click', function () {
-        wrapper.querySelectorAll('.icon-option').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        onSelect(opt);
-      });
+      if (!disabled) {
+        btn.addEventListener('click', function () {
+          wrapper.querySelectorAll('.icon-option').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          onSelect(opt);
+        });
+      }
       wrapper.appendChild(btn);
     });
 
@@ -3922,11 +4486,13 @@ const ALL_FA_ICONS = [
     browseBtn.className = 'icon-option btn-browse-fa';
     browseBtn.title = 'Browse all FontAwesome icons…';
     browseBtn.innerHTML = '<i class="fa-solid fa-icons"></i>';
-    browseBtn.addEventListener('click', function () {
-      openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
-        onSelect(newIcon);
+    if (!disabled) {
+      browseBtn.addEventListener('click', function () {
+        openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
+          onSelect(newIcon);
+        });
       });
-    });
+    }
     wrapper.appendChild(browseBtn);
 
     container.appendChild(wrapper);
@@ -3938,11 +4504,14 @@ const ALL_FA_ICONS = [
     linkBtn.className = 'btn-link';
     linkBtn.style.fontSize = '0.78rem';
     linkBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Browse all FontAwesome icons…';
-    linkBtn.addEventListener('click', function () {
-      openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
-        onSelect(newIcon);
+    linkBtn.disabled = disabled;
+    if (!disabled) {
+      linkBtn.addEventListener('click', function () {
+        openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
+          onSelect(newIcon);
+        });
       });
-    });
+    }
     linkWrap.appendChild(linkBtn);
     container.appendChild(linkWrap);
   }
@@ -3974,9 +4543,10 @@ const ALL_FA_ICONS = [
     });
   }
 
-  function renderCategoryStyles(container, sheet, onChange) {
+  function renderCategoryStyles(container, sheet, onChange, options = {}) {
     if (!container) return;
     container.innerHTML = '';
+    const disabled = options.disabled === true;
     if (!sheet.columnMapping || sheet.columnMapping.category === null ||
         sheet.columnMapping.category === undefined || sheet.categoryOptions.length === 0) {
       const empty = document.createElement('div');
@@ -4006,14 +4576,14 @@ const ALL_FA_ICONS = [
       function updateCategoryIcon(newIcon) {
         option.icon = newIcon;
         if (typeof onChange === 'function') onChange();
-        buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color);
+        buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color, { disabled });
       }
-      buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color);
+      buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color, { disabled });
       buildColorPicker(colorWrap, option.color, function (newColor) {
         option.color = newColor;
         if (typeof onChange === 'function') onChange();
-        buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color);
-      });
+        buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color, { disabled });
+      }, { disabled });
 
       item.appendChild(valueEl);
       item.appendChild(iconWrap);
@@ -4203,7 +4773,7 @@ const ALL_FA_ICONS = [
     const categoryColumn = sheet.columnMapping && sheet.columnMapping.category;
     if (categoryColumn === null || categoryColumn === undefined || categoryColumn < 0) {
       sheet.categoryOptions = [];
-      renderCategoryStyles(stylesEl, sheet);
+      renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
       if (statusEl) statusEl.textContent = '';
       return;
     }
@@ -4237,7 +4807,7 @@ const ALL_FA_ICONS = [
     }
 
     updateCategoryOptions(sheet, values);
-    renderCategoryStyles(stylesEl, sheet);
+    renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
     if (statusEl) {
       statusEl.textContent = values.length > 0
         ? `${values.length} option${values.length === 1 ? '' : 's'} found`
@@ -4335,6 +4905,12 @@ const ALL_FA_ICONS = [
     const iconContainer  = card.querySelector('.sheet-icon-picker-container');
     const colorContainer = card.querySelector('.sheet-color-picker-container');
 
+    if (mapIsReadOnly) {
+      [nameInput, urlInput, refreshBtn, removeBtn, addrSelect, statusSelect, labelSelect, categorySelect].forEach(el => {
+        if (el) el.disabled = true;
+      });
+    }
+
     if (refreshBtn) {
       refreshBtn.addEventListener('click', async function () {
         refreshBtn.disabled = true;
@@ -4384,7 +4960,7 @@ const ALL_FA_ICONS = [
     populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
     populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
     populateSelect(categorySelect, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
-    renderCategoryStyles(card.querySelector('.category-style-container'), sheet);
+    renderCategoryStyles(card.querySelector('.category-style-container'), sheet, null, { disabled: mapIsReadOnly });
 
     if (sheet.rawUrl && (!sheet.headers || sheet.headers.length === 0)) {
       tryDetectHeadersForSheet(sheet, card);
@@ -4416,16 +4992,16 @@ const ALL_FA_ICONS = [
     function handleIconSelect(newIcon) {
       sheet.icon = newIcon;
       updateBadgePreview();
-      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
+      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color, { disabled: mapIsReadOnly });
     }
 
-    buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
+    buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color, { disabled: mapIsReadOnly });
 
     buildColorPicker(colorContainer, sheet.color, function (newColor) {
       sheet.color = newColor;
       updateBadgePreview();
-      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
-    });
+      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color, { disabled: mapIsReadOnly });
+    }, { disabled: mapIsReadOnly });
 
     if (sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
       inspectCategoryOptions(sheet, card, sheet.lastRows || sheet.importedRows);
@@ -4449,9 +5025,11 @@ const ALL_FA_ICONS = [
         btn.classList.remove('hidden');
       }
     });
+    updateReadOnlyUI();
   }
 
   btnAddSheet.addEventListener('click', function () {
+    if (mapIsReadOnly) return;
     const newSheet = createSheet();
     sheets.push(newSheet);
     renderSheetsModal();
@@ -4474,6 +5052,7 @@ const ALL_FA_ICONS = [
   }
 
   btnOverrideGeocoder.addEventListener('click', function () {
+    if (mapIsReadOnly) return;
     isOverridden = true;
     savedGeocoderOverridden = true;
     savedGeocoderUrl = geocoderInput.value.trim();
@@ -4482,6 +5061,7 @@ const ALL_FA_ICONS = [
   });
 
   btnUseLocalGeocoder.addEventListener('click', function () {
+    if (mapIsReadOnly) return;
     isOverridden = false;
     savedGeocoderOverridden = false;
     savedGeocoderUrl = '';
@@ -4492,7 +5072,12 @@ const ALL_FA_ICONS = [
   function showError(msg) { errorMsgEl.textContent = msg; }
   function clearError()   { errorMsgEl.textContent = ''; }
 
-  async function handleSubmit() {
+  async function handleSubmit(options = {}) {
+    const allowReadOnly = options.allowReadOnly === true;
+    if (mapIsReadOnly && !allowReadOnly) {
+      showError('This map is read-only for your account.');
+      return;
+    }
     clearError();
     submitBtn.disabled = true;
     submitBtn.textContent = 'Loading…';
@@ -4568,6 +5153,7 @@ const ALL_FA_ICONS = [
       pendingDisasterRuntime: cloneJson(pendingDisasterRuntime)
     };
     persistAppState();
+    if (!options.skipSharedWrite) syncSharedMapAfterLocalChange('submit');
     submitBtn.textContent = 'Save & Load Map';
     sheetCancelBtn.classList.remove('hidden');
     if (sheetCloseBtn) sheetCloseBtn.classList.remove('hidden');
@@ -4680,6 +5266,18 @@ const ALL_FA_ICONS = [
   let editingCustomFeatureId = null;
   let newCustomFeatureId = null;
 
+  function updateCustomFeatureEditorReadOnlyState() {
+    const labelInput = document.getElementById('custom-feature-label');
+    const descriptionInput = document.getElementById('custom-feature-description');
+    [customFeatureType, labelInput, descriptionInput, customFeatureColor, customFeatureClosed, customFeatureSaveBtn]
+      .forEach(function (el) {
+        if (el) el.disabled = mapIsReadOnly;
+      });
+    buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
+      customFeatureIcon = newIcon;
+    }, customFeatureColor.value, { disabled: mapIsReadOnly });
+  }
+
   function renderCustomFeatureList() {
     if (!customFeatureList) return;
     customFeatureList.innerHTML = '';
@@ -4697,7 +5295,13 @@ const ALL_FA_ICONS = [
         <span class="custom-feature-name"><strong>${escHtml(feature.label || 'Custom feature')}</strong> (${escHtml(feature.type)})</span>
         <button type="button" class="btn-remove-sheet" title="Delete feature"><i class="fa-solid fa-trash"></i> Delete</button>
       `;
-      item.querySelector('button').addEventListener('click', function () {
+      const deleteBtn = item.querySelector('button');
+      deleteBtn.disabled = mapIsReadOnly;
+      deleteBtn.addEventListener('click', function () {
+        if (mapIsReadOnly) {
+          setStatus('Custom feature edits are disabled in view-only mode.');
+          return;
+        }
         const layer = customFeatureLayers[feature.id];
         if (layer) map.removeLayer(layer);
         delete customFeatureLayers[feature.id];
@@ -4721,9 +5325,7 @@ const ALL_FA_ICONS = [
     customFeatureClosed.checked = false;
     customFeatureClosedLabel.classList.add('hidden');
     customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
-    buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
-      customFeatureIcon = newIcon;
-    }, '#2c7bb6');
+    updateCustomFeatureEditorReadOnlyState();
   }
 
   function discardNewCustomFeature() {
@@ -4735,6 +5337,10 @@ const ALL_FA_ICONS = [
   }
 
   function openCustomFeatureEditor(featureId, draftLayer) {
+    if (mapIsReadOnly) {
+      setStatus('Custom feature editing is disabled in view-only mode.');
+      return;
+    }
     if (newCustomFeatureId && newCustomFeatureId !== featureId) discardNewCustomFeature();
     const feature = customFeatures.find(candidate => candidate.id === featureId);
     editingCustomFeatureId = featureId;
@@ -4759,9 +5365,7 @@ const ALL_FA_ICONS = [
       customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
       draftLayer.remove();
     }
-    buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
-      customFeatureIcon = newIcon;
-    }, customFeatureColor.value);
+    updateCustomFeatureEditorReadOnlyState();
     customFeatureEditor.classList.remove('hidden');
     document.getElementById('custom-feature-label').focus();
   }
@@ -4778,10 +5382,12 @@ const ALL_FA_ICONS = [
     customFeatureModal.classList.add('hidden');
   }
 
-  buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
-    customFeatureIcon = newIcon;
-  }, customFeatureColor.value);
+  updateCustomFeatureEditorReadOnlyState();
   customFeatureSaveBtn.addEventListener('click', function () {
+    if (mapIsReadOnly) {
+      setStatus('Custom feature edits are disabled in view-only mode.');
+      return;
+    }
     const label = document.getElementById('custom-feature-label').value.trim();
     if (!label) {
       customFeatureError.textContent = 'Please enter a label for this feature.';
@@ -4811,7 +5417,7 @@ const ALL_FA_ICONS = [
     if (e.target === customFeatureModal) closeCustomFeatureModal();
   });
 
-  const customFeatureDrawControl = new L.Control.Draw({
+  customFeatureDrawControl = new L.Control.Draw({
     position: 'topright',
     draw: {
       marker: true,
@@ -4824,7 +5430,12 @@ const ALL_FA_ICONS = [
     edit: false
   });
   map.addControl(customFeatureDrawControl);
+  customFeatureDrawControlAttached = true;
   map.on(L.Draw.Event.CREATED, function (event) {
+    if (mapIsReadOnly) {
+      setStatus('Drawing is disabled in view-only mode.');
+      return;
+    }
     const layer = event.layer;
     const type = event.layerType === 'marker' ? 'point' :
       event.layerType === 'polygon' ? 'polygon' : 'line';
@@ -5185,6 +5796,75 @@ const ALL_FA_ICONS = [
     });
   }
 
+  const btnCreateSharedMap = document.getElementById('btn-create-shared-map');
+  if (btnCreateSharedMap) {
+    btnCreateSharedMap.addEventListener('click', async function () {
+      try {
+        await ensureGoogleAuth();
+        const defaultName = `PMC CERT Shared Map ${new Date().toISOString().slice(0, 10)}.json`;
+        const nameInput = window.prompt('Google Drive file name for this shared map:', defaultName);
+        if (nameInput === null) return;
+        const filename = nameInput.trim() || defaultName;
+        const created = await driveCreateJsonFile(filename, mapSnapshot());
+        await connectSharedMapFile(created.id, { loadNow: false });
+        setStatus('Shared map created in Google Drive. Copy and share the viewer URL.');
+      } catch (err) {
+        console.error('Could not create shared map:', err);
+        setStatus(`Could not create shared map: ${err.message}`);
+      }
+    });
+  }
+
+  const btnOpenSharedMap = document.getElementById('btn-open-shared-map');
+  if (btnOpenSharedMap) {
+    btnOpenSharedMap.addEventListener('click', async function () {
+      const input = window.prompt('Enter a Google Drive file ID or sharing URL:');
+      if (input === null) return;
+      const fileId = extractDriveFileId(input);
+      if (!fileId) {
+        setStatus('Could not parse a Google Drive file ID.');
+        return;
+      }
+      try {
+        await ensureGoogleAuth();
+        await connectSharedMapFile(fileId, { loadNow: true });
+        setStatus('Shared map loaded from Google Drive.');
+      } catch (err) {
+        console.error('Could not open shared map:', err);
+        setStatus(`Could not open shared map: ${err.message}`);
+      }
+    });
+  }
+
+  const btnCopyViewerUrl = document.getElementById('btn-copy-viewer-url');
+  if (btnCopyViewerUrl) {
+    btnCopyViewerUrl.addEventListener('click', function () {
+      if (!sharedMapState.fileId) {
+        setStatus('Create or open a shared map first.');
+        return;
+      }
+      const viewerUrl = buildSharedMapUrl(sharedMapState.fileId, true);
+      copyTextToClipboard(viewerUrl)
+        .then(function () {
+          setStatus('Viewer URL copied to clipboard.');
+        })
+        .catch(function () {
+          setStatus('Could not copy viewer URL.');
+        });
+    });
+  }
+
+  const btnOpenEditorUrl = document.getElementById('btn-open-editor-url');
+  if (btnOpenEditorUrl) {
+    btnOpenEditorUrl.addEventListener('click', function () {
+      if (!sharedMapState.fileId) {
+        setStatus('Create or open a shared map first.');
+        return;
+      }
+      window.open(buildSharedMapUrl(sharedMapState.fileId, false), '_blank', 'noopener');
+    });
+  }
+
   const selectRefreshInterval = document.getElementById('select-refresh-interval');
   if (selectRefreshInterval) {
     selectRefreshInterval.addEventListener('change', function () {
@@ -5195,14 +5875,26 @@ const ALL_FA_ICONS = [
   }
 
   const btnOAuthAuth = document.getElementById('btn-oauth-auth');
+  async function handleGoogleSignInSuccess() {
+    try {
+      if (sharedMapState.fileId) {
+        await connectSharedMapFile(sharedMapState.fileId, { loadNow: true });
+        setStatus('Shared map loaded from Google Drive.');
+      } else if (hasLoadedMap) {
+        await fetchAndPlot();
+      }
+    } catch (err) {
+      console.error('Could not resume Google-backed data after sign-in:', err);
+      setStatus(`Could not load shared map: ${err.message}`);
+    }
+  }
+
   if (btnOAuthAuth) {
     btnOAuthAuth.addEventListener('click', function () {
       if (isGoogleAuthenticated()) {
         signOutGoogle();
       } else {
-        requestGoogleSignIn(function () {
-          if (hasLoadedMap) fetchAndPlot();
-        });
+        requestGoogleSignIn(handleGoogleSignInSuccess);
       }
     });
   }
@@ -5213,14 +5905,14 @@ const ALL_FA_ICONS = [
       if (isGoogleAuthenticated()) {
         signOutGoogle();
       } else {
-        requestGoogleSignIn(function () {
-          if (hasLoadedMap) fetchAndPlot();
-        });
+        requestGoogleSignIn(handleGoogleSignInSuccess);
       }
     });
   }
 
   clearLegacyOAuthStorage();
+  updateSharedMapStatusLabel();
+  updateReadOnlyUI();
   savedThirdPartyLayerNames.forEach(function (layerName) {
     const layerConfig = thirdPartyLayers[layerName];
     if (!layerConfig) return;
@@ -5229,6 +5921,23 @@ const ALL_FA_ICONS = [
     loadThirdPartyLayer(layerName);
   });
   updateLegend();
+  if (sharedMapState.fileId) {
+    ensureGoogleAuth()
+      .then(function () {
+        return connectSharedMapFile(sharedMapState.fileId, { loadNow: true });
+      })
+      .then(function () {
+        setStatus('Shared map loaded from Google Drive.');
+      })
+      .catch(function (err) {
+        console.warn('Could not auto-load shared map:', err);
+        setStatus(err && err.code === 'shared-map-auth'
+          ? err.message
+          : isGoogleAuthenticated()
+          ? `Could not load shared map: ${err.message}`
+          : 'Sign in with Google to load this shared map URL.');
+      });
+  }
 
   document.getElementById('btn-clear-features').addEventListener('click', clearCustomFeatures);
 
