@@ -33,8 +33,9 @@ publicly accessible Google Sheet.
 * **Private Google Sheet access** — sign in with Google from the setup dialog or
   toolbar to read sheets that are not publicly shared.
 * **Google Drive shared map state** — create or open a shared map JSON file in
-  Google Drive and load it by URL (`?mapFileId=...`). Drive permissions control
-  who can edit vs. view.
+  Google Drive and load it by URL (`?mapFileId=...`). Shared-map URLs skip the
+  startup sheet dialog while loading, and Drive permissions still control who
+  can edit vs. view afterward.
 * **Viewer, editor, and Drive URLs** — copy a read-only viewer link, open an
   editor link, open the backing Google Drive file, or copy its Drive URL from
   the toolbar. Viewers can watch layer, feature, and map-state changes.
@@ -148,6 +149,8 @@ setup dialog or via the toolbar:
       editor/viewer access (including for existing shared map files opened with
       **Open Shared Map**).
     * Click **Copy Viewer URL** and send that URL to viewers.
+    * Opening a shared-map URL skips the startup Google Sheets dialog while the
+      map loads.
     * Click **Open in Drive** to open the shared file in Google Drive, or
       **Copy Drive URL** to share the Drive link directly.
     * Use **Open Editor URL** when opening the map in edit mode.
