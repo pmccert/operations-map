@@ -840,12 +840,10 @@
       bottom: 24px;
       right: 10px;
       z-index: 1100;
-      background: rgba(192, 57, 43, 0.95);
       color: #fff;
       backdrop-filter: blur(2px);
       padding: 6px 12px;
       border-radius: 4px;
-      border: 1px solid #962d22;
       font-size: 0.78rem;
       font-weight: 500;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
@@ -855,6 +853,16 @@
       max-width: min(340px, 90vw);
       user-select: none;
       pointer-events: auto;
+    }
+
+    #zoom-alert.zoom-alert-error {
+      background: rgba(192, 57, 43, 0.95);
+      border: 1px solid #962d22;
+    }
+
+    #zoom-alert.zoom-alert-success {
+      background: rgba(39, 174, 96, 0.95);
+      border: 1px solid #1d874b;
     }
 
     /* ── Toolbar ─────────────────────────────────────────────── */
@@ -1428,7 +1436,7 @@
 </div>
 
 <!-- Zoom availability alert (lower right) -->
-<div id="zoom-alert" class="hidden" role="alert" aria-live="polite">
+<div id="zoom-alert" class="hidden zoom-alert-error" role="alert" aria-live="polite">
   <i class="fa-solid fa-triangle-exclamation"></i>
   <span id="zoom-alert-text">The requested zoom level is not available for this base map.</span>
 </div>
@@ -2185,6 +2193,50 @@ const ALL_FA_ICONS = [
   const zoomAlert = document.getElementById('zoom-alert');
   const zoomAlertText = document.getElementById('zoom-alert-text');
   let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
+  let sharedMapAlertTimer = null;
+  let sharedMapState = null;
+
+  function getCurrentBaseLayerName() {
+    return Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap';
+  }
+
+  function formatAlertTimestamp(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+  }
+
+  function formatCountdown(ms) {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    return `${totalSeconds}s`;
+  }
+
+  function updateSharedMapAlertTimer() {
+    if (!sharedMapState) return;
+    if (sharedMapAlertTimer) {
+      clearInterval(sharedMapAlertTimer);
+      sharedMapAlertTimer = null;
+    }
+    if (!sharedMapState.nextRefreshAt) return;
+    sharedMapAlertTimer = setInterval(function () {
+      updateMapAlerts();
+    }, 1000);
+  }
+
+  function buildSharedMapAlertMessage() {
+    if (!sharedMapState) return '';
+    if (!sharedMapState.lastLoadedAt && !sharedMapState.baseLayerNotice) return '';
+    const alertParts = [];
+    if (sharedMapState.lastLoadedAt) {
+      alertParts.push(`Shared map loaded from Google Drive at ${formatAlertTimestamp(sharedMapState.lastLoadedAt)}.`);
+    }
+    if (sharedMapState.nextRefreshAt) {
+      alertParts.push(`Next refresh in ${formatCountdown(sharedMapState.nextRefreshAt - Date.now())}.`);
+    }
+    if (sharedMapState.baseLayerNotice) {
+      alertParts.push(sharedMapState.baseLayerNotice);
+    }
+    return alertParts.join(' ');
+  }
 
   function isMoreThanOneDegreeFromPmc(lat, lon) {
     const toRadians = degrees => degrees * Math.PI / 180;
@@ -2221,9 +2273,23 @@ const ALL_FA_ICONS = [
         `${outOfRangeCount} plotted ${pointLabel} more than 1° from Pine Mountain Club.`
       );
     }
+    const sharedMapAlertMessage = buildSharedMapAlertMessage();
+    if (sharedMapAlertMessage) {
+      alertMessages.push(sharedMapAlertMessage);
+    }
 
     if (alertMessages.length > 0) {
       if (zoomAlertText) zoomAlertText.textContent = alertMessages.join(' ');
+      zoomAlert.classList.toggle('zoom-alert-success', !(
+        currentZoom > maxZoom ||
+        currentZoom < minZoom ||
+        outOfRangeCount > 0
+      ));
+      zoomAlert.classList.toggle('zoom-alert-error', (
+        currentZoom > maxZoom ||
+        currentZoom < minZoom ||
+        outOfRangeCount > 0
+      ));
       zoomAlert.classList.remove('hidden');
     } else {
       zoomAlert.classList.add('hidden');
@@ -2277,12 +2343,16 @@ const ALL_FA_ICONS = [
   let remoteApplyInProgress = false;
   let customFeatureDrawControl = null;
   let customFeatureDrawControlAttached = false;
-  const sharedMapState = {
+  sharedMapState = {
     fileId: initialSharedMapFileId || null,
     fileName: '',
     canEdit: false,
     lastVersion: null,
     lastModifiedTime: null,
+    sourceBaseLayer: null,
+    lastLoadedAt: null,
+    nextRefreshAt: null,
+    baseLayerNotice: '',
     syncTimer: null,
     writeTimer: null,
     writeInFlight: false,
@@ -3195,8 +3265,9 @@ const ALL_FA_ICONS = [
       .filter(Boolean);
   }
 
-  function applySharedLayerState(baseLayerName, enabledLayerNames) {
-    if (typeof baseLayerName === 'string' && baseLayers[baseLayerName] && currentBaseLayer !== baseLayers[baseLayerName]) {
+  function applySharedLayerState(baseLayerName, enabledLayerNames, options = {}) {
+    const shouldApplyBaseLayer = options.applyBaseLayer !== false;
+    if (shouldApplyBaseLayer && typeof baseLayerName === 'string' && baseLayers[baseLayerName] && currentBaseLayer !== baseLayers[baseLayerName]) {
       if (map.hasLayer(currentBaseLayer)) map.removeLayer(currentBaseLayer);
       currentBaseLayer = baseLayers[baseLayerName];
       currentBaseLayer.addTo(map);
@@ -3234,6 +3305,19 @@ const ALL_FA_ICONS = [
         selectedDisasterModeId = disasterModes.defaultModeId;
       }
       const importedRuntimeConfig = {};
+      const importedBaseLayerName = typeof parsed.baseLayer === 'string' && baseLayers[parsed.baseLayer]
+        ? parsed.baseLayer
+        : null;
+      const currentBaseLayerName = getCurrentBaseLayerName();
+      const preserveCustomBaseLayer = options.preserveCustomBaseLayer === true &&
+        sharedMapState.sourceBaseLayer &&
+        currentBaseLayerName !== sharedMapState.sourceBaseLayer;
+      const baseLayerNotice = preserveCustomBaseLayer &&
+        importedBaseLayerName &&
+        sharedMapState.sourceBaseLayer &&
+        importedBaseLayerName !== sharedMapState.sourceBaseLayer
+        ? `Source basemap changed to ${importedBaseLayerName}; keeping your current basemap (${currentBaseLayerName}).`
+        : '';
       if (typeof parsed.baseLayer === 'string') {
         importedRuntimeConfig.baseLayer = parsed.baseLayer;
       }
@@ -3280,13 +3364,19 @@ const ALL_FA_ICONS = [
         showClosedIncidents = parsed.showClosedIncidents;
       }
       if (parsed.version === 2 || typeof parsed.baseLayer === 'string' || Array.isArray(parsed.enabledThirdPartyLayers)) {
-        applySharedLayerState(parsed.baseLayer, parsed.enabledThirdPartyLayers);
+        applySharedLayerState(parsed.baseLayer, parsed.enabledThirdPartyLayers, {
+          applyBaseLayer: !preserveCustomBaseLayer
+        });
       }
-      if (parsed.mapView &&
+      if (!options.preserveMapView && parsed.mapView &&
           Number.isFinite(parsed.mapView.lat) &&
           Number.isFinite(parsed.mapView.lng) &&
           Number.isFinite(parsed.mapView.zoom)) {
         map.setView([parsed.mapView.lat, parsed.mapView.lng], parsed.mapView.zoom);
+      }
+      sharedMapState.sourceBaseLayer = importedBaseLayerName;
+      if (options.remote === true) {
+        sharedMapState.baseLayerNotice = baseLayerNotice;
       }
       geocoderIndex = null;
       hasLoadedMap = false;
@@ -3298,6 +3388,9 @@ const ALL_FA_ICONS = [
           ? 'Shared map updated from Google Drive.'
           : 'Map file loaded. Live refresh will continue when sheet access is available.');
       }
+      return {
+        baseLayerNotice
+      };
     } finally {
       remoteApplyInProgress = false;
     }
@@ -3317,6 +3410,9 @@ const ALL_FA_ICONS = [
       clearTimeout(sharedMapState.writeTimer);
       sharedMapState.writeTimer = null;
     }
+    sharedMapState.nextRefreshAt = null;
+    updateSharedMapAlertTimer();
+    updateMapAlerts();
   }
 
   async function refreshSharedMapMetadata() {
@@ -3346,10 +3442,18 @@ const ALL_FA_ICONS = [
       String(metadata.version || '') !== String(previousVersion || '');
     if (!hasChanged) return;
     const payload = await driveFetchJson(sharedMapState.fileId);
-    await applyMapSnapshot(payload, { remote: true, skipSharedWrite: true, silent: options.silent === true });
+    await applyMapSnapshot(payload, {
+      remote: true,
+      skipSharedWrite: true,
+      silent: options.silent === true,
+      preserveCustomBaseLayer: options.preserveCustomBaseLayer === true,
+      preserveMapView: options.preserveMapView === true
+    });
     sharedMapState.lastVersion = metadata.version || sharedMapState.lastVersion;
     sharedMapState.lastModifiedTime = metadata.modifiedTime || sharedMapState.lastModifiedTime;
+    sharedMapState.lastLoadedAt = new Date().toISOString();
     updateSharedMapStatusLabel();
+    updateMapAlerts();
   }
 
   async function flushSharedMapWrite() {
@@ -3364,7 +3468,7 @@ const ALL_FA_ICONS = [
           'This shared map changed in Google Drive since your last sync. Reload the newer version now?'
         );
         if (shouldReload) {
-          await pullSharedMapFromDrive({ force: true });
+          await pullSharedMapFromDrive({ force: true, preserveCustomBaseLayer: true, preserveMapView: true });
         } else {
           setStatus('Shared map write canceled due to version conflict.');
         }
@@ -3405,7 +3509,12 @@ const ALL_FA_ICONS = [
   function startSharedMapPolling() {
     if (!sharedMapState.fileId) return;
     if (sharedMapState.syncTimer) clearInterval(sharedMapState.syncTimer);
+    sharedMapState.nextRefreshAt = Date.now() + SHARED_MAP_POLL_INTERVAL_MS;
+    updateSharedMapAlertTimer();
+    updateMapAlerts();
     sharedMapState.syncTimer = setInterval(async function () {
+      sharedMapState.nextRefreshAt = Date.now() + SHARED_MAP_POLL_INTERVAL_MS;
+      updateMapAlerts();
       try {
         const meta = await driveFetchMetadata(sharedMapState.fileId);
         const remoteVersion = meta.version || null;
@@ -3414,11 +3523,19 @@ const ALL_FA_ICONS = [
         if (hasChanged && !sharedMapState.writeInFlight) {
           sharedMapState.fileName = meta.name || sharedMapState.fileName;
           const payload = await driveFetchJson(sharedMapState.fileId);
-          await applyMapSnapshot(payload, { remote: true, skipSharedWrite: true, silent: true });
+          await applyMapSnapshot(payload, {
+            remote: true,
+            skipSharedWrite: true,
+            silent: true,
+            preserveCustomBaseLayer: true,
+            preserveMapView: true
+          });
           sharedMapState.lastVersion = remoteVersion;
           sharedMapState.lastModifiedTime = meta.modifiedTime || sharedMapState.lastModifiedTime;
+          sharedMapState.lastLoadedAt = new Date().toISOString();
           updateSharedMapStatusLabel();
           setStatus('Shared map changes loaded from Google Drive.');
+          updateMapAlerts();
         }
       } catch (err) {
         if (err && err.code !== 'shared-map-auth') {
@@ -3435,9 +3552,11 @@ const ALL_FA_ICONS = [
     if (options.loadNow) {
       const payload = await driveFetchJson(sharedMapState.fileId);
       await applyMapSnapshot(payload, { remote: true, skipSharedWrite: true, silent: true });
+      sharedMapState.lastLoadedAt = new Date().toISOString();
     }
     startSharedMapPolling();
     updateSharedMapStatusLabel();
+    updateMapAlerts();
   }
   /* eslint-enable no-use-before-define */
 

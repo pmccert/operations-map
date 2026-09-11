@@ -151,6 +151,10 @@ setup dialog or via the toolbar:
     * Click **Open in Drive** to open the shared file in Google Drive, or
       **Copy Drive URL** to share the Drive link directly.
     * Use **Open Editor URL** when opening the map in edit mode.
+    * When a shared map is loaded, the lower-right alert shows the load time and
+      a countdown to the next Drive refresh. Drive refreshes keep a viewer's
+      custom basemap and current map center, but still apply source updates to
+      layers and geometries.
 15. Open the top-right layers menu and select **Known Fire Incidents** or
     **ADS-B Aircraft** to load those live third-party overlays. Use their
     legend checkboxes to hide an enabled overlay.
