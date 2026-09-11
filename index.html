@@ -1913,18 +1913,21 @@ const ALL_FA_ICONS = [
       closeSharedMapPublicModal(false);
     }
     sharedMapPublicFocusReturnEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const bodyChildren = Array.from(document.body.children || []);
-    sharedMapPublicBackgroundState = bodyChildren
-      .filter(element => element !== sharedMapPublicModal)
-      .map(element => ({
-        element,
-        ariaHidden: element.getAttribute('aria-hidden'),
-        inert: element.inert === true
-      }));
-    sharedMapPublicBackgroundState.forEach(({ element }) => {
-      element.setAttribute('aria-hidden', 'true');
-      element.inert = true;
-    });
+    const otherVisibleModal = document.querySelector('.modal-overlay:not(.hidden):not(#shared-map-public-modal)');
+    if (!otherVisibleModal) {
+      const bodyChildren = Array.from(document.body.children || []);
+      sharedMapPublicBackgroundState = bodyChildren
+        .filter(element => element !== sharedMapPublicModal)
+        .map(element => ({
+          element,
+          ariaHidden: element.getAttribute('aria-hidden'),
+          inert: element.inert === true
+        }));
+      sharedMapPublicBackgroundState.forEach(({ element }) => {
+        element.setAttribute('aria-hidden', 'true');
+        element.inert = true;
+      });
+    }
     sharedMapPublicModal.classList.remove('hidden');
     sharedMapPublicYesBtn.focus();
     return new Promise(resolve => {
@@ -1978,7 +1981,11 @@ const ALL_FA_ICONS = [
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
       const focusable = Array.from(focusableNodes).filter(node =>
-        node instanceof HTMLElement && !node.disabled && node.tabIndex >= 0
+        node instanceof HTMLElement &&
+        !node.disabled &&
+        node.tabIndex >= 0 &&
+        node.getClientRects().length > 0 &&
+        window.getComputedStyle(node).visibility !== 'hidden'
       );
       if (!focusable.length) return;
       const first = focusable[0];
@@ -6023,7 +6030,7 @@ const ALL_FA_ICONS = [
             statusMessage = 'Shared map created and made public in Google Drive. Copy and share URLs from the toolbar.';
           } catch (err) {
             console.error('Could not make shared map public:', err);
-            statusMessage = `Shared map created, but could not make it public: ${err.message}`;
+            statusMessage = 'Shared map created, but public access could not be updated. Open the file in Drive to review sharing settings.';
           }
         }
         setStatus(statusMessage);
