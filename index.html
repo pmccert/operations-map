@@ -2382,6 +2382,7 @@ const ALL_FA_ICONS = [
     nextRefreshAt: null,
     baseLayerNotice: '',
     pollingActive: false,
+    pollInFlight: false,
     syncTimer: null,
     writeTimer: null,
     writeInFlight: false,
@@ -3434,6 +3435,7 @@ const ALL_FA_ICONS = [
 
   function stopSharedMapPolling() {
     sharedMapState.pollingActive = false;
+    sharedMapState.pollInFlight = false;
     if (sharedMapState.syncTimer) {
       clearTimeout(sharedMapState.syncTimer);
       sharedMapState.syncTimer = null;
@@ -3564,6 +3566,9 @@ const ALL_FA_ICONS = [
         updateMapAlerts();
         return;
       }
+      scheduleNextSharedMapPoll();
+      if (sharedMapState.pollInFlight) return;
+      sharedMapState.pollInFlight = true;
       try {
         const meta = await driveFetchMetadata(sharedMapState.fileId);
         const remoteVersion = normalizeDriveVersion(meta.version);
@@ -3594,9 +3599,7 @@ const ALL_FA_ICONS = [
           console.warn('Shared map poll failed:', err);
         }
       } finally {
-        if (sharedMapState.pollingActive && sharedMapState.fileId) {
-          scheduleNextSharedMapPoll();
-        }
+        sharedMapState.pollInFlight = false;
       }
     }
     scheduleNextSharedMapPoll();
