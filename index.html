@@ -3457,8 +3457,8 @@ const ALL_FA_ICONS = [
       remote: true,
       skipSharedWrite: true,
       silent: options.silent === true,
-      preserveCustomBaseLayer: options.preserveCustomBaseLayer === true,
-      preserveMapView: options.preserveMapView === true
+      preserveCustomBaseLayer: options.preserveCustomBaseLayer !== false,
+      preserveMapView: options.preserveMapView !== false
     });
     sharedMapState.lastVersion = metadata.version || sharedMapState.lastVersion;
     sharedMapState.lastModifiedTime = metadata.modifiedTime || sharedMapState.lastModifiedTime;
