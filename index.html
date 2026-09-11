@@ -2785,17 +2785,26 @@ const ALL_FA_ICONS = [
 
   async function driveGetPublicPermission(fileId) {
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
-    const permissionsResp = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?fields=permissions(id,type,role)&supportsAllDrives=true`,
-      {
-        headers: driveAuthHeaders()
+    let pageToken = '';
+    do {
+      const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`);
+      url.searchParams.set('fields', 'nextPageToken,permissions(id,type,role)');
+      url.searchParams.set('supportsAllDrives', 'true');
+      if (pageToken) {
+        url.searchParams.set('pageToken', pageToken);
       }
-    );
-    if (permissionsResp.status === 401) throw handleSharedMapAuthFailure();
-    if (!permissionsResp.ok) throw new Error(`Google Drive permission check failed (${permissionsResp.status}).`);
-    const permissionsData = await permissionsResp.json();
-    const permissions = Array.isArray(permissionsData.permissions) ? permissionsData.permissions : [];
-    return permissions.find(permission => permission && permission.type === 'anyone') || null;
+      const permissionsResp = await fetch(url.toString(), {
+        headers: driveAuthHeaders()
+      });
+      if (permissionsResp.status === 401) throw handleSharedMapAuthFailure();
+      if (!permissionsResp.ok) throw new Error(`Google Drive permission check failed (${permissionsResp.status}).`);
+      const permissionsData = await permissionsResp.json();
+      const permissions = Array.isArray(permissionsData.permissions) ? permissionsData.permissions : [];
+      const publicPermission = permissions.find(permission => permission && permission.type === 'anyone');
+      if (publicPermission) return publicPermission;
+      pageToken = String(permissionsData.nextPageToken || '');
+    } while (pageToken);
+    return null;
   }
 
   async function driveSetPermissionRole(fileId, permissionId, role) {
