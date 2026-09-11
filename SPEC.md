@@ -12,6 +12,13 @@ The application operates without a dedicated backend server, resolving incident 
 
 ### 2.1 Google Sheets Ingestion & Polling
 
+* **FR-1.0: Startup Disaster Mode Picker**
+  * On startup, the application shall present a disaster picker in the configuration modal before sheet data is loaded.
+  * Users shall be able to choose **Blank Map**, **Earthquake**, **Evacuation**, or **Snow Emergency**.
+  * Each picker option shall display a relevant Font Awesome icon.
+  * Choosing a disaster mode shall preload the configuration specified for that mode from the disaster preset JSON file.
+  * **Blank Map** shall allow loading the map with zero configured Google Sheets so the user can fully customise map layers manually.
+
 * **FR-1.1: Sheet URL Ingestion & Multi-Sheet Configuration**
   * The application shall accept one or more Google Sheets sharing URLs (e.g., `https://docs.google.com/spreadsheets/d/{SHEET_ID}/...`).
   * Users shall be able to dynamically add and remove sheets, assign custom sheet names, and configure distinct icons, colors, and column mappings per sheet.
@@ -192,6 +199,7 @@ The application operates without a dedicated backend server, resolving incident 
 * **FR-8.1: Top-Left Toolbar**
   * A fixed floating **Map Actions** menu shall provide:
     * **Manage Sheets:** Opens the full sheet configuration modal to add, rename, edit URLs, customize icons/colors, adjust column mappings, or delete sheets; includes a **Cancel** action to discard uncommitted changes and return to the active map.
+    * The same modal shall continue to expose the disaster picker so users can switch between startup presets later.
 
 * **FR-8.2: Status Bar Feedback**
   * A bottom-center floating pill shall report operational status and diagnostics:
@@ -258,6 +266,64 @@ The application operates without a dedicated backend server, resolving incident 
   }
 }
 ```
+
+### 4.3 Disaster Preset JSON (`assets/disaster-modes.json`) Schema
+
+```json
+{
+  "version": 1,
+  "defaultModeId": "blank-map",
+  "modes": [
+    {
+      "id": "earthquake",
+      "label": "Earthquake",
+      "description": "Preload a sheet template for quake response incidents.",
+      "icon": {
+        "fa": "fa-solid fa-house-crack",
+        "label": "Earthquake"
+      },
+      "preset": {
+        "geocoder": {
+          "url": "",
+          "useLocalFile": true
+        },
+        "baseLayer": "OpenStreetMap",
+        "enabledThirdPartyLayers": ["Known Fire Incidents"],
+        "mapView": {
+          "lat": 34.857,
+          "lng": -119.155,
+          "zoom": 13
+        },
+        "sheets": [
+          {
+            "name": "Earthquake Incidents",
+            "rawUrl": "",
+            "columnMapping": {
+              "address": 0,
+              "status": 1,
+              "label": 2,
+              "category": null
+            },
+            "headers": ["Address", "Status", "Label"],
+            "icon": {
+              "fa": "fa-solid fa-house-crack",
+              "label": "Earthquake"
+            },
+            "color": "#D97706",
+            "categoryOptions": []
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+* `defaultModeId` shall identify one of the entries in `modes`.
+* `modes[].icon.fa` shall be a Font Awesome class string used in the modal picker.
+* `preset.sheets` may be empty to support a blank-map startup.
+* `preset.geocoder`, `preset.baseLayer`, `preset.enabledThirdPartyLayers`, and `preset.mapView` are optional; omitted values fall back to normal application defaults.
+* `preset.sheets[].rawUrl` is optional so a preset can define sheet styling before a Google Sheet URL is attached.
 
 ---
 
