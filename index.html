@@ -3387,9 +3387,7 @@ const ALL_FA_ICONS = [
         map.setView([parsed.mapView.lat, parsed.mapView.lng], parsed.mapView.zoom);
       }
       sharedMapState.sourceBaseLayer = importedBaseLayerName;
-      if (options.remote === true) {
-        sharedMapState.baseLayerNotice = baseLayerNotice;
-      }
+      sharedMapState.baseLayerNotice = options.remote === true ? baseLayerNotice : '';
       geocoderIndex = null;
       hasLoadedMap = false;
       renderSheetsModal();
