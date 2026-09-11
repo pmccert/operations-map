@@ -1419,7 +1419,7 @@
       <h2 id="shared-map-public-title">Make shared map public?</h2>
       <button type="button" id="shared-map-public-close" class="modal-close-btn" title="Close dialog" aria-label="Close dialog">&times;</button>
     </div>
-    <p id="shared-map-public-description">This changes Google Drive file permissions so anyone with the link can read this shared-map JSON file (separate from app viewer-mode URLs), and it will normalize broader public access down to read-only.</p>
+    <p id="shared-map-public-description">This changes Google Drive file permissions so anyone with the link can read this shared-map JSON file (separate from app viewer-mode URLs), and it will normalize public commenter/writer access down to read-only when possible.</p>
     <div role="group" aria-label="Public sharing options" style="display: flex; gap: 8px; justify-content: flex-end;">
       <button type="button" id="shared-map-public-no" class="btn-secondary">Keep Private</button>
       <button type="button" id="shared-map-public-yes" class="btn-primary">Make Public</button>
@@ -2145,7 +2145,7 @@ const ALL_FA_ICONS = [
     }
     openManagedModal(sharedMapPublicModal, {
       dialogPanel: sharedMapPublicDialog,
-      initialFocus: sharedMapPublicDialog
+      initialFocus: sharedMapPublicYesBtn
     });
     return new Promise(resolve => {
       resolveSharedMapPublicChoice = resolve;
@@ -2887,7 +2887,9 @@ const ALL_FA_ICONS = [
 
   function sharedMapPublicPermissionAction(publicPermission) {
     if (!publicPermission) return 'create';
-    return publicPermission.role === 'reader' ? 'none' : 'update';
+    if (publicPermission.role === 'reader') return 'none';
+    if (publicPermission.role === 'writer' || publicPermission.role === 'commenter') return 'update';
+    return 'non_downgradable';
   }
 
   async function driveMakeFilePublic(fileId) {
@@ -2901,6 +2903,9 @@ const ALL_FA_ICONS = [
         throw new Error('Google Drive public permission could not be updated.');
       }
       return;
+    }
+    if (action === 'non_downgradable') {
+      throw new Error('Google Drive public permission exists but cannot be changed to read-only from this app.');
     }
     if (action === 'none') return;
     const resp = await fetch(
