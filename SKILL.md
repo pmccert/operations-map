@@ -3,9 +3,7 @@
 ## Purpose
 
 This repository is a static, client-side incident map application. Most product
-behavior lives in:
-
-- `/home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/index.html`
+behavior lives in `index.html`.
 
 Use this guide when making changes so edits stay small, safe, and consistent
 with the repository's structure.
@@ -14,17 +12,17 @@ with the repository's structure.
 
 Primary files:
 
-- `/home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/index.html`
+- `index.html`
   - Main application UI, map logic, Google Sheets integration, shared map
     behavior, and runtime features.
-- `/home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/assets/disaster-modes.json`
+- `assets/disaster-modes.json`
   - Startup disaster presets; treat this as the source of truth for startup
     modes.
-- `/home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/scripts/fetch_addresses.py`
+- `scripts/fetch_addresses.py`
   - Generates `addresses.json`.
-- `/home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/tests/test_fetch_addresses.py`
+- `tests/test_fetch_addresses.py`
   - Tests for the address-fetching script.
-- `/home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/README.md`
+- `README.md`
   - User-facing behavior and setup expectations.
 
 ## Working rules
@@ -53,7 +51,7 @@ Before finishing changes:
 1. Run `npm test`.
    - In this repository, that runs ESLint against `index.html`.
 2. If Python code changed, also run:
-   - `pytest /home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/tests/test_fetch_addresses.py`
+   - `pytest tests/test_fetch_addresses.py`
 3. If UI behavior changed, do a quick manual smoke test over HTTP and confirm:
    - the app loads
    - the setup modal works
@@ -71,19 +69,17 @@ Before finishing changes:
 
 ### If changing disaster presets
 
-- Update `/home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/assets/disaster-modes.json`.
-- Confirm `/home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/README.md`
-  still matches actual preset behavior.
+- Update `assets/disaster-modes.json`.
+- Confirm `README.md` still matches actual preset behavior.
 
 ### If changing address generation
 
-- Update `/home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/scripts/fetch_addresses.py`.
+- Update `scripts/fetch_addresses.py`.
 - Run the Python test file.
 
 ## When to update docs
 
-Update `/home/runner/work/pmccert-map-data-from-google-sheet/pmccert-map-data-from-google-sheet/README.md`
-when changing:
+Update `README.md` when changing:
 
 - setup steps
 - preset behavior
