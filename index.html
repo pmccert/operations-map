@@ -2524,7 +2524,7 @@ const ALL_FA_ICONS = [
     return resp.json();
   }
 
-  async function driveHasPublicReaderPermission(fileId) {
+  async function driveHasPublicPermission(fileId) {
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const permissionsResp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?fields=permissions(type,role)&supportsAllDrives=true`,
@@ -2536,12 +2536,12 @@ const ALL_FA_ICONS = [
     if (!permissionsResp.ok) throw new Error(`Google Drive permission check failed (${permissionsResp.status}).`);
     const permissionsData = await permissionsResp.json();
     const permissions = Array.isArray(permissionsData.permissions) ? permissionsData.permissions : [];
-    return permissions.some(permission => permission && permission.type === 'anyone' && permission.role === 'reader');
+    const publicRoles = new Set(['reader', 'commenter', 'writer']);
+    return permissions.some(permission => permission && permission.type === 'anyone' && publicRoles.has(permission.role));
   }
 
   async function driveMakeFilePublic(fileId) {
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
-    if (await driveHasPublicReaderPermission(fileId)) return;
     const resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?supportsAllDrives=true&sendNotificationEmail=false`,
       {
@@ -2558,6 +2558,20 @@ const ALL_FA_ICONS = [
       }
     );
     if (resp.status === 401) throw handleSharedMapAuthFailure();
+    if (resp.status === 409) {
+      let body;
+      try {
+        body = await resp.json();
+      } catch (_) {
+        body = null;
+      }
+      const reasonList = ((body && body.error && Array.isArray(body.error.errors)) ? body.error.errors : [])
+        .map(err => String((err && err.reason) || '').toLowerCase());
+      const message = String((body && body.error && body.error.message) || '').toLowerCase();
+      const duplicatePermission = reasonList.includes('alreadyexists') || reasonList.includes('duplicate') ||
+        message.includes('already exists') || message.includes('duplicate');
+      if (duplicatePermission && await driveHasPublicPermission(fileId)) return;
+    }
     if (!resp.ok) throw new Error(`Google Drive permission update failed (${resp.status}).`);
   }
 
