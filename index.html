@@ -2264,6 +2264,27 @@ const ALL_FA_ICONS = [
     return disasterModes.modes.find(mode => mode.id === selectedDisasterModeId) || null;
   }
 
+  function buildRuntimeConfigFromPreset(preset) {
+    const runtimeConfig = {};
+    if (preset && typeof preset.baseLayer === 'string') {
+      runtimeConfig.baseLayer = preset.baseLayer;
+    }
+    if (Array.isArray(preset && preset.enabledThirdPartyLayers)) {
+      runtimeConfig.enabledThirdPartyLayers = preset.enabledThirdPartyLayers.filter(name => typeof name === 'string');
+    }
+    if (preset && preset.mapView &&
+        Number.isFinite(preset.mapView.lat) &&
+        Number.isFinite(preset.mapView.lng) &&
+        Number.isFinite(preset.mapView.zoom)) {
+      runtimeConfig.mapView = {
+        lat: preset.mapView.lat,
+        lng: preset.mapView.lng,
+        zoom: preset.mapView.zoom
+      };
+    }
+    return runtimeConfig;
+  }
+
   function applyDisasterRuntimeConfig(runtimeConfig) {
     const nextConfig = runtimeConfig && typeof runtimeConfig === 'object' ? runtimeConfig : {};
     if (typeof nextConfig.baseLayer === 'string' && baseLayers[nextConfig.baseLayer] && currentBaseLayer !== baseLayers[nextConfig.baseLayer]) {
@@ -4651,11 +4672,7 @@ const ALL_FA_ICONS = [
     const mode = disasterModes.modes.find(candidate => candidate.id === modeId);
     if (!mode) return;
     selectedDisasterModeId = mode.id;
-    pendingDisasterRuntime = cloneJson({
-      baseLayer: mode.preset.baseLayer,
-      enabledThirdPartyLayers: mode.preset.enabledThirdPartyLayers,
-      mapView: mode.preset.mapView
-    });
+    pendingDisasterRuntime = cloneJson(buildRuntimeConfigFromPreset(mode.preset));
     sheets = mode.preset.sheets.map(normalizePresetSheet);
     savedGeocoderUrl = mode.preset.geocoder.url || '';
     savedGeocoderOverridden = mode.preset.geocoder.useLocalFile === false;
@@ -4677,7 +4694,7 @@ const ALL_FA_ICONS = [
     if (!disasterModes.modes.some(mode => mode.id === selectedDisasterModeId)) {
       selectedDisasterModeId = disasterModes.defaultModeId;
     }
-    pendingDisasterRuntime = cloneJson(getSelectedDisasterMode() ? getSelectedDisasterMode().preset : {});
+    pendingDisasterRuntime = cloneJson(buildRuntimeConfigFromPreset(getSelectedDisasterMode() ? getSelectedDisasterMode().preset : null));
     renderDisasterModePicker();
   }
 

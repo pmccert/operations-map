@@ -197,7 +197,7 @@ Notes:
 * `icon.fa` must be a valid Font Awesome class string.
 * `preset.sheets` may be an empty array for a true blank-map startup.
 * `rawUrl` is optional, so presets can provide sheet styling before a Google Sheet is attached.
-* `geocoder`, `baseLayer`, `enabledThirdPartyLayers`, and `mapView` are optional future-facing preset fields; if omitted, the app keeps its normal defaults.
+* `geocoder`, `baseLayer`, `enabledThirdPartyLayers`, and `mapView` are optional preset runtime fields used when a mode is selected. If omitted, the app keeps its current map/geocoder values.
 * This file is required for the disaster picker and setup flow; if it cannot be loaded, map setup stays blocked until a valid file is restored.
 
 ### 4. (Optional) Configure Google Geocoding Fallback
