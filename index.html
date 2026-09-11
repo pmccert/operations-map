@@ -1422,7 +1422,7 @@
       <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
       <details class="toolbar-submenu" id="google-drive-submenu">
-        <summary class="toolbar-btn toolbar-submenu-trigger" id="google-drive-submenu-trigger" title="Open Google Drive actions" aria-controls="google-drive-submenu-content" aria-expanded="false"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span><span class="sr-only" id="google-drive-submenu-status">collapsed</span></summary>
+        <summary class="toolbar-btn toolbar-submenu-trigger" id="google-drive-submenu-trigger" title="Open Google Drive actions" aria-controls="google-drive-submenu-content"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span><span class="sr-only" id="google-drive-submenu-status">collapsed</span></summary>
         <div class="toolbar-submenu-content" id="google-drive-submenu-content">
           <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
           <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
@@ -3694,7 +3694,10 @@ const ALL_FA_ICONS = [
         preserveCustomBaseLayer: false,
         preserveMapView: false
       });
-      sharedMapState.lastVersion = loadedVersion;
+      const loadedMetadata = await refreshSharedMapMetadata();
+      sharedMapState.lastVersion = loadedMetadata
+        ? normalizeDriveVersion(loadedMetadata.version)
+        : loadedVersion;
       sharedMapState.lastLoadedAt = new Date().toISOString();
     }
     startSharedMapPolling();
@@ -6610,9 +6613,7 @@ const ALL_FA_ICONS = [
   const googleDriveSubmenuStatus = document.getElementById('google-drive-submenu-status');
   if (googleDriveSubmenu && googleDriveSubmenuStatus && googleDriveSubmenuTrigger) {
     const syncGoogleDriveSubmenuStatus = function () {
-      const isExpanded = googleDriveSubmenu.open === true;
-      googleDriveSubmenuStatus.textContent = isExpanded ? 'expanded' : 'collapsed';
-      googleDriveSubmenuTrigger.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+      googleDriveSubmenuStatus.textContent = googleDriveSubmenu.open ? 'expanded' : 'collapsed';
     };
     syncGoogleDriveSubmenuStatus();
     googleDriveSubmenu.addEventListener('toggle', syncGoogleDriveSubmenuStatus);
