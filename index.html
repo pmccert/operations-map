@@ -915,6 +915,11 @@
       gap: 4px;
       padding-left: 10px;
     }
+    .toolbar-btn:focus-visible,
+    .toolbar-select:focus-visible {
+      outline: 2px solid #1a73e8;
+      outline-offset: 2px;
+    }
     .toolbar-menu-content {
       position: absolute;
       top: calc(100% + 6px);
@@ -964,6 +969,17 @@
       font-size: 0.8rem;
       box-shadow: 0 1px 4px rgba(0,0,0,0.2);
       cursor: pointer;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
     .custom-feature-list {
       display: grid;
@@ -1406,8 +1422,8 @@
       <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
       <details class="toolbar-submenu" id="google-drive-submenu">
-        <summary class="toolbar-btn toolbar-submenu-trigger" id="google-drive-submenu-trigger" title="Open Google Drive actions" aria-expanded="false"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span></summary>
-        <div class="toolbar-submenu-content">
+        <summary class="toolbar-btn toolbar-submenu-trigger" id="google-drive-submenu-trigger" title="Open Google Drive actions" aria-controls="google-drive-submenu-content" aria-expanded="false"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span><span class="sr-only" id="google-drive-submenu-state">Collapsed</span></summary>
+        <div class="toolbar-submenu-content" id="google-drive-submenu-content">
           <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
           <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
           <button class="toolbar-btn" id="btn-match-source-map" title="Match the shared source map basemap and extent"><i class="fa-solid fa-map"></i> Match Source Map</button>
@@ -2798,7 +2814,6 @@ const ALL_FA_ICONS = [
       : 'unversioned';
     const nameText = sharedMapState.fileName || sharedMapState.fileId;
     statusTextEl.textContent = `Shared map: ${roleText} (${versionText}) — ${nameText}`;
-    updateMatchSourceMapButton();
   }
 
   function updateMatchSourceMapButton() {
@@ -3459,6 +3474,7 @@ const ALL_FA_ICONS = [
         sharedMapState.hasLocalBaseLayerOverride = false;
       }
       sharedMapState.baseLayerNotice = options.remote === true ? baseLayerNotice : '';
+      updateMatchSourceMapButton();
       geocoderIndex = null;
       hasLoadedMap = false;
       renderSheetsModal();
@@ -3651,11 +3667,12 @@ const ALL_FA_ICONS = [
 
   async function connectSharedMapFile(fileId, options = {}) {
     sharedMapState.fileId = fileId;
-    await refreshSharedMapMetadata();
+    updateMatchSourceMapButton();
+    const metadata = await refreshSharedMapMetadata();
     persistSharedMapLinkInUrl();
     if (options.loadNow) {
       const payload = await driveFetchJson(sharedMapState.fileId);
-      const loadedVersion = sharedMapState.lastSeenVersion;
+      const loadedVersion = metadata ? normalizeDriveVersion(metadata.version) : null;
       await applyMapSnapshot(payload, {
         remote: true,
         skipSharedWrite: true,
@@ -6576,9 +6593,15 @@ const ALL_FA_ICONS = [
 
   const googleDriveSubmenu = document.getElementById('google-drive-submenu');
   const googleDriveSubmenuTrigger = document.getElementById('google-drive-submenu-trigger');
+  const googleDriveSubmenuState = document.getElementById('google-drive-submenu-state');
   if (googleDriveSubmenu && googleDriveSubmenuTrigger) {
     const syncGoogleDriveSubmenuState = function () {
-      googleDriveSubmenuTrigger.setAttribute('aria-expanded', googleDriveSubmenu.open ? 'true' : 'false');
+      const isExpanded = googleDriveSubmenu.open === true;
+      googleDriveSubmenuTrigger.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+      googleDriveSubmenuTrigger.setAttribute('aria-label', `Google Drive (${isExpanded ? 'expanded' : 'collapsed'})`);
+      if (googleDriveSubmenuState) {
+        googleDriveSubmenuState.textContent = isExpanded ? 'Expanded' : 'Collapsed';
+      }
     };
     syncGoogleDriveSubmenuState();
     googleDriveSubmenu.addEventListener('toggle', syncGoogleDriveSubmenuState);
