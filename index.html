@@ -1485,7 +1485,7 @@
 
 <!-- Zoom availability alert (lower right) -->
 <div id="zoom-alert" class="hidden zoom-alert-error" role="alert" aria-live="polite">
-  <i class="fa-solid fa-triangle-exclamation"></i>
+  <i id="zoom-alert-icon" class="fa-solid fa-triangle-exclamation"></i>
   <span id="zoom-alert-text">The requested zoom level is not available for this base map.</span>
 </div>
 
@@ -2239,6 +2239,7 @@ const ALL_FA_ICONS = [
   });
 
   const zoomAlert = document.getElementById('zoom-alert');
+  const zoomAlertIcon = document.getElementById('zoom-alert-icon');
   const zoomAlertText = document.getElementById('zoom-alert-text');
   let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
   let sharedMapAlertTimer = null;
@@ -2344,17 +2345,17 @@ const ALL_FA_ICONS = [
     }
 
     if (alertMessages.length > 0) {
+      const showErrorState = currentZoom > maxZoom ||
+        currentZoom < minZoom ||
+        outOfRangeCount > 0;
       if (zoomAlertText) zoomAlertText.textContent = alertMessages.join(' ');
-      zoomAlert.classList.toggle('zoom-alert-success', !(
-        currentZoom > maxZoom ||
-        currentZoom < minZoom ||
-        outOfRangeCount > 0
-      ));
-      zoomAlert.classList.toggle('zoom-alert-error', (
-        currentZoom > maxZoom ||
-        currentZoom < minZoom ||
-        outOfRangeCount > 0
-      ));
+      if (zoomAlertIcon) {
+        zoomAlertIcon.className = showErrorState
+          ? 'fa-solid fa-triangle-exclamation'
+          : 'fa-solid fa-circle-check';
+      }
+      zoomAlert.classList.toggle('zoom-alert-success', !showErrorState);
+      zoomAlert.classList.toggle('zoom-alert-error', showErrorState);
       zoomAlert.classList.remove('hidden');
     } else {
       zoomAlert.classList.add('hidden');
@@ -3669,23 +3670,19 @@ const ALL_FA_ICONS = [
 
   async function connectSharedMapFile(fileId, options = {}) {
     stopSharedMapPolling();
-    const isDifferentFile = sharedMapState.fileId && sharedMapState.fileId !== fileId;
     sharedMapState.fileId = fileId;
-    if (isDifferentFile) {
-      sharedMapState.fileName = '';
-      sharedMapState.lastVersion = null;
-      sharedMapState.lastSeenVersion = null;
-      sharedMapState.lastModifiedTime = null;
-      sharedMapState.sourceBaseLayer = null;
-      sharedMapState.sourceMapView = null;
-      sharedMapState.hasLocalBaseLayerOverride = false;
-      sharedMapState.lastLoadedAt = null;
-      sharedMapState.baseLayerNotice = '';
-      updateMatchSourceMapButton();
-      updateMapAlerts();
-    }
+    sharedMapState.fileName = '';
+    sharedMapState.lastVersion = null;
+    sharedMapState.lastSeenVersion = null;
+    sharedMapState.lastModifiedTime = null;
+    sharedMapState.sourceBaseLayer = null;
+    sharedMapState.sourceMapView = null;
+    sharedMapState.hasLocalBaseLayerOverride = false;
+    sharedMapState.lastLoadedAt = null;
+    sharedMapState.baseLayerNotice = '';
     updateMatchSourceMapButton();
     const metadata = await refreshSharedMapMetadata();
+    updateMapAlerts();
     persistSharedMapLinkInUrl();
     if (options.loadNow) {
       const payload = await driveFetchJson(sharedMapState.fileId);
