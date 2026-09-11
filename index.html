@@ -1422,7 +1422,7 @@
       <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
       <details class="toolbar-submenu" id="google-drive-submenu">
-        <summary class="toolbar-btn toolbar-submenu-trigger" id="google-drive-submenu-trigger" title="Open Google Drive actions" aria-controls="google-drive-submenu-content" aria-expanded="false"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span><span class="sr-only" id="google-drive-submenu-state">Collapsed</span></summary>
+        <summary class="toolbar-btn toolbar-submenu-trigger" id="google-drive-submenu-trigger" title="Open Google Drive actions" aria-controls="google-drive-submenu-content"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span></summary>
         <div class="toolbar-submenu-content" id="google-drive-submenu-content">
           <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
           <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
@@ -6603,22 +6603,6 @@ const ALL_FA_ICONS = [
       updatePollInterval(ms);
       persistAppState();
     });
-  }
-
-  const googleDriveSubmenu = document.getElementById('google-drive-submenu');
-  const googleDriveSubmenuTrigger = document.getElementById('google-drive-submenu-trigger');
-  const googleDriveSubmenuState = document.getElementById('google-drive-submenu-state');
-  if (googleDriveSubmenu && googleDriveSubmenuTrigger) {
-    const syncGoogleDriveSubmenuState = function () {
-      const isExpanded = googleDriveSubmenu.open === true;
-      googleDriveSubmenuTrigger.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
-      googleDriveSubmenuTrigger.setAttribute('aria-label', `Google Drive (${isExpanded ? 'expanded' : 'collapsed'})`);
-      if (googleDriveSubmenuState) {
-        googleDriveSubmenuState.textContent = isExpanded ? 'Expanded' : 'Collapsed';
-      }
-    };
-    syncGoogleDriveSubmenuState();
-    googleDriveSubmenu.addEventListener('toggle', syncGoogleDriveSubmenuState);
   }
 
   const btnMatchSourceMap = document.getElementById('btn-match-source-map');
