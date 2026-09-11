@@ -3468,13 +3468,12 @@ const ALL_FA_ICONS = [
 
   async function pullSharedMapFromDrive(options = {}) {
     if (!sharedMapState.fileId) return;
-    const previousAttemptedVersion = sharedMapState.lastAttemptedVersion;
     const metadata = await refreshSharedMapMetadata();
     if (!metadata) return;
     const metadataVersion = normalizeDriveVersion(metadata.version);
     const hasChanged = options.force === true ||
       !sharedMapState.lastVersion ||
-      metadataVersion !== previousAttemptedVersion;
+      metadataVersion !== sharedMapState.lastVersion;
     if (!hasChanged) return;
     sharedMapState.lastAttemptedVersion = metadataVersion;
     const payload = await driveFetchJson(sharedMapState.fileId);
