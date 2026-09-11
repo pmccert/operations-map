@@ -141,7 +141,8 @@ setup dialog or via the toolbar:
     * Click **Create Shared Map** to create a map-state JSON file in your Drive, or
       **Open Shared Map** to open an existing Drive file by file ID/URL.
     * After creating a shared map, confirm the prompt to make the file public
-      (anyone with the link can view), or leave it private.
+      (`anyone` reader access). Public mode means anyone with the Drive link can
+      open and read the shared-map JSON file contents.
     * You can still use normal Google Drive sharing controls to manage
       editor/viewer access.
     * Click **Copy Viewer URL** and send that URL to viewers.

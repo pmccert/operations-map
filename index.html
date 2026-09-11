@@ -2542,7 +2542,21 @@ const ALL_FA_ICONS = [
       }
     );
     if (resp.status === 401) throw handleSharedMapAuthFailure();
-    if (resp.status === 409) return;
+    if (resp.status === 409) {
+      const permissionsResp = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?fields=permissions(type,role)&supportsAllDrives=true`,
+        {
+          headers: driveAuthHeaders()
+        }
+      );
+      if (permissionsResp.status === 401) throw handleSharedMapAuthFailure();
+      if (!permissionsResp.ok) throw new Error(`Google Drive permission check failed (${permissionsResp.status}).`);
+      const permissionsData = await permissionsResp.json();
+      const permissions = Array.isArray(permissionsData.permissions) ? permissionsData.permissions : [];
+      const hasPublicReader = permissions.some(permission => permission && permission.type === 'anyone' && permission.role === 'reader');
+      if (hasPublicReader) return;
+      throw new Error('Google Drive reported a permission conflict before public access was confirmed.');
+    }
     if (!resp.ok) throw new Error(`Google Drive permission update failed (${resp.status}).`);
   }
 
