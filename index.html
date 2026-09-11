@@ -1412,6 +1412,18 @@
   </div>
 </div>
 
+<!-- Shared map public access dialog -->
+<div id="shared-map-public-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="shared-map-public-title">
+  <div class="modal-box" style="width: min(520px, 92vw);">
+    <h2 id="shared-map-public-title">Make shared map public?</h2>
+    <p>Anyone with the Google Drive link will be able to open and read this shared-map JSON file.</p>
+    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <button type="button" id="shared-map-public-no" class="btn-secondary">Keep Private</button>
+      <button type="button" id="shared-map-public-yes" class="btn-primary">Make Public</button>
+    </div>
+  </div>
+</div>
+
 <!-- Zoom availability alert (lower right) -->
 <div id="zoom-alert" class="hidden" role="alert" aria-live="polite">
   <i class="fa-solid fa-triangle-exclamation"></i>
@@ -1861,9 +1873,34 @@ const ALL_FA_ICONS = [
   );
 
   const commitInfoModal = document.getElementById('commit-info-modal');
+  const sharedMapPublicModal = document.getElementById('shared-map-public-modal');
+  const sharedMapPublicNoBtn = document.getElementById('shared-map-public-no');
+  const sharedMapPublicYesBtn = document.getElementById('shared-map-public-yes');
+  let resolveSharedMapPublicChoice = null;
   const closeCommitInfoModal = function () {
     commitInfoModal.classList.add('hidden');
   };
+  const closeSharedMapPublicModal = function (choice) {
+    if (sharedMapPublicModal) sharedMapPublicModal.classList.add('hidden');
+    if (resolveSharedMapPublicChoice) {
+      const resolve = resolveSharedMapPublicChoice;
+      resolveSharedMapPublicChoice = null;
+      resolve(Boolean(choice));
+    }
+  };
+  function promptSharedMapPublicChoice() {
+    if (!sharedMapPublicModal || !sharedMapPublicNoBtn || !sharedMapPublicYesBtn) {
+      return Promise.resolve(false);
+    }
+    if (resolveSharedMapPublicChoice) {
+      closeSharedMapPublicModal(false);
+    }
+    sharedMapPublicModal.classList.remove('hidden');
+    sharedMapPublicYesBtn.focus();
+    return new Promise(resolve => {
+      resolveSharedMapPublicChoice = resolve;
+    });
+  }
   document.addEventListener('click', function (e) {
     const attributionLink = e.target.closest('#pmc-cert-attribution-link');
     if (attributionLink) {
@@ -1876,6 +1913,28 @@ const ALL_FA_ICONS = [
   commitInfoModal.addEventListener('click', function (e) {
     if (e.target === commitInfoModal) {
       closeCommitInfoModal();
+    }
+  });
+  if (sharedMapPublicNoBtn) {
+    sharedMapPublicNoBtn.addEventListener('click', function () {
+      closeSharedMapPublicModal(false);
+    });
+  }
+  if (sharedMapPublicYesBtn) {
+    sharedMapPublicYesBtn.addEventListener('click', function () {
+      closeSharedMapPublicModal(true);
+    });
+  }
+  if (sharedMapPublicModal) {
+    sharedMapPublicModal.addEventListener('click', function (e) {
+      if (e.target === sharedMapPublicModal) {
+        closeSharedMapPublicModal(false);
+      }
+    });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && sharedMapPublicModal && !sharedMapPublicModal.classList.contains('hidden')) {
+      closeSharedMapPublicModal(false);
     }
   });
 
@@ -2524,10 +2583,10 @@ const ALL_FA_ICONS = [
     return resp.json();
   }
 
-  async function driveHasPublicPermission(fileId) {
+  async function driveGetPublicPermission(fileId) {
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const permissionsResp = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?fields=permissions(type,role)&supportsAllDrives=true`,
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?fields=permissions(id,type,role)&supportsAllDrives=true`,
       {
         headers: driveAuthHeaders()
       }
@@ -2536,8 +2595,24 @@ const ALL_FA_ICONS = [
     if (!permissionsResp.ok) throw new Error(`Google Drive permission check failed (${permissionsResp.status}).`);
     const permissionsData = await permissionsResp.json();
     const permissions = Array.isArray(permissionsData.permissions) ? permissionsData.permissions : [];
-    const publicRoles = new Set(['reader', 'commenter', 'writer']);
-    return permissions.some(permission => permission && permission.type === 'anyone' && publicRoles.has(permission.role));
+    return permissions.find(permission => permission && permission.type === 'anyone') || null;
+  }
+
+  async function driveSetPermissionRole(fileId, permissionId, role) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}?supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: {
+          ...driveAuthHeaders(),
+          'Content-Type': 'application/json; charset=UTF-8'
+        },
+        body: JSON.stringify({ role })
+      }
+    );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
+    if (!resp.ok) throw new Error(`Google Drive permission role update failed (${resp.status}).`);
   }
 
   async function driveMakeFilePublic(fileId) {
@@ -2570,7 +2645,15 @@ const ALL_FA_ICONS = [
       const message = String((body && body.error && body.error.message) || '').toLowerCase();
       const duplicatePermission = reasonList.includes('alreadyexists') || reasonList.includes('duplicate') ||
         message.includes('already exists') || message.includes('duplicate');
-      if (duplicatePermission && await driveHasPublicPermission(fileId)) return;
+      if (duplicatePermission) {
+        const publicPermission = await driveGetPublicPermission(fileId);
+        if (publicPermission) {
+          if (publicPermission.role !== 'reader') {
+            await driveSetPermissionRole(fileId, publicPermission.id, 'reader');
+          }
+          return;
+        }
+      }
     }
     if (!resp.ok) throw new Error(`Google Drive permission update failed (${resp.status}).`);
   }
@@ -5893,7 +5976,7 @@ const ALL_FA_ICONS = [
         const created = await driveCreateJsonFile(filename, mapSnapshot());
         await connectSharedMapFile(created.id, { loadNow: false });
         let statusMessage = 'Shared map created in Google Drive. Copy and share the viewer URL.';
-        const shouldMakePublic = window.confirm('Make this shared map public (anyone with the link can view)?');
+        const shouldMakePublic = await promptSharedMapPublicChoice();
         if (shouldMakePublic) {
           try {
             await driveMakeFilePublic(created.id);
