@@ -1883,7 +1883,8 @@ const ALL_FA_ICONS = [
   const sharedMapPublicYesBtn = document.getElementById('shared-map-public-yes');
   let resolveSharedMapPublicChoice = null;
   const modalFocusReturnByOverlay = new WeakMap();
-  const modalBackgroundStateByOverlay = new WeakMap();
+  let managedModalBackgroundState = null;
+  let managedModalOpenCount = 0;
   const closeCommitInfoModal = function () {
     commitInfoModal.classList.add('hidden');
   };
@@ -1908,33 +1909,32 @@ const ALL_FA_ICONS = [
 
   function setModalBackgroundInert(modalOverlay) {
     if (!modalOverlay) return;
-    const otherVisibleModal = document.querySelector('.modal-overlay:not(.hidden):not(#' + modalOverlay.id + ')');
-    if (otherVisibleModal) return;
+    if (managedModalOpenCount > 0) return;
     const bodyChildren = Array.from(document.body.children || []);
-    const backgroundState = bodyChildren
-      .filter(element => element !== modalOverlay)
+    managedModalBackgroundState = bodyChildren
+      .filter(element => !(element.classList && element.classList.contains('modal-overlay')))
       .map(element => ({
         element,
         ariaHidden: element.getAttribute('aria-hidden'),
         inert: element.inert === true
       }));
-    backgroundState.forEach(({ element }) => {
+    managedModalBackgroundState.forEach(({ element }) => {
       element.setAttribute('aria-hidden', 'true');
       element.inert = true;
     });
-    modalBackgroundStateByOverlay.set(modalOverlay, backgroundState);
   }
 
   function restoreModalBackgroundInert(modalOverlay) {
     if (!modalOverlay) return;
-    const backgroundState = modalBackgroundStateByOverlay.get(modalOverlay) || [];
+    if (managedModalOpenCount > 0) return;
+    const backgroundState = managedModalBackgroundState || [];
     backgroundState.forEach(({ element, ariaHidden, inert }) => {
       if (!element) return;
       if (ariaHidden === null) element.removeAttribute('aria-hidden');
       else element.setAttribute('aria-hidden', ariaHidden);
       element.inert = inert;
     });
-    modalBackgroundStateByOverlay.delete(modalOverlay);
+    managedModalBackgroundState = null;
   }
 
   function openManagedModal(modalOverlay, options) {
@@ -1945,6 +1945,7 @@ const ALL_FA_ICONS = [
       document.activeElement instanceof HTMLElement ? document.activeElement : null
     );
     setModalBackgroundInert(modalOverlay);
+    managedModalOpenCount += 1;
     modalOverlay.classList.remove('hidden');
     const fallbackFocusTarget = dialogPanel instanceof HTMLElement ? dialogPanel : modalOverlay;
     const focusTarget = initialFocus instanceof HTMLElement ? initialFocus : fallbackFocusTarget;
@@ -1954,10 +1955,23 @@ const ALL_FA_ICONS = [
   function closeManagedModal(modalOverlay) {
     if (!modalOverlay) return;
     modalOverlay.classList.add('hidden');
+    managedModalOpenCount = Math.max(0, managedModalOpenCount - 1);
     restoreModalBackgroundInert(modalOverlay);
     const focusReturnEl = modalFocusReturnByOverlay.get(modalOverlay);
-    if (focusReturnEl && typeof focusReturnEl.focus === 'function') {
+    const canReturnFocus = focusReturnEl &&
+      typeof focusReturnEl.focus === 'function' &&
+      focusReturnEl.getClientRects().length > 0 &&
+      !focusReturnEl.closest('.hidden');
+    if (canReturnFocus) {
       focusReturnEl.focus();
+    } else {
+      const activeVisibleModal = document.querySelector('.modal-overlay:not(.hidden)');
+      const fallbackFocusable = listFocusableModalElements(activeVisibleModal)[0];
+      if (fallbackFocusable && typeof fallbackFocusable.focus === 'function') {
+        fallbackFocusable.focus();
+      } else if (activeVisibleModal && typeof activeVisibleModal.focus === 'function') {
+        activeVisibleModal.focus();
+      }
     }
     modalFocusReturnByOverlay.delete(modalOverlay);
   }
@@ -1999,7 +2013,7 @@ const ALL_FA_ICONS = [
     }
     openManagedModal(sharedMapPublicModal, {
       dialogPanel: sharedMapPublicDialog,
-      initialFocus: sharedMapPublicYesBtn
+      initialFocus: sharedMapPublicDialog
     });
     return new Promise(resolve => {
       resolveSharedMapPublicChoice = resolve;
@@ -2712,7 +2726,7 @@ const ALL_FA_ICONS = [
     const resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}?supportsAllDrives=true`,
       {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           ...driveAuthHeaders(),
           'Content-Type': 'application/json; charset=UTF-8'
@@ -2724,15 +2738,24 @@ const ALL_FA_ICONS = [
     if (!resp.ok) throw new Error(`Google Drive permission role update failed (${resp.status}).`);
   }
 
+  function sharedMapPublicPermissionAction(publicPermission) {
+    if (!publicPermission) return 'create';
+    return publicPermission.role === 'reader' ? 'none' : 'update';
+  }
+
   async function driveMakeFilePublic(fileId) {
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const publicPermission = await driveGetPublicPermission(fileId);
-    if (publicPermission) {
-      if (publicPermission.role !== 'reader') {
+    const action = sharedMapPublicPermissionAction(publicPermission);
+    if (action === 'update') {
+      if (publicPermission && publicPermission.id) {
         await driveSetPermissionRole(fileId, publicPermission.id, 'reader');
+      } else {
+        throw new Error('Google Drive public permission could not be updated.');
       }
       return;
     }
+    if (action === 'none') return;
     const resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?supportsAllDrives=true&sendNotificationEmail=false`,
       {
