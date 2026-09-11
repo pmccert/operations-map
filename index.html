@@ -1415,7 +1415,10 @@
 <!-- Shared map public access dialog -->
 <div id="shared-map-public-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="shared-map-public-title" aria-describedby="shared-map-public-description">
   <div class="modal-box" style="width: min(520px, 92vw);">
-    <h2 id="shared-map-public-title">Make shared map public?</h2>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <h2 id="shared-map-public-title">Make shared map public?</h2>
+      <button type="button" id="shared-map-public-close" class="modal-close-btn" title="Close dialog" aria-label="Close dialog">&times;</button>
+    </div>
     <p id="shared-map-public-description">Anyone with the Google Drive link will be able to open and read this shared-map JSON file.</p>
     <div style="display: flex; gap: 8px; justify-content: flex-end;">
       <button type="button" id="shared-map-public-no" class="btn-secondary">Keep Private</button>
@@ -1874,6 +1877,7 @@ const ALL_FA_ICONS = [
 
   const commitInfoModal = document.getElementById('commit-info-modal');
   const sharedMapPublicModal = document.getElementById('shared-map-public-modal');
+  const sharedMapPublicCloseBtn = document.getElementById('shared-map-public-close');
   const sharedMapPublicNoBtn = document.getElementById('shared-map-public-no');
   const sharedMapPublicYesBtn = document.getElementById('shared-map-public-yes');
   let resolveSharedMapPublicChoice = null;
@@ -1923,6 +1927,11 @@ const ALL_FA_ICONS = [
   });
   if (sharedMapPublicNoBtn) {
     sharedMapPublicNoBtn.addEventListener('click', function () {
+      closeSharedMapPublicModal(false);
+    });
+  }
+  if (sharedMapPublicCloseBtn) {
+    sharedMapPublicCloseBtn.addEventListener('click', function () {
       closeSharedMapPublicModal(false);
     });
   }
