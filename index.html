@@ -2126,7 +2126,7 @@ const ALL_FA_ICONS = [
     if (pendingSharedMapPublicChoicePromise) return pendingSharedMapPublicChoicePromise;
     openManagedModal(sharedMapPublicModal, {
       dialogPanel: sharedMapPublicDialog,
-      initialFocus: sharedMapPublicYesBtn
+      initialFocus: sharedMapPublicNoBtn
     });
     pendingSharedMapPublicChoicePromise = new Promise(resolve => {
       resolveSharedMapPublicChoice = resolve;
