@@ -1413,10 +1413,10 @@
 </div>
 
 <!-- Shared map public access dialog -->
-<div id="shared-map-public-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="shared-map-public-title">
+<div id="shared-map-public-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="shared-map-public-title" aria-describedby="shared-map-public-description">
   <div class="modal-box" style="width: min(520px, 92vw);">
     <h2 id="shared-map-public-title">Make shared map public?</h2>
-    <p>Anyone with the Google Drive link will be able to open and read this shared-map JSON file.</p>
+    <p id="shared-map-public-description">Anyone with the Google Drive link will be able to open and read this shared-map JSON file.</p>
     <div style="display: flex; gap: 8px; justify-content: flex-end;">
       <button type="button" id="shared-map-public-no" class="btn-secondary">Keep Private</button>
       <button type="button" id="shared-map-public-yes" class="btn-primary">Make Public</button>
@@ -1877,11 +1877,16 @@ const ALL_FA_ICONS = [
   const sharedMapPublicNoBtn = document.getElementById('shared-map-public-no');
   const sharedMapPublicYesBtn = document.getElementById('shared-map-public-yes');
   let resolveSharedMapPublicChoice = null;
+  let sharedMapPublicFocusReturnEl = null;
   const closeCommitInfoModal = function () {
     commitInfoModal.classList.add('hidden');
   };
   const closeSharedMapPublicModal = function (choice) {
     if (sharedMapPublicModal) sharedMapPublicModal.classList.add('hidden');
+    if (sharedMapPublicFocusReturnEl && typeof sharedMapPublicFocusReturnEl.focus === 'function') {
+      sharedMapPublicFocusReturnEl.focus();
+    }
+    sharedMapPublicFocusReturnEl = null;
     if (resolveSharedMapPublicChoice) {
       const resolve = resolveSharedMapPublicChoice;
       resolveSharedMapPublicChoice = null;
@@ -1895,6 +1900,7 @@ const ALL_FA_ICONS = [
     if (resolveSharedMapPublicChoice) {
       closeSharedMapPublicModal(false);
     }
+    sharedMapPublicFocusReturnEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     sharedMapPublicModal.classList.remove('hidden');
     sharedMapPublicYesBtn.focus();
     return new Promise(resolve => {
@@ -1933,8 +1939,28 @@ const ALL_FA_ICONS = [
     });
   }
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && sharedMapPublicModal && !sharedMapPublicModal.classList.contains('hidden')) {
+    if (!sharedMapPublicModal || sharedMapPublicModal.classList.contains('hidden')) return;
+    if (e.key === 'Escape') {
       closeSharedMapPublicModal(false);
+      return;
+    }
+    if (e.key === 'Tab') {
+      const focusableNodes = sharedMapPublicModal.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const focusable = Array.from(focusableNodes).filter(node =>
+        node instanceof HTMLElement && !node.disabled && node.tabIndex >= 0
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   });
 
@@ -2633,7 +2659,7 @@ const ALL_FA_ICONS = [
       }
     );
     if (resp.status === 401) throw handleSharedMapAuthFailure();
-    if (resp.status === 409) {
+    if (!resp.ok) {
       let body;
       try {
         body = await resp.json();
@@ -2654,8 +2680,8 @@ const ALL_FA_ICONS = [
           return;
         }
       }
+      throw new Error(`Google Drive permission update failed (${resp.status}).`);
     }
-    if (!resp.ok) throw new Error(`Google Drive permission update failed (${resp.status}).`);
   }
 
   const THIRD_PARTY_ENDPOINTS = {
