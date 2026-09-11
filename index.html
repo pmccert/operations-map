@@ -6,7 +6,7 @@
   <title>PMC CERT Map</title>
 
   <!-- Google Identity Services (GIS) -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script id="google-gis-client" src="https://accounts.google.com/gsi/client" async defer></script>
 
   <!-- Font Awesome 6 Free (CDN) -->
   <link
@@ -1363,6 +1363,7 @@
   const PMC_LAT = 34.857;
   const PMC_LNG = -119.155;
   const DEFAULT_POLL_INTERVAL_MS = 30000;
+  const SUPPORTED_POLL_INTERVAL_MS = [0, 15000, 30000, 60000, 300000];
   const SHARED_MAP_POLL_INTERVAL_MS = 15000;
   const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';
   const APP_STATE_KEY = 'pmc_cert_map_state';
@@ -1752,9 +1753,13 @@ const ALL_FA_ICONS = [
     : [];
 
   let currentBaseLayer = baseLayers['OpenStreetMap'];
+  let mapLayersControl = null;
+  let mapLayersControlAttached = false;
 
   baseLayers['OpenStreetMap'].addTo(map);
-  L.control.layers(baseLayers, thirdPartyOverlayLayers, { position: 'topright', collapsed: false }).addTo(map);
+  mapLayersControl = L.control.layers(baseLayers, thirdPartyOverlayLayers, { position: 'topright', collapsed: false });
+  mapLayersControl.addTo(map);
+  mapLayersControlAttached = true;
   if (savedAppState && typeof savedAppState.baseLayer === 'string' && baseLayers[savedAppState.baseLayer]) {
     map.removeLayer(baseLayers['OpenStreetMap']);
     currentBaseLayer = baseLayers[savedAppState.baseLayer];
@@ -1918,13 +1923,18 @@ const ALL_FA_ICONS = [
     syncSharedMapAfterLocalChange('custom-features');
   }
 
+  function normalizePollIntervalMs(value) {
+    return SUPPORTED_POLL_INTERVAL_MS.includes(value) ? value : DEFAULT_POLL_INTERVAL_MS;
+  }
+
   let pollIntervalMs = savedAppState && Number.isFinite(savedAppState.pollIntervalMs)
-    ? savedAppState.pollIntervalMs
+    ? normalizePollIntervalMs(savedAppState.pollIntervalMs)
     : DEFAULT_POLL_INTERVAL_MS;
   let googleAccessToken = null;
   let googleTokenExpiry = 0;
   const GOOGLE_OAUTH_CLIENT_ID = '737731486205-pnrigt0btu2aeqam7ulqghl37apbph3l.apps.googleusercontent.com';
   let tokenClient = null;
+  let googleIdentityServicesReadyPromise = null;
 
   function clearLegacyOAuthStorage() {
     try {
@@ -1966,6 +1976,39 @@ const ALL_FA_ICONS = [
     return Boolean(googleAccessToken && Date.now() < googleTokenExpiry);
   }
 
+  function waitForGoogleIdentityServices() {
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      return Promise.resolve();
+    }
+    if (googleIdentityServicesReadyPromise) return googleIdentityServicesReadyPromise;
+    const gisScript = document.getElementById('google-gis-client');
+    if (!gisScript) {
+      return Promise.reject(new Error('Google Identity Services library not loaded.'));
+    }
+    googleIdentityServicesReadyPromise = new Promise((resolve, reject) => {
+      function handleLoad() {
+        if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+          cleanup();
+          resolve();
+        } else {
+          cleanup();
+          reject(new Error('Google Identity Services library not loaded.'));
+        }
+      }
+      function handleError() {
+        cleanup();
+        reject(new Error('Could not load Google Identity Services library.'));
+      }
+      function cleanup() {
+        gisScript.removeEventListener('load', handleLoad);
+        gisScript.removeEventListener('error', handleError);
+      }
+      gisScript.addEventListener('load', handleLoad);
+      gisScript.addEventListener('error', handleError);
+    });
+    return googleIdentityServicesReadyPromise;
+  }
+
   function initTokenClient(callback, onError) {
     if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
       return null;
@@ -1995,13 +2038,19 @@ const ALL_FA_ICONS = [
   }
 
   function requestGoogleSignIn(callback, onError) {
-    const client = initTokenClient(callback, onError);
-    if (client) {
-      client.requestAccessToken({ prompt: 'consent' });
-    } else {
-      alert('Google Identity Services library not yet loaded. Please check your network connection.');
-      if (onError) onError(new Error('Google Identity Services library not loaded.'));
-    }
+    waitForGoogleIdentityServices()
+      .then(function () {
+        const client = initTokenClient(callback, onError);
+        if (client) {
+          client.requestAccessToken({ prompt: 'consent' });
+        } else {
+          throw new Error('Google Identity Services library not loaded.');
+        }
+      })
+      .catch(function (err) {
+        alert(err.message || 'Google Identity Services library not yet loaded. Please check your network connection.');
+        if (onError) onError(err);
+      });
   }
 
   function ensureGoogleAuth() {
@@ -2194,15 +2243,51 @@ const ALL_FA_ICONS = [
         customFeatureDrawControlAttached = true;
       }
     }
+    if (mapLayersControl) {
+      if (mapIsReadOnly && mapLayersControlAttached) {
+        map.removeControl(mapLayersControl);
+        mapLayersControlAttached = false;
+      } else if (!mapIsReadOnly && !mapLayersControlAttached) {
+        mapLayersControl.addTo(map);
+        mapLayersControlAttached = true;
+      }
+    }
   }
 
   function setReadOnlyMode(readOnly, reason) {
+    const changed = mapIsReadOnly !== Boolean(readOnly);
     mapIsReadOnly = Boolean(readOnly);
     updateReadOnlyUI();
+    if (changed) {
+      const activeSheetModal = document.getElementById('sheet-modal');
+      if (activeSheetModal && !activeSheetModal.classList.contains('hidden')) {
+        renderSheetsModal();
+      }
+      renderCustomFeatureList();
+      updateCustomFeatureEditorReadOnlyState();
+    }
     updateSharedMapStatusLabel();
     if (mapIsReadOnly && reason) {
       setStatus(reason);
     }
+  }
+
+  function createSharedMapAuthError(message) {
+    const err = new Error(message);
+    err.code = 'shared-map-auth';
+    return err;
+  }
+
+  function handleSharedMapAuthFailure(message) {
+    const statusMessage = message || 'Google sign-in expired. Sign in again to sync this shared map from Google Drive.';
+    googleAccessToken = null;
+    googleTokenExpiry = 0;
+    updateOAuthUI();
+    if (sharedMapState.fileId) {
+      stopSharedMapPolling();
+      setReadOnlyMode(true, statusMessage);
+    }
+    return createSharedMapAuthError(statusMessage);
   }
 
   function driveAuthHeaders() {
@@ -2212,6 +2297,7 @@ const ALL_FA_ICONS = [
   }
 
   async function driveFetchMetadata(fileId) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const fields = [
       'id',
       'name',
@@ -2226,11 +2312,13 @@ const ALL_FA_ICONS = [
         cache: 'no-store'
       }
     );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive metadata request failed (${resp.status}).`);
     return resp.json();
   }
 
   async function driveFetchJson(fileId) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
       {
@@ -2238,11 +2326,13 @@ const ALL_FA_ICONS = [
         cache: 'no-store'
       }
     );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive file download failed (${resp.status}).`);
     return resp.json();
   }
 
   async function driveCreateJsonFile(filename, payload) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const boundary = `pmcCertBoundary${Date.now().toString(16)}`;
     const body =
       `--${boundary}\r\n` +
@@ -2263,11 +2353,13 @@ const ALL_FA_ICONS = [
         body
       }
     );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive file create failed (${resp.status}).`);
     return resp.json();
   }
 
   async function driveUpdateJsonFile(fileId, payload) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const resp = await fetch(
       `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,name,modifiedTime,version`,
       {
@@ -2279,6 +2371,7 @@ const ALL_FA_ICONS = [
         body: JSON.stringify(payload, null, 2)
       }
     );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive file update failed (${resp.status}).`);
     return resp.json();
   }
@@ -2570,6 +2663,7 @@ const ALL_FA_ICONS = [
       config.activated = shouldEnable;
       if (shouldEnable && !map.hasLayer(config.layer)) {
         map.addLayer(config.layer);
+        loadThirdPartyLayer(name);
       } else if (!shouldEnable && map.hasLayer(config.layer)) {
         map.removeLayer(config.layer);
       }
@@ -2599,7 +2693,7 @@ const ALL_FA_ICONS = [
       sheetIdCounter = Math.max(0, ...numericIds) + 1;
 
       pollIntervalMs = Number.isInteger(parsed.pollIntervalMs) && parsed.pollIntervalMs >= 0
-        ? parsed.pollIntervalMs
+        ? normalizePollIntervalMs(parsed.pollIntervalMs)
         : DEFAULT_POLL_INTERVAL_MS;
       const refreshSelect = document.getElementById('select-refresh-interval');
       if (refreshSelect) refreshSelect.value = String(pollIntervalMs);
@@ -2613,7 +2707,9 @@ const ALL_FA_ICONS = [
       if (typeof parsed.showClosedIncidents === 'boolean') {
         showClosedIncidents = parsed.showClosedIncidents;
       }
-      applySharedLayerState(parsed.baseLayer, parsed.enabledThirdPartyLayers);
+      if (parsed.version === 2 || typeof parsed.baseLayer === 'string' || Array.isArray(parsed.enabledThirdPartyLayers)) {
+        applySharedLayerState(parsed.baseLayer, parsed.enabledThirdPartyLayers);
+      }
       if (parsed.mapView &&
           Number.isFinite(parsed.mapView.lat) &&
           Number.isFinite(parsed.mapView.lng) &&
@@ -2753,7 +2849,9 @@ const ALL_FA_ICONS = [
           setStatus('Shared map changes loaded from Google Drive.');
         }
       } catch (err) {
-        console.warn('Shared map poll failed:', err);
+        if (err && err.code !== 'shared-map-auth') {
+          console.warn('Shared map poll failed:', err);
+        }
       }
     }, SHARED_MAP_POLL_INTERVAL_MS);
   }
@@ -3848,6 +3946,7 @@ const ALL_FA_ICONS = [
         `Refreshed "${sheet.name}" at ${now} — ${stats.count} incident(s): ` +
         `${stats.open} open, ${stats.closed} closed${unmatchedNote}`
       );
+      syncSharedMapAfterLocalChange('sheet-refresh');
     } catch (err) {
       setStatus(`Error refreshing "${sheet.name}": ${err.message}`);
       console.error(`Error refreshing "${sheet.name}":`, err);
@@ -3901,6 +4000,7 @@ const ALL_FA_ICONS = [
           `${totalOpen} open, ${totalClosed} closed${unmatchedNote}`
         );
       }
+      syncSharedMapAfterLocalChange('sheet-refresh');
     } catch (err) {
       setStatus(`Error: ${err.message}`);
       console.error('Fetch error:', err);
@@ -3917,7 +4017,7 @@ const ALL_FA_ICONS = [
   }
 
   function updatePollInterval(ms) {
-    pollIntervalMs = ms;
+    pollIntervalMs = normalizePollIntervalMs(ms);
     if (pollTimer !== null) {
       clearInterval(pollTimer);
       pollTimer = null;
@@ -3942,10 +4042,11 @@ const ALL_FA_ICONS = [
     return null;
   }
 
-  function buildColorPicker(container, currentColor, onSelect) {
+  function buildColorPicker(container, currentColor, onSelect, options = {}) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.className = 'color-picker-control';
+    const disabled = options.disabled === true;
 
     let activeColor = normalizeHexColor(currentColor) || '#E74C3C';
 
@@ -3963,6 +4064,7 @@ const ALL_FA_ICONS = [
     customInput.value = activeColor.toLowerCase();
     customInput.title = 'Choose custom color';
     customInput.setAttribute('aria-label', 'Custom color picker');
+    customInput.disabled = disabled;
 
     const iconOverlay = document.createElement('i');
     iconOverlay.className = 'fa-solid fa-eye-dropper color-picker-icon-overlay';
@@ -3979,6 +4081,7 @@ const ALL_FA_ICONS = [
     hexInput.spellcheck = false;
     hexInput.setAttribute('aria-label', 'Hex color code');
     hexInput.title = 'Enter hex color code (e.g. #3498DB)';
+    hexInput.disabled = disabled;
 
     customRow.appendChild(pickerBtn);
     customRow.appendChild(hexInput);
@@ -4017,64 +4120,72 @@ const ALL_FA_ICONS = [
       swatch.setAttribute('role', 'radio');
       swatch.setAttribute('aria-label', color);
       swatch.setAttribute('aria-checked', color.toLowerCase() === activeColor.toLowerCase() ? 'true' : 'false');
+      swatch.disabled = disabled;
 
-      swatch.addEventListener('click', function () {
-        const norm = normalizeHexColor(color) || color;
-        updateActiveState(norm);
-        onSelect(norm);
-      });
+      if (!disabled) {
+        swatch.addEventListener('click', function () {
+          const norm = normalizeHexColor(color) || color;
+          updateActiveState(norm);
+          onSelect(norm);
+        });
+      }
 
       presetsContainer.appendChild(swatch);
       swatchButtons.push({ btn: swatch, color });
     });
 
-    customInput.addEventListener('input', function (e) {
-      const norm = normalizeHexColor(e.target.value) || e.target.value;
-      updateActiveState(norm);
-      onSelect(norm);
-    });
-
-    hexInput.addEventListener('input', function () {
-      const norm = normalizeHexColor(hexInput.value);
-      if (norm) {
-        hexInput.classList.remove('invalid');
-        activeColor = norm;
-        pickerBtn.style.backgroundColor = norm;
-        customInput.value = norm.toLowerCase();
-        swatchButtons.forEach(({ btn, color }) => {
-          if (color.toLowerCase() === norm.toLowerCase()) {
-            btn.classList.add('active');
-            btn.setAttribute('aria-checked', 'true');
-          } else {
-            btn.classList.remove('active');
-            btn.setAttribute('aria-checked', 'false');
-          }
-        });
-        onSelect(norm);
-      } else {
-        hexInput.classList.add('invalid');
-      }
-    });
-
-    hexInput.addEventListener('blur', function () {
-      const norm = normalizeHexColor(hexInput.value);
-      if (norm) {
+    if (!disabled) {
+      customInput.addEventListener('input', function (e) {
+        const norm = normalizeHexColor(e.target.value) || e.target.value;
         updateActiveState(norm);
         onSelect(norm);
-      } else {
-        updateActiveState(activeColor);
-      }
-    });
+      });
+
+      hexInput.addEventListener('input', function () {
+        const norm = normalizeHexColor(hexInput.value);
+        if (norm) {
+          hexInput.classList.remove('invalid');
+          activeColor = norm;
+          pickerBtn.style.backgroundColor = norm;
+          customInput.value = norm.toLowerCase();
+          swatchButtons.forEach(({ btn, color }) => {
+            if (color.toLowerCase() === norm.toLowerCase()) {
+              btn.classList.add('active');
+              btn.setAttribute('aria-checked', 'true');
+            } else {
+              btn.classList.remove('active');
+              btn.setAttribute('aria-checked', 'false');
+            }
+          });
+          onSelect(norm);
+        } else {
+          hexInput.classList.add('invalid');
+        }
+      });
+
+      hexInput.addEventListener('blur', function () {
+        const norm = normalizeHexColor(hexInput.value);
+        if (norm) {
+          updateActiveState(norm);
+          onSelect(norm);
+        } else {
+          updateActiveState(activeColor);
+        }
+      });
+    }
 
     wrapper.appendChild(customRow);
     wrapper.appendChild(presetsContainer);
     container.appendChild(wrapper);
   }
 
-  function buildIconPicker(container, currentIcon, onSelect, sheetColor) {
+  function buildIconPicker(container, currentIcon, onSelect, sheetColor, options = {}) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.className = 'sheet-icon-picker';
+    const disabled = options.disabled === true;
+    wrapper.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    if (disabled) wrapper.style.opacity = '0.6';
 
     const isPreset = ICON_OPTIONS.some(opt => opt.fa === currentIcon.fa);
     const optionsToShow = [...ICON_OPTIONS];
@@ -4087,11 +4198,13 @@ const ALL_FA_ICONS = [
       btn.className = 'icon-option' + (opt.fa === currentIcon.fa ? ' active' : '');
       btn.title = opt.label || formatIconLabel(opt.fa);
       btn.innerHTML = `<i class="${opt.fa}"></i>`;
-      btn.addEventListener('click', function () {
-        wrapper.querySelectorAll('.icon-option').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        onSelect(opt);
-      });
+      if (!disabled) {
+        btn.addEventListener('click', function () {
+          wrapper.querySelectorAll('.icon-option').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          onSelect(opt);
+        });
+      }
       wrapper.appendChild(btn);
     });
 
@@ -4099,11 +4212,13 @@ const ALL_FA_ICONS = [
     browseBtn.className = 'icon-option btn-browse-fa';
     browseBtn.title = 'Browse all FontAwesome icons…';
     browseBtn.innerHTML = '<i class="fa-solid fa-icons"></i>';
-    browseBtn.addEventListener('click', function () {
-      openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
-        onSelect(newIcon);
+    if (!disabled) {
+      browseBtn.addEventListener('click', function () {
+        openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
+          onSelect(newIcon);
+        });
       });
-    });
+    }
     wrapper.appendChild(browseBtn);
 
     container.appendChild(wrapper);
@@ -4115,11 +4230,14 @@ const ALL_FA_ICONS = [
     linkBtn.className = 'btn-link';
     linkBtn.style.fontSize = '0.78rem';
     linkBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Browse all FontAwesome icons…';
-    linkBtn.addEventListener('click', function () {
-      openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
-        onSelect(newIcon);
+    linkBtn.disabled = disabled;
+    if (!disabled) {
+      linkBtn.addEventListener('click', function () {
+        openFontAwesomePickerDialog(currentIcon, sheetColor, function (newIcon) {
+          onSelect(newIcon);
+        });
       });
-    });
+    }
     linkWrap.appendChild(linkBtn);
     container.appendChild(linkWrap);
   }
@@ -4151,9 +4269,10 @@ const ALL_FA_ICONS = [
     });
   }
 
-  function renderCategoryStyles(container, sheet, onChange) {
+  function renderCategoryStyles(container, sheet, onChange, options = {}) {
     if (!container) return;
     container.innerHTML = '';
+    const disabled = options.disabled === true;
     if (!sheet.columnMapping || sheet.columnMapping.category === null ||
         sheet.columnMapping.category === undefined || sheet.categoryOptions.length === 0) {
       const empty = document.createElement('div');
@@ -4183,14 +4302,14 @@ const ALL_FA_ICONS = [
       function updateCategoryIcon(newIcon) {
         option.icon = newIcon;
         if (typeof onChange === 'function') onChange();
-        buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color);
+        buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color, { disabled });
       }
-      buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color);
+      buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color, { disabled });
       buildColorPicker(colorWrap, option.color, function (newColor) {
         option.color = newColor;
         if (typeof onChange === 'function') onChange();
-        buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color);
-      });
+        buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color, { disabled });
+      }, { disabled });
 
       item.appendChild(valueEl);
       item.appendChild(iconWrap);
@@ -4307,7 +4426,7 @@ const ALL_FA_ICONS = [
     const categoryColumn = sheet.columnMapping && sheet.columnMapping.category;
     if (categoryColumn === null || categoryColumn === undefined || categoryColumn < 0) {
       sheet.categoryOptions = [];
-      renderCategoryStyles(stylesEl, sheet);
+      renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
       if (statusEl) statusEl.textContent = '';
       return;
     }
@@ -4341,7 +4460,7 @@ const ALL_FA_ICONS = [
     }
 
     updateCategoryOptions(sheet, values);
-    renderCategoryStyles(stylesEl, sheet);
+    renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
     if (statusEl) {
       statusEl.textContent = values.length > 0
         ? `${values.length} option${values.length === 1 ? '' : 's'} found`
@@ -4494,7 +4613,7 @@ const ALL_FA_ICONS = [
     populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
     populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
     populateSelect(categorySelect, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
-    renderCategoryStyles(card.querySelector('.category-style-container'), sheet);
+    renderCategoryStyles(card.querySelector('.category-style-container'), sheet, null, { disabled: mapIsReadOnly });
 
     if (sheet.rawUrl && (!sheet.headers || sheet.headers.length === 0)) {
       tryDetectHeadersForSheet(sheet, card);
@@ -4526,16 +4645,16 @@ const ALL_FA_ICONS = [
     function handleIconSelect(newIcon) {
       sheet.icon = newIcon;
       updateBadgePreview();
-      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
+      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color, { disabled: mapIsReadOnly });
     }
 
-    buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
+    buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color, { disabled: mapIsReadOnly });
 
     buildColorPicker(colorContainer, sheet.color, function (newColor) {
       sheet.color = newColor;
       updateBadgePreview();
-      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color);
-    });
+      buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color, { disabled: mapIsReadOnly });
+    }, { disabled: mapIsReadOnly });
 
     if (sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
       inspectCategoryOptions(sheet, card, sheet.lastRows || sheet.importedRows);
@@ -4784,6 +4903,18 @@ const ALL_FA_ICONS = [
   let editingCustomFeatureId = null;
   let newCustomFeatureId = null;
 
+  function updateCustomFeatureEditorReadOnlyState() {
+    const labelInput = document.getElementById('custom-feature-label');
+    const descriptionInput = document.getElementById('custom-feature-description');
+    [customFeatureType, labelInput, descriptionInput, customFeatureColor, customFeatureClosed, customFeatureSaveBtn]
+      .forEach(function (el) {
+        if (el) el.disabled = mapIsReadOnly;
+      });
+    buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
+      customFeatureIcon = newIcon;
+    }, customFeatureColor.value, { disabled: mapIsReadOnly });
+  }
+
   function renderCustomFeatureList() {
     if (!customFeatureList) return;
     customFeatureList.innerHTML = '';
@@ -4801,7 +4932,13 @@ const ALL_FA_ICONS = [
         <span class="custom-feature-name"><strong>${escHtml(feature.label || 'Custom feature')}</strong> (${escHtml(feature.type)})</span>
         <button type="button" class="btn-remove-sheet" title="Delete feature"><i class="fa-solid fa-trash"></i> Delete</button>
       `;
-      item.querySelector('button').addEventListener('click', function () {
+      const deleteBtn = item.querySelector('button');
+      deleteBtn.disabled = mapIsReadOnly;
+      deleteBtn.addEventListener('click', function () {
+        if (mapIsReadOnly) {
+          setStatus('Custom feature edits are disabled in view-only mode.');
+          return;
+        }
         const layer = customFeatureLayers[feature.id];
         if (layer) map.removeLayer(layer);
         delete customFeatureLayers[feature.id];
@@ -4825,9 +4962,7 @@ const ALL_FA_ICONS = [
     customFeatureClosed.checked = false;
     customFeatureClosedLabel.classList.add('hidden');
     customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
-    buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
-      customFeatureIcon = newIcon;
-    }, '#2c7bb6');
+    updateCustomFeatureEditorReadOnlyState();
   }
 
   function discardNewCustomFeature() {
@@ -4867,9 +5002,7 @@ const ALL_FA_ICONS = [
       customFeatureIcon = { fa: 'fa-solid fa-location-dot', label: 'Pin' };
       draftLayer.remove();
     }
-    buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
-      customFeatureIcon = newIcon;
-    }, customFeatureColor.value);
+    updateCustomFeatureEditorReadOnlyState();
     customFeatureEditor.classList.remove('hidden');
     document.getElementById('custom-feature-label').focus();
   }
@@ -4886,10 +5019,12 @@ const ALL_FA_ICONS = [
     customFeatureModal.classList.add('hidden');
   }
 
-  buildIconPicker(customFeatureIconContainer, customFeatureIcon, function (newIcon) {
-    customFeatureIcon = newIcon;
-  }, customFeatureColor.value);
+  updateCustomFeatureEditorReadOnlyState();
   customFeatureSaveBtn.addEventListener('click', function () {
+    if (mapIsReadOnly) {
+      setStatus('Custom feature edits are disabled in view-only mode.');
+      return;
+    }
     const label = document.getElementById('custom-feature-label').value.trim();
     if (!label) {
       customFeatureError.textContent = 'Please enter a label for this feature.';
@@ -5377,14 +5512,26 @@ const ALL_FA_ICONS = [
   }
 
   const btnOAuthAuth = document.getElementById('btn-oauth-auth');
+  async function handleGoogleSignInSuccess() {
+    try {
+      if (sharedMapState.fileId) {
+        await connectSharedMapFile(sharedMapState.fileId, { loadNow: true });
+        setStatus('Shared map loaded from Google Drive.');
+      } else if (hasLoadedMap) {
+        await fetchAndPlot();
+      }
+    } catch (err) {
+      console.error('Could not resume Google-backed data after sign-in:', err);
+      setStatus(`Could not load shared map: ${err.message}`);
+    }
+  }
+
   if (btnOAuthAuth) {
     btnOAuthAuth.addEventListener('click', function () {
       if (isGoogleAuthenticated()) {
         signOutGoogle();
       } else {
-        requestGoogleSignIn(function () {
-          if (hasLoadedMap) fetchAndPlot();
-        });
+        requestGoogleSignIn(handleGoogleSignInSuccess);
       }
     });
   }
@@ -5395,9 +5542,7 @@ const ALL_FA_ICONS = [
       if (isGoogleAuthenticated()) {
         signOutGoogle();
       } else {
-        requestGoogleSignIn(function () {
-          if (hasLoadedMap) fetchAndPlot();
-        });
+        requestGoogleSignIn(handleGoogleSignInSuccess);
       }
     });
   }
@@ -5423,7 +5568,11 @@ const ALL_FA_ICONS = [
       })
       .catch(function (err) {
         console.warn('Could not auto-load shared map:', err);
-        setStatus('Sign in with Google to load this shared map URL.');
+        setStatus(err && err.code === 'shared-map-auth'
+          ? err.message
+          : isGoogleAuthenticated()
+          ? `Could not load shared map: ${err.message}`
+          : 'Sign in with Google to load this shared map URL.');
       });
   }
 
