@@ -2224,7 +2224,7 @@ const ALL_FA_ICONS = [
 
   function buildSharedMapAlertMessage() {
     if (!sharedMapState) return '';
-    if (!sharedMapState.lastLoadedAt && !sharedMapState.baseLayerNotice) return '';
+    if (!sharedMapState.lastLoadedAt && !sharedMapState.baseLayerNotice && !sharedMapState.nextRefreshAt) return '';
     const alertParts = [];
     if (sharedMapState.lastLoadedAt) {
       alertParts.push(`Shared map loaded from Google Drive at ${formatAlertTimestamp(sharedMapState.lastLoadedAt)}.`);
