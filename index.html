@@ -1884,6 +1884,7 @@ const ALL_FA_ICONS = [
   let resolveSharedMapPublicChoice = null;
   const modalFocusReturnByOverlay = new WeakMap();
   const modalDialogPanelByOverlay = new WeakMap();
+  const managedModalOverlayA11yState = new WeakMap();
   const managedModalOverlays = new Set();
   let managedModalBackgroundState = null;
   let managedModalOpenCount = 0;
@@ -1953,6 +1954,46 @@ const ALL_FA_ICONS = [
     managedModalBackgroundState = null;
   }
 
+  function markManagedModalInactive(modalOverlay) {
+    if (!modalOverlay) return;
+    if (!managedModalOverlayA11yState.has(modalOverlay)) {
+      managedModalOverlayA11yState.set(modalOverlay, {
+        ariaHidden: modalOverlay.getAttribute('aria-hidden'),
+        inert: modalOverlay.inert === true
+      });
+    }
+    modalOverlay.setAttribute('aria-hidden', 'true');
+    modalOverlay.inert = true;
+  }
+
+  function restoreManagedModalActive(modalOverlay) {
+    if (!modalOverlay) return;
+    const saved = managedModalOverlayA11yState.get(modalOverlay);
+    if (saved) {
+      if (saved.ariaHidden === null) modalOverlay.removeAttribute('aria-hidden');
+      else modalOverlay.setAttribute('aria-hidden', saved.ariaHidden);
+      modalOverlay.inert = saved.inert;
+      managedModalOverlayA11yState.delete(modalOverlay);
+      return;
+    }
+    modalOverlay.removeAttribute('aria-hidden');
+    modalOverlay.inert = false;
+  }
+
+  function syncManagedModalInteractivity() {
+    const visibleManagedModals = Array.from(
+      document.querySelectorAll('.modal-overlay:not(.hidden)')
+    ).filter(modal => managedModalOverlays.has(modal));
+    const topManagedModal = visibleManagedModals.length ? visibleManagedModals[visibleManagedModals.length - 1] : null;
+    visibleManagedModals.forEach(modal => {
+      if (modal === topManagedModal) {
+        restoreManagedModalActive(modal);
+      } else {
+        markManagedModalInactive(modal);
+      }
+    });
+  }
+
   function fallbackFocusManagedModal(modalOverlay) {
     if (!modalOverlay) return;
     const fallbackFocusable = listFocusableModalElements(modalOverlay)[0];
@@ -2011,6 +2052,7 @@ const ALL_FA_ICONS = [
     setModalBackgroundInert(modalOverlay);
     managedModalOpenCount += 1;
     modalOverlay.classList.remove('hidden');
+    syncManagedModalInteractivity();
     const fallbackFocusTarget = dialogPanel instanceof HTMLElement ? dialogPanel : modalOverlay;
     const focusTarget = initialFocus instanceof HTMLElement ? initialFocus : fallbackFocusTarget;
     focusTarget.focus();
@@ -2021,6 +2063,7 @@ const ALL_FA_ICONS = [
     if (!isModalVisible(modalOverlay)) return;
     modalOverlay.classList.add('hidden');
     managedModalOpenCount = Math.max(0, managedModalOpenCount - 1);
+    syncManagedModalInteractivity();
     restoreModalBackgroundInert(modalOverlay);
     const activeVisibleModal = topVisibleModalOverlay();
     if (managedModalOpenCount > 0 && activeVisibleModal) {
