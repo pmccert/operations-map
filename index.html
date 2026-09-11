@@ -1939,7 +1939,7 @@ const ALL_FA_ICONS = [
     if (managedModalOpenCount > 0) return;
     const bodyChildren = Array.from(document.body.children || []);
     managedModalBackgroundState = bodyChildren
-      .filter(element => !(element.classList && element.classList.contains('modal-overlay')))
+      .filter(element => element !== modalOverlay)
       .map(element => ({
         element,
         ariaHidden: element.getAttribute('aria-hidden'),
@@ -2892,11 +2892,13 @@ const ALL_FA_ICONS = [
     return 'non_downgradable';
   }
 
-  async function driveMakeFilePublic(fileId) {
+  async function driveMakeFilePublic(fileId, options) {
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    const allowDowngradePublicPermission = Boolean(options && options.allowDowngradePublicPermission);
     const publicPermission = await driveGetPublicPermission(fileId);
     const action = sharedMapPublicPermissionAction(publicPermission);
     if (action === 'update') {
+      if (!allowDowngradePublicPermission) return;
       if (publicPermission && publicPermission.id) {
         await driveSetPermissionRole(fileId, publicPermission.id, 'reader');
       } else {
@@ -6248,7 +6250,7 @@ const ALL_FA_ICONS = [
         const shouldMakePublic = await promptSharedMapPublicChoice();
         if (shouldMakePublic) {
           try {
-            await driveMakeFilePublic(created.id);
+            await driveMakeFilePublic(created.id, { allowDowngradePublicPermission: true });
             statusMessage = 'Shared map created and made public in Google Drive. Copy and share URLs from the toolbar.';
           } catch (err) {
             console.error('Could not make shared map public:', err);
