@@ -1373,6 +1373,8 @@
       <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
       <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
       <button class="toolbar-btn" id="btn-copy-viewer-url" title="Copy read-only viewer URL"><i class="fa-solid fa-link"></i> Copy Viewer URL</button>
+      <button class="toolbar-btn" id="btn-open-drive-file" title="Open the shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Open in Drive</button>
+      <button class="toolbar-btn" id="btn-copy-drive-url" title="Copy the shared map Google Drive URL"><i class="fa-solid fa-copy"></i> Copy Drive URL</button>
       <button class="toolbar-btn" id="btn-open-editor-url" title="Open URL for editing mode"><i class="fa-solid fa-pen-to-square"></i> Open Editor URL</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
       <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
@@ -1407,6 +1409,21 @@
       <div>Website: <a href="https://pmccert.com" target="_blank" rel="noopener noreferrer">pmccert.com</a></div>
     </div>
     <button type="button" id="commit-info-done" class="btn-secondary">Close</button>
+  </div>
+</div>
+
+<!-- Shared map public access dialog -->
+<div id="shared-map-public-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="shared-map-public-title" aria-describedby="shared-map-public-description">
+  <div id="shared-map-public-dialog" class="modal-box" style="width: min(520px, 92vw);" tabindex="-1">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <h2 id="shared-map-public-title">Make shared map public?</h2>
+      <button type="button" id="shared-map-public-close" class="modal-close-btn" title="Close dialog" aria-label="Close dialog">&times;</button>
+    </div>
+    <p id="shared-map-public-description">This changes Google Drive file permissions so anyone with the link can read this shared-map JSON file (separate from app viewer-mode URLs), and it will normalize public commenter/writer access down to read-only when possible.</p>
+    <div role="group" aria-label="Public sharing options" style="display: flex; gap: 8px; justify-content: flex-end;">
+      <button type="button" id="shared-map-public-no" class="btn-secondary">Keep Private</button>
+      <button type="button" id="shared-map-public-yes" class="btn-primary">Make Public</button>
+    </div>
   </div>
 </div>
 
@@ -1859,22 +1876,310 @@ const ALL_FA_ICONS = [
   );
 
   const commitInfoModal = document.getElementById('commit-info-modal');
+  const commitInfoDialog = commitInfoModal ? commitInfoModal.querySelector('.modal-box') : null;
+  const commitInfoCloseBtn = document.getElementById('commit-info-close');
+  const commitInfoDoneBtn = document.getElementById('commit-info-done');
+  const sharedMapPublicModal = document.getElementById('shared-map-public-modal');
+  const sharedMapPublicDialog = document.getElementById('shared-map-public-dialog');
+  const sharedMapPublicCloseBtn = document.getElementById('shared-map-public-close');
+  const sharedMapPublicNoBtn = document.getElementById('shared-map-public-no');
+  const sharedMapPublicYesBtn = document.getElementById('shared-map-public-yes');
+  let resolveSharedMapPublicChoice = null;
+  let pendingSharedMapPublicChoicePromise = null;
+  const modalFocusReturnByOverlay = new WeakMap();
+  const modalDialogPanelByOverlay = new WeakMap();
+  const managedModalOverlayA11yState = new WeakMap();
+  const managedModalOverlays = new Set();
+  let managedModalBackgroundState = null;
+  let managedModalOpenCount = 0;
   const closeCommitInfoModal = function () {
-    commitInfoModal.classList.add('hidden');
+    closeManagedModal(commitInfoModal);
   };
+
+  function isModalVisible(modalOverlay) {
+    return Boolean(modalOverlay && !modalOverlay.classList.contains('hidden'));
+  }
+
+  function topVisibleModalOverlay() {
+    const visibleModals = document.querySelectorAll('.modal-overlay:not(.hidden)');
+    return visibleModals.length ? visibleModals[visibleModals.length - 1] : null;
+  }
+
+  function topVisibleManagedModalOverlay() {
+    const visibleManagedModals = Array.from(
+      document.querySelectorAll('.modal-overlay:not(.hidden)')
+    ).filter(modal => managedModalOverlays.has(modal));
+    return visibleManagedModals.length ? visibleManagedModals[visibleManagedModals.length - 1] : null;
+  }
+
+  function isUsableFocusTarget(element) {
+    if (!(element instanceof HTMLElement)) return false;
+    if (element.getClientRects().length === 0) return false;
+    if (element.closest('.hidden')) return false;
+    if (element.closest('[inert]')) return false;
+    if (element.closest('[aria-hidden="true"]')) return false;
+    return true;
+  }
+
+  function listFocusableModalElements(modalOverlay) {
+    if (!modalOverlay) return [];
+    const nodes = modalOverlay.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    return Array.from(nodes).filter(node =>
+      node instanceof HTMLElement &&
+      !node.disabled &&
+      node.tabIndex >= 0 &&
+      isUsableFocusTarget(node) &&
+      window.getComputedStyle(node).visibility !== 'hidden'
+    );
+  }
+
+  function setModalBackgroundInert(modalOverlay) {
+    if (!modalOverlay) return;
+    if (managedModalOpenCount > 0) return;
+    const bodyChildren = Array.from(document.body.children || []);
+    managedModalBackgroundState = bodyChildren
+      .filter(element => {
+        if (element === modalOverlay) return false;
+        if (managedModalOverlays.has(element) && isModalVisible(element)) return false;
+        return true;
+      })
+      .map(element => ({
+        element,
+        ariaHidden: element.getAttribute('aria-hidden'),
+        inert: element.inert === true
+      }));
+    managedModalBackgroundState.forEach(({ element }) => {
+      element.setAttribute('aria-hidden', 'true');
+      element.inert = true;
+    });
+  }
+
+  function restoreModalBackgroundInert(modalOverlay) {
+    if (!modalOverlay) return;
+    if (managedModalOpenCount > 0) return;
+    const backgroundState = managedModalBackgroundState || [];
+    backgroundState.forEach(({ element, ariaHidden, inert }) => {
+      if (!element) return;
+      if (ariaHidden === null) element.removeAttribute('aria-hidden');
+      else element.setAttribute('aria-hidden', ariaHidden);
+      element.inert = inert;
+    });
+    managedModalBackgroundState = null;
+  }
+
+  function markManagedModalInactive(modalOverlay) {
+    if (!modalOverlay) return;
+    if (!managedModalOverlayA11yState.has(modalOverlay)) {
+      managedModalOverlayA11yState.set(modalOverlay, {
+        ariaHidden: modalOverlay.getAttribute('aria-hidden'),
+        inert: modalOverlay.inert === true
+      });
+    }
+    modalOverlay.setAttribute('aria-hidden', 'true');
+    modalOverlay.inert = true;
+  }
+
+  function restoreManagedModalActive(modalOverlay) {
+    if (!modalOverlay) return;
+    const saved = managedModalOverlayA11yState.get(modalOverlay);
+    if (saved) {
+      if (saved.ariaHidden === null) modalOverlay.removeAttribute('aria-hidden');
+      else modalOverlay.setAttribute('aria-hidden', saved.ariaHidden);
+      modalOverlay.inert = saved.inert;
+      managedModalOverlayA11yState.delete(modalOverlay);
+      return;
+    }
+    modalOverlay.removeAttribute('aria-hidden');
+    modalOverlay.inert = false;
+  }
+
+  function syncManagedModalInteractivity() {
+    const visibleManagedModals = Array.from(
+      document.querySelectorAll('.modal-overlay:not(.hidden)')
+    ).filter(modal => managedModalOverlays.has(modal));
+    const topManagedModal = visibleManagedModals.length ? visibleManagedModals[visibleManagedModals.length - 1] : null;
+    visibleManagedModals.forEach(modal => {
+      if (modal === topManagedModal) {
+        restoreManagedModalActive(modal);
+      } else {
+        markManagedModalInactive(modal);
+      }
+    });
+  }
+
+  function fallbackFocusManagedModal(modalOverlay) {
+    if (!modalOverlay) return;
+    const fallbackFocusable = listFocusableModalElements(modalOverlay)[0];
+    if (fallbackFocusable && typeof fallbackFocusable.focus === 'function') {
+      fallbackFocusable.focus();
+      return;
+    }
+    const dialogPanel = modalDialogPanelByOverlay.get(modalOverlay);
+    if (dialogPanel && typeof dialogPanel.focus === 'function') {
+      dialogPanel.focus();
+    }
+  }
+
+  function focusAppFallbackControl() {
+    const fallbackCandidates = [
+      'btn-google-auth-status',
+      'btn-shared-map-status',
+      'btn-change-sheet'
+    ];
+    for (const id of fallbackCandidates) {
+      const element = document.getElementById(id);
+      if (isUsableFocusTarget(element) && typeof element.focus === 'function') {
+        element.focus();
+        return;
+      }
+    }
+  }
+
+  function openManagedModal(modalOverlay, options) {
+    if (!modalOverlay) return;
+    if (isModalVisible(modalOverlay)) return;
+    const { dialogPanel, initialFocus } = options || {};
+    managedModalOverlays.add(modalOverlay);
+    modalDialogPanelByOverlay.set(modalOverlay, dialogPanel instanceof HTMLElement ? dialogPanel : null);
+    modalFocusReturnByOverlay.set(
+      modalOverlay,
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    );
+    setModalBackgroundInert(modalOverlay);
+    managedModalOpenCount += 1;
+    modalOverlay.classList.remove('hidden');
+    syncManagedModalInteractivity();
+    const fallbackFocusTarget = dialogPanel instanceof HTMLElement ? dialogPanel : modalOverlay;
+    const focusTarget = initialFocus instanceof HTMLElement ? initialFocus : fallbackFocusTarget;
+    focusTarget.focus();
+  }
+
+  function closeManagedModal(modalOverlay) {
+    if (!modalOverlay) return;
+    if (!isModalVisible(modalOverlay)) return;
+    modalOverlay.classList.add('hidden');
+    managedModalOpenCount = Math.max(0, managedModalOpenCount - 1);
+    syncManagedModalInteractivity();
+    restoreModalBackgroundInert(modalOverlay);
+    const activeVisibleModal = topVisibleManagedModalOverlay();
+    if (managedModalOpenCount > 0 && activeVisibleModal) {
+      fallbackFocusManagedModal(activeVisibleModal);
+      modalFocusReturnByOverlay.delete(modalOverlay);
+      return;
+    }
+    const focusReturnEl = modalFocusReturnByOverlay.get(modalOverlay);
+    const canReturnFocus = focusReturnEl &&
+      typeof focusReturnEl.focus === 'function' &&
+      isUsableFocusTarget(focusReturnEl);
+    if (canReturnFocus) {
+      focusReturnEl.focus();
+    } else {
+      fallbackFocusManagedModal(activeVisibleModal);
+      if (!activeVisibleModal) {
+        focusAppFallbackControl();
+      }
+    }
+    modalFocusReturnByOverlay.delete(modalOverlay);
+  }
+
+  function handleManagedModalKeyboard(event, modalOverlay, closeHandler) {
+    if (!isModalVisible(modalOverlay)) return false;
+    const topModal = topVisibleModalOverlay();
+    if (topModal !== modalOverlay) return false;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeHandler();
+      return true;
+    }
+    if (event.key !== 'Tab') return false;
+    const focusable = listFocusableModalElements(modalOverlay);
+    if (!focusable.length) return false;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+      return true;
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+      return true;
+    }
+    return false;
+  }
+
+  const closeSharedMapPublicModal = function (choice) {
+    if (sharedMapPublicModal) closeManagedModal(sharedMapPublicModal);
+    if (resolveSharedMapPublicChoice) {
+      const resolve = resolveSharedMapPublicChoice;
+      resolveSharedMapPublicChoice = null;
+      resolve(Boolean(choice));
+    }
+    pendingSharedMapPublicChoicePromise = null;
+  };
+  function promptSharedMapPublicChoice() {
+    if (!sharedMapPublicModal || !sharedMapPublicNoBtn || !sharedMapPublicYesBtn) {
+      return Promise.resolve(false);
+    }
+    if (pendingSharedMapPublicChoicePromise) return pendingSharedMapPublicChoicePromise;
+    openManagedModal(sharedMapPublicModal, {
+      dialogPanel: sharedMapPublicDialog,
+      initialFocus: sharedMapPublicNoBtn
+    });
+    pendingSharedMapPublicChoicePromise = new Promise(resolve => {
+      resolveSharedMapPublicChoice = resolve;
+    });
+    return pendingSharedMapPublicChoicePromise;
+  }
   document.addEventListener('click', function (e) {
     const attributionLink = e.target.closest('#pmc-cert-attribution-link');
     if (attributionLink) {
       e.preventDefault();
-      commitInfoModal.classList.remove('hidden');
+      openManagedModal(commitInfoModal, {
+        dialogPanel: commitInfoDialog,
+        initialFocus: commitInfoCloseBtn || commitInfoDialog
+      });
     }
   });
-  document.getElementById('commit-info-close').addEventListener('click', closeCommitInfoModal);
-  document.getElementById('commit-info-done').addEventListener('click', closeCommitInfoModal);
-  commitInfoModal.addEventListener('click', function (e) {
-    if (e.target === commitInfoModal) {
-      closeCommitInfoModal();
-    }
+  if (commitInfoCloseBtn) commitInfoCloseBtn.addEventListener('click', closeCommitInfoModal);
+  if (commitInfoDoneBtn) commitInfoDoneBtn.addEventListener('click', closeCommitInfoModal);
+  if (commitInfoModal) {
+    commitInfoModal.addEventListener('click', function (e) {
+      if (e.target === commitInfoModal) {
+        closeCommitInfoModal();
+      }
+    });
+  }
+  if (sharedMapPublicNoBtn) {
+    sharedMapPublicNoBtn.addEventListener('click', function () {
+      closeSharedMapPublicModal(false);
+    });
+  }
+  if (sharedMapPublicCloseBtn) {
+    sharedMapPublicCloseBtn.addEventListener('click', function () {
+      closeSharedMapPublicModal(false);
+    });
+  }
+  if (sharedMapPublicYesBtn) {
+    sharedMapPublicYesBtn.addEventListener('click', function () {
+      closeSharedMapPublicModal(true);
+    });
+  }
+  if (sharedMapPublicModal) {
+    sharedMapPublicModal.addEventListener('click', function (e) {
+      if (e.target === sharedMapPublicModal) {
+        closeSharedMapPublicModal(false);
+      }
+    });
+  }
+  document.addEventListener('keydown', function (e) {
+    const handledByShared = handleManagedModalKeyboard(e, sharedMapPublicModal, function () {
+      closeSharedMapPublicModal(false);
+    });
+    if (handledByShared) return;
+    handleManagedModalKeyboard(e, commitInfoModal, closeCommitInfoModal);
   });
 
   const zoomAlert = document.getElementById('zoom-alert');
@@ -2333,6 +2638,10 @@ const ALL_FA_ICONS = [
     return `${sharedMapBaseUrl()}?${params.toString()}`;
   }
 
+  function buildDriveFileUrl(fileId) {
+    return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+  }
+
   function extractDriveFileId(input) {
     const value = String(input || '').trim();
     if (!value) return '';
@@ -2516,6 +2825,98 @@ const ALL_FA_ICONS = [
     if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive file update failed (${resp.status}).`);
     return resp.json();
+  }
+
+  async function driveGetPublicPermission(fileId) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    let pageToken = '';
+    do {
+      const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`);
+      url.searchParams.set('fields', 'nextPageToken,permissions(id,type,role)');
+      url.searchParams.set('supportsAllDrives', 'true');
+      if (pageToken) {
+        url.searchParams.set('pageToken', pageToken);
+      }
+      const permissionsResp = await fetch(url.toString(), {
+        headers: driveAuthHeaders()
+      });
+      if (permissionsResp.status === 401) throw handleSharedMapAuthFailure();
+      if (!permissionsResp.ok) throw new Error(`Google Drive permission check failed (${permissionsResp.status}).`);
+      const permissionsData = await permissionsResp.json();
+      const permissions = Array.isArray(permissionsData.permissions) ? permissionsData.permissions : [];
+      const publicPermission = permissions.find(permission => permission && permission.type === 'anyone');
+      if (publicPermission) return publicPermission;
+      pageToken = String(permissionsData.nextPageToken || '');
+    } while (pageToken);
+    return null;
+  }
+
+  async function driveSetPermissionRole(fileId, permissionId, role) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}?supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: {
+          ...driveAuthHeaders(),
+          'Content-Type': 'application/json; charset=UTF-8'
+        },
+        body: JSON.stringify({ role })
+      }
+    );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
+    if (!resp.ok) throw new Error(`Google Drive permission role update failed (${resp.status}).`);
+  }
+
+  function sharedMapPublicPermissionAction(publicPermission) {
+    if (!publicPermission) return 'create';
+    if (publicPermission.role === 'reader') return 'none';
+    if (publicPermission.role === 'writer' || publicPermission.role === 'commenter') return 'update';
+    return 'non_downgradable';
+  }
+
+  async function driveMakeFilePublic(fileId, options) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    const allowDowngradePublicPermission = Boolean(options && options.allowDowngradePublicPermission);
+    const publicPermission = await driveGetPublicPermission(fileId);
+    const action = sharedMapPublicPermissionAction(publicPermission);
+    if (action === 'update') {
+      if (!allowDowngradePublicPermission) {
+        throw new Error('Google Drive public permission is broader than read-only. Re-run with downgrade permission enabled.');
+      }
+      if (publicPermission && publicPermission.id) {
+        await driveSetPermissionRole(fileId, publicPermission.id, 'reader');
+        const updatedPublicPermission = await driveGetPublicPermission(fileId);
+        if (updatedPublicPermission && updatedPublicPermission.role === 'reader') {
+          return { status: 'downgraded_to_reader' };
+        }
+        throw new Error('Google Drive public permission could not be confirmed as read-only after update.');
+      } else {
+        throw new Error('Google Drive public permission could not be updated.');
+      }
+    }
+    if (action === 'non_downgradable') {
+      throw new Error('Google Drive public permission exists but cannot be changed to read-only from this app.');
+    }
+    if (action === 'none') return { status: 'already_public_reader' };
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?supportsAllDrives=true&sendNotificationEmail=false`,
+      {
+        method: 'POST',
+        headers: {
+          ...driveAuthHeaders(),
+          'Content-Type': 'application/json; charset=UTF-8'
+        },
+        body: JSON.stringify({
+          role: 'reader',
+          type: 'anyone',
+          allowFileDiscovery: false
+        })
+      }
+    );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
+    if (!resp.ok) throw new Error(`Google Drive permission update failed (${resp.status}).`);
+    return { status: 'created_public_reader' };
   }
 
   const THIRD_PARTY_ENDPOINTS = {
@@ -5835,7 +6236,18 @@ const ALL_FA_ICONS = [
         const filename = nameInput.trim() || defaultName;
         const created = await driveCreateJsonFile(filename, mapSnapshot());
         await connectSharedMapFile(created.id, { loadNow: false });
-        setStatus('Shared map created in Google Drive. Copy and share the viewer URL.');
+        let statusMessage = 'Shared map created in Google Drive. Copy and share the viewer URL.';
+        const shouldMakePublic = await promptSharedMapPublicChoice();
+        if (shouldMakePublic) {
+          try {
+            await driveMakeFilePublic(created.id, { allowDowngradePublicPermission: true });
+            statusMessage = 'Shared map created and made public in Google Drive. Copy and share URLs from the toolbar.';
+          } catch (err) {
+            console.error('Could not make shared map public:', err);
+            statusMessage = 'Shared map created, but public access could not be updated. Open the file in Drive to review sharing settings.';
+          }
+        }
+        setStatus(statusMessage);
       } catch (err) {
         console.error('Could not create shared map:', err);
         setStatus(`Could not create shared map: ${err.message}`);
@@ -5890,6 +6302,35 @@ const ALL_FA_ICONS = [
         return;
       }
       window.open(buildSharedMapUrl(sharedMapState.fileId, false), '_blank', 'noopener');
+    });
+  }
+
+  const btnOpenDriveFile = document.getElementById('btn-open-drive-file');
+  if (btnOpenDriveFile) {
+    btnOpenDriveFile.addEventListener('click', function () {
+      if (!sharedMapState.fileId) {
+        setStatus('Create or open a shared map first.');
+        return;
+      }
+      window.open(buildDriveFileUrl(sharedMapState.fileId), '_blank', 'noopener');
+    });
+  }
+
+  const btnCopyDriveUrl = document.getElementById('btn-copy-drive-url');
+  if (btnCopyDriveUrl) {
+    btnCopyDriveUrl.addEventListener('click', function () {
+      if (!sharedMapState.fileId) {
+        setStatus('Create or open a shared map first.');
+        return;
+      }
+      const driveUrl = buildDriveFileUrl(sharedMapState.fileId);
+      copyTextToClipboard(driveUrl)
+        .then(function () {
+          setStatus('Google Drive file URL copied to clipboard.');
+        })
+        .catch(function () {
+          setStatus('Could not copy Google Drive file URL.');
+        });
     });
   }
 
