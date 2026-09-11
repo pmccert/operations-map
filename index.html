@@ -1893,6 +1893,20 @@ const ALL_FA_ICONS = [
     return Boolean(modalOverlay && !modalOverlay.classList.contains('hidden'));
   }
 
+  function topVisibleModalOverlay() {
+    const visibleModals = document.querySelectorAll('.modal-overlay:not(.hidden)');
+    return visibleModals.length ? visibleModals[visibleModals.length - 1] : null;
+  }
+
+  function isUsableFocusTarget(element) {
+    if (!(element instanceof HTMLElement)) return false;
+    if (element.getClientRects().length === 0) return false;
+    if (element.closest('.hidden')) return false;
+    if (element.closest('[inert]')) return false;
+    if (element.closest('[aria-hidden="true"]')) return false;
+    return true;
+  }
+
   function listFocusableModalElements(modalOverlay) {
     if (!modalOverlay) return [];
     const nodes = modalOverlay.querySelectorAll(
@@ -1902,7 +1916,7 @@ const ALL_FA_ICONS = [
       node instanceof HTMLElement &&
       !node.disabled &&
       node.tabIndex >= 0 &&
-      node.getClientRects().length > 0 &&
+      isUsableFocusTarget(node) &&
       window.getComputedStyle(node).visibility !== 'hidden'
     );
   }
@@ -1960,12 +1974,11 @@ const ALL_FA_ICONS = [
     const focusReturnEl = modalFocusReturnByOverlay.get(modalOverlay);
     const canReturnFocus = focusReturnEl &&
       typeof focusReturnEl.focus === 'function' &&
-      focusReturnEl.getClientRects().length > 0 &&
-      !focusReturnEl.closest('.hidden');
+      isUsableFocusTarget(focusReturnEl);
     if (canReturnFocus) {
       focusReturnEl.focus();
     } else {
-      const activeVisibleModal = document.querySelector('.modal-overlay:not(.hidden)');
+      const activeVisibleModal = topVisibleModalOverlay();
       const fallbackFocusable = listFocusableModalElements(activeVisibleModal)[0];
       if (fallbackFocusable && typeof fallbackFocusable.focus === 'function') {
         fallbackFocusable.focus();
@@ -1978,7 +1991,10 @@ const ALL_FA_ICONS = [
 
   function handleManagedModalKeyboard(event, modalOverlay, closeHandler) {
     if (!isModalVisible(modalOverlay)) return;
+    const topModal = topVisibleModalOverlay();
+    if (topModal !== modalOverlay) return;
     if (event.key === 'Escape') {
+      event.preventDefault();
       closeHandler();
       return;
     }

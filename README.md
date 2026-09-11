@@ -142,9 +142,11 @@ setup dialog or via the toolbar:
       **Open Shared Map** to open an existing Drive file by file ID/URL.
     * After creating a shared map, confirm the prompt to make the file public
       (`anyone` reader access). Public mode means anyone with the Drive link can
-      open and read the shared-map JSON file contents.
+      open and read the shared-map JSON file contents. This prompt appears only
+      when creating a new shared map file.
     * You can still use normal Google Drive sharing controls to manage
-      editor/viewer access.
+      editor/viewer access (including for existing shared map files opened with
+      **Open Shared Map**).
     * Click **Copy Viewer URL** and send that URL to viewers.
     * Click **Open in Drive** to open the shared file in Google Drive, or
       **Copy Drive URL** to share the Drive link directly.
