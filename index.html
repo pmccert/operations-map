@@ -3309,14 +3309,13 @@ const ALL_FA_ICONS = [
         ? parsed.baseLayer
         : null;
       const currentBaseLayerName = getCurrentBaseLayerName();
-      const preserveCustomBaseLayer = options.preserveCustomBaseLayer === true &&
-        sharedMapState.sourceBaseLayer &&
-        currentBaseLayerName !== sharedMapState.sourceBaseLayer;
-      const baseLayerNotice = preserveCustomBaseLayer &&
+      const hasLocalBaseLayerOverride = options.preserveCustomBaseLayer === true &&
         importedBaseLayerName &&
-        sharedMapState.sourceBaseLayer &&
-        importedBaseLayerName !== sharedMapState.sourceBaseLayer
-        ? `Source basemap changed to ${importedBaseLayerName}; keeping your current basemap (${currentBaseLayerName}).`
+        currentBaseLayerName !== importedBaseLayerName &&
+        (hasLoadedMap || (sharedMapState.sourceBaseLayer && currentBaseLayerName !== sharedMapState.sourceBaseLayer));
+      const preserveCustomBaseLayer = Boolean(hasLocalBaseLayerOverride);
+      const baseLayerNotice = preserveCustomBaseLayer && importedBaseLayerName
+        ? `Source basemap is ${importedBaseLayerName}; keeping your current basemap (${currentBaseLayerName}).`
         : '';
       if (typeof parsed.baseLayer === 'string') {
         importedRuntimeConfig.baseLayer = parsed.baseLayer;
