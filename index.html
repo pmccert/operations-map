@@ -3526,6 +3526,7 @@ const ALL_FA_ICONS = [
     function scheduleNextSharedMapPoll() {
       if (!sharedMapState.fileId || !sharedMapState.pollingActive) return;
       sharedMapState.nextRefreshAt = Date.now() + SHARED_MAP_POLL_INTERVAL_MS;
+      if (sharedMapState.syncTimer) clearTimeout(sharedMapState.syncTimer);
       sharedMapState.syncTimer = setTimeout(runSharedMapPoll, SHARED_MAP_POLL_INTERVAL_MS);
       updateSharedMapAlertTimer();
       updateMapAlerts();
