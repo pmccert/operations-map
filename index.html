@@ -3555,7 +3555,9 @@ const ALL_FA_ICONS = [
           console.warn('Shared map poll failed:', err);
         }
       } finally {
-        scheduleNextSharedMapPoll();
+        if (sharedMapState.pollingActive && sharedMapState.fileId) {
+          scheduleNextSharedMapPoll();
+        }
       }
     }
     scheduleNextSharedMapPoll();
