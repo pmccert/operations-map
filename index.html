@@ -3532,6 +3532,12 @@ const ALL_FA_ICONS = [
     }
     async function runSharedMapPoll() {
       sharedMapState.syncTimer = null;
+      if (!sharedMapState.pollingActive || !sharedMapState.fileId) {
+        sharedMapState.nextRefreshAt = null;
+        updateSharedMapAlertTimer();
+        updateMapAlerts();
+        return;
+      }
       try {
         const meta = await driveFetchMetadata(sharedMapState.fileId);
         const remoteVersion = meta.version || null;
