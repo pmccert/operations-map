@@ -1419,7 +1419,7 @@
       <h2 id="shared-map-public-title">Make shared map public?</h2>
       <button type="button" id="shared-map-public-close" class="modal-close-btn" title="Close dialog" aria-label="Close dialog">&times;</button>
     </div>
-    <p id="shared-map-public-description">This changes Google Drive file permissions to allow anyone with the link to read this shared-map JSON file (separate from app viewer-mode URLs).</p>
+    <p id="shared-map-public-description">This changes Google Drive file permissions so anyone with the link can read this shared-map JSON file (separate from app viewer-mode URLs), and it will normalize broader public access down to read-only.</p>
     <div role="group" aria-label="Public sharing options" style="display: flex; gap: 8px; justify-content: flex-end;">
       <button type="button" id="shared-map-public-no" class="btn-secondary">Keep Private</button>
       <button type="button" id="shared-map-public-yes" class="btn-primary">Make Public</button>
@@ -1968,9 +1968,21 @@ const ALL_FA_ICONS = [
 
   function closeManagedModal(modalOverlay) {
     if (!modalOverlay) return;
+    if (!isModalVisible(modalOverlay)) return;
     modalOverlay.classList.add('hidden');
     managedModalOpenCount = Math.max(0, managedModalOpenCount - 1);
     restoreModalBackgroundInert(modalOverlay);
+    const activeVisibleModal = topVisibleModalOverlay();
+    if (managedModalOpenCount > 0 && activeVisibleModal) {
+      const fallbackFocusable = listFocusableModalElements(activeVisibleModal)[0];
+      if (fallbackFocusable && typeof fallbackFocusable.focus === 'function') {
+        fallbackFocusable.focus();
+      } else if (activeVisibleModal && typeof activeVisibleModal.focus === 'function') {
+        activeVisibleModal.focus();
+      }
+      modalFocusReturnByOverlay.delete(modalOverlay);
+      return;
+    }
     const focusReturnEl = modalFocusReturnByOverlay.get(modalOverlay);
     const canReturnFocus = focusReturnEl &&
       typeof focusReturnEl.focus === 'function' &&
@@ -1978,7 +1990,6 @@ const ALL_FA_ICONS = [
     if (canReturnFocus) {
       focusReturnEl.focus();
     } else {
-      const activeVisibleModal = topVisibleModalOverlay();
       const fallbackFocusable = listFocusableModalElements(activeVisibleModal)[0];
       if (fallbackFocusable && typeof fallbackFocusable.focus === 'function') {
         fallbackFocusable.focus();
