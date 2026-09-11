@@ -28,6 +28,13 @@ publicly accessible Google Sheet.
   back to the Google Maps Geocoding API (if configured). Results are cached locally.
 * **Private Google Sheet access** — sign in with Google from the setup dialog or
   toolbar to read sheets that are not publicly shared.
+* **Google Drive shared map state** — create or open a shared map JSON file in
+  Google Drive and load it by URL (`?mapFileId=...`). Drive permissions control
+  who can edit vs. view.
+* **Viewer and editor URLs** — copy a read-only viewer link from the toolbar, or
+  open an editor link. Viewers can watch layer, feature, and map-state changes.
+* **Shared map polling sync** — shared map state is refreshed from Google Drive
+  on a polling interval (near-real-time), not via push/realtime backend.
 * **Portable map files** — save the current sheet configuration and loaded incident
   rows to a JSON file, then load it in another browser. OAuth access tokens and
   other login credentials are never included; private sheets still require
@@ -119,7 +126,14 @@ setup dialog or via the toolbar:
 11. Use **Save Map File** to export the current configuration and loaded data. Use
     **Load Map File** in another browser to restore it; the imported snapshot is
     displayed first and then normal sheet refresh resumes.
-12. Open the top-right layers menu and select **Known Fire Incidents** or
+12. To collaborate through Google Drive:
+    * Click **Create Shared Map** to create a map-state JSON file in your Drive, or
+     **Open Shared Map** to open an existing Drive file by file ID/URL.
+    * Share Drive access to that file (editor for one user, viewer for everyone
+     else) using normal Google Drive sharing controls.
+    * Click **Copy Viewer URL** and send that URL to viewers.
+    * Use **Open Editor URL** when opening the map in edit mode.
+13. Open the top-right layers menu and select **Known Fire Incidents** or
     **ADS-B Aircraft** to load those live third-party overlays. Use their
     legend checkboxes to hide an enabled overlay.
 
