@@ -1882,11 +1882,19 @@ const ALL_FA_ICONS = [
   const sharedMapPublicYesBtn = document.getElementById('shared-map-public-yes');
   let resolveSharedMapPublicChoice = null;
   let sharedMapPublicFocusReturnEl = null;
+  let sharedMapPublicBackgroundState = [];
   const closeCommitInfoModal = function () {
     commitInfoModal.classList.add('hidden');
   };
   const closeSharedMapPublicModal = function (choice) {
     if (sharedMapPublicModal) sharedMapPublicModal.classList.add('hidden');
+    sharedMapPublicBackgroundState.forEach(({ element, ariaHidden, inert }) => {
+      if (!element) return;
+      if (ariaHidden === null) element.removeAttribute('aria-hidden');
+      else element.setAttribute('aria-hidden', ariaHidden);
+      element.inert = inert;
+    });
+    sharedMapPublicBackgroundState = [];
     if (sharedMapPublicFocusReturnEl && typeof sharedMapPublicFocusReturnEl.focus === 'function') {
       sharedMapPublicFocusReturnEl.focus();
     }
@@ -1905,6 +1913,18 @@ const ALL_FA_ICONS = [
       closeSharedMapPublicModal(false);
     }
     sharedMapPublicFocusReturnEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const bodyChildren = Array.from(document.body.children || []);
+    sharedMapPublicBackgroundState = bodyChildren
+      .filter(element => element !== sharedMapPublicModal)
+      .map(element => ({
+        element,
+        ariaHidden: element.getAttribute('aria-hidden'),
+        inert: element.inert === true
+      }));
+    sharedMapPublicBackgroundState.forEach(({ element }) => {
+      element.setAttribute('aria-hidden', 'true');
+      element.inert = true;
+    });
     sharedMapPublicModal.classList.remove('hidden');
     sharedMapPublicYesBtn.focus();
     return new Promise(resolve => {
@@ -2638,7 +2658,7 @@ const ALL_FA_ICONS = [
     const resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}?supportsAllDrives=true`,
       {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           ...driveAuthHeaders(),
           'Content-Type': 'application/json; charset=UTF-8'
@@ -2652,6 +2672,13 @@ const ALL_FA_ICONS = [
 
   async function driveMakeFilePublic(fileId) {
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    const publicPermission = await driveGetPublicPermission(fileId);
+    if (publicPermission) {
+      if (publicPermission.role !== 'reader') {
+        await driveSetPermissionRole(fileId, publicPermission.id, 'reader');
+      }
+      return;
+    }
     const resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?supportsAllDrives=true&sendNotificationEmail=false`,
       {
@@ -2668,29 +2695,7 @@ const ALL_FA_ICONS = [
       }
     );
     if (resp.status === 401) throw handleSharedMapAuthFailure();
-    if (!resp.ok) {
-      let body;
-      try {
-        body = await resp.json();
-      } catch (_) {
-        body = null;
-      }
-      const reasonList = ((body && body.error && Array.isArray(body.error.errors)) ? body.error.errors : [])
-        .map(err => String((err && err.reason) || '').toLowerCase());
-      const message = String((body && body.error && body.error.message) || '').toLowerCase();
-      const duplicatePermission = reasonList.includes('alreadyexists') || reasonList.includes('duplicate') ||
-        message.includes('already exists') || message.includes('duplicate');
-      if (duplicatePermission) {
-        const publicPermission = await driveGetPublicPermission(fileId);
-        if (publicPermission) {
-          if (publicPermission.role !== 'reader') {
-            await driveSetPermissionRole(fileId, publicPermission.id, 'reader');
-          }
-          return;
-        }
-      }
-      throw new Error(`Google Drive permission update failed (${resp.status}).`);
-    }
+    if (!resp.ok) throw new Error(`Google Drive permission update failed (${resp.status}).`);
   }
 
   const THIRD_PARTY_ENDPOINTS = {
