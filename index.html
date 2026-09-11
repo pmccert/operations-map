@@ -1405,8 +1405,8 @@
       <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
       <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
-      <details class="toolbar-submenu">
-        <summary class="toolbar-btn toolbar-submenu-trigger" title="Open Google Drive actions"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span></summary>
+      <details class="toolbar-submenu" id="google-drive-submenu">
+        <summary class="toolbar-btn toolbar-submenu-trigger" id="google-drive-submenu-trigger" title="Open Google Drive actions" aria-expanded="false"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span></summary>
         <div class="toolbar-submenu-content">
           <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
           <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
@@ -2406,7 +2406,6 @@ const ALL_FA_ICONS = [
     canEdit: false,
     lastVersion: null,
     lastSeenVersion: null,
-    lastAttemptedVersion: null,
     lastModifiedTime: null,
     sourceBaseLayer: null,
     sourceMapView: null,
@@ -2793,7 +2792,7 @@ const ALL_FA_ICONS = [
       return;
     }
     const roleText = mapIsReadOnly ? 'View-only' : 'Editor';
-    const activeVersion = sharedMapState.lastSeenVersion || sharedMapState.lastAttemptedVersion || sharedMapState.lastVersion;
+    const activeVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
     const versionText = activeVersion
       ? `v${activeVersion}`
       : 'unversioned';
@@ -3525,7 +3524,6 @@ const ALL_FA_ICONS = [
       !sharedMapState.lastVersion ||
       metadataVersion !== sharedMapState.lastVersion;
     if (!hasChanged) return;
-    sharedMapState.lastAttemptedVersion = metadataVersion;
     const payload = await driveFetchJson(sharedMapState.fileId);
     await applyMapSnapshot(payload, {
       remote: true,
@@ -3535,6 +3533,7 @@ const ALL_FA_ICONS = [
       preserveMapView: options.preserveMapView !== false
     });
     sharedMapState.lastVersion = metadataVersion;
+    sharedMapState.lastSeenVersion = metadataVersion;
     sharedMapState.lastModifiedTime = metadata.modifiedTime || sharedMapState.lastModifiedTime;
     sharedMapState.lastLoadedAt = new Date().toISOString();
     updateSharedMapStatusLabel();
@@ -3548,7 +3547,7 @@ const ALL_FA_ICONS = [
     try {
       const remoteMeta = await driveFetchMetadata(sharedMapState.fileId);
       const remoteVersion = normalizeDriveVersion(remoteMeta.version);
-      const knownVersion = sharedMapState.lastAttemptedVersion || sharedMapState.lastVersion;
+      const knownVersion = sharedMapState.lastVersion;
       if (knownVersion && remoteVersion && String(remoteVersion) !== String(knownVersion)) {
         const shouldReload = window.confirm(
           'This shared map changed in Google Drive since your last sync. Reload the newer version now?'
@@ -3566,7 +3565,6 @@ const ALL_FA_ICONS = [
       sharedMapState.fileName = updated.name || sharedMapState.fileName;
       sharedMapState.lastVersion = updatedVersion;
       sharedMapState.lastSeenVersion = updatedVersion;
-      sharedMapState.lastAttemptedVersion = updatedVersion;
       sharedMapState.lastModifiedTime = updated.modifiedTime || sharedMapState.lastModifiedTime;
       sharedMapState.dirty = false;
       updateSharedMapStatusLabel();
@@ -3622,12 +3620,9 @@ const ALL_FA_ICONS = [
         const meta = await driveFetchMetadata(sharedMapState.fileId);
         const remoteVersion = normalizeDriveVersion(meta.version);
         sharedMapState.lastSeenVersion = remoteVersion;
-        const attemptedVersion = sharedMapState.lastAttemptedVersion;
-        const hasChanged = remoteVersion !== attemptedVersion &&
-          (!sharedMapState.lastVersion || remoteVersion !== sharedMapState.lastVersion);
+        const hasChanged = !sharedMapState.lastVersion || remoteVersion !== sharedMapState.lastVersion;
         if (hasChanged && !sharedMapState.writeInFlight) {
           sharedMapState.fileName = meta.name || sharedMapState.fileName;
-          sharedMapState.lastAttemptedVersion = remoteVersion;
           const payload = await driveFetchJson(sharedMapState.fileId);
           await applyMapSnapshot(payload, {
             remote: true,
@@ -3661,7 +3656,6 @@ const ALL_FA_ICONS = [
     if (options.loadNow) {
       const payload = await driveFetchJson(sharedMapState.fileId);
       const loadedVersion = sharedMapState.lastSeenVersion;
-      sharedMapState.lastAttemptedVersion = loadedVersion;
       await applyMapSnapshot(payload, {
         remote: true,
         skipSharedWrite: true,
@@ -6578,6 +6572,16 @@ const ALL_FA_ICONS = [
       updatePollInterval(ms);
       persistAppState();
     });
+  }
+
+  const googleDriveSubmenu = document.getElementById('google-drive-submenu');
+  const googleDriveSubmenuTrigger = document.getElementById('google-drive-submenu-trigger');
+  if (googleDriveSubmenu && googleDriveSubmenuTrigger) {
+    const syncGoogleDriveSubmenuState = function () {
+      googleDriveSubmenuTrigger.setAttribute('aria-expanded', googleDriveSubmenu.open ? 'true' : 'false');
+    };
+    syncGoogleDriveSubmenuState();
+    googleDriveSubmenu.addEventListener('toggle', syncGoogleDriveSubmenuState);
   }
 
   const btnMatchSourceMap = document.getElementById('btn-match-source-map');
