@@ -2276,16 +2276,20 @@ const ALL_FA_ICONS = [
         Number.isFinite(nextConfig.mapView.zoom)) {
       map.setView([nextConfig.mapView.lat, nextConfig.mapView.lng], nextConfig.mapView.zoom);
     }
-    const enabledLayerNames = new Set(Array.isArray(nextConfig.enabledThirdPartyLayers) ? nextConfig.enabledThirdPartyLayers : []);
-    Object.entries(thirdPartyLayers).forEach(([name, config]) => {
-      const shouldEnable = enabledLayerNames.has(name);
-      const isEnabled = map.hasLayer(config.layer);
-      if (shouldEnable && !isEnabled) {
-        map.addLayer(config.layer);
-      } else if (!shouldEnable && isEnabled) {
-        map.removeLayer(config.layer);
-      }
-    });
+    if (Array.isArray(nextConfig.enabledThirdPartyLayers)) {
+      const enabledLayerNames = new Set(nextConfig.enabledThirdPartyLayers);
+      Object.entries(thirdPartyLayers).forEach(([name, config]) => {
+        const shouldEnable = enabledLayerNames.has(name);
+        const isEnabled = map.hasLayer(config.layer);
+        config.activated = shouldEnable;
+        if (shouldEnable && !isEnabled) {
+          map.addLayer(config.layer);
+          loadThirdPartyLayer(name);
+        } else if (!shouldEnable && isEnabled) {
+          map.removeLayer(config.layer);
+        }
+      });
+    }
     updateLegend();
     updateMapAlerts();
   }
@@ -2800,12 +2804,30 @@ const ALL_FA_ICONS = [
     remoteApplyInProgress = options.remote === true;
     try {
       sheets = importedSheets;
-      if (typeof parsed.disasterModeId === 'string' && parsed.disasterModeId.trim()) {
-        selectedDisasterModeId = parsed.disasterModeId.trim();
-      } else if (!disasterModes.modes.some(mode => mode.id === selectedDisasterModeId)) {
+      const importedDisasterModeId = typeof parsed.disasterModeId === 'string' ? parsed.disasterModeId.trim() : '';
+      if (importedDisasterModeId && disasterModes.modes.some(mode => mode.id === importedDisasterModeId)) {
+        selectedDisasterModeId = importedDisasterModeId;
+      } else if (importedDisasterModeId || !disasterModes.modes.some(mode => mode.id === selectedDisasterModeId)) {
         selectedDisasterModeId = disasterModes.defaultModeId;
       }
-      pendingDisasterRuntime = cloneJson(getSelectedDisasterMode() ? getSelectedDisasterMode().preset : {});
+      const importedRuntimeConfig = {};
+      if (typeof parsed.baseLayer === 'string') {
+        importedRuntimeConfig.baseLayer = parsed.baseLayer;
+      }
+      if (Array.isArray(parsed.enabledThirdPartyLayers)) {
+        importedRuntimeConfig.enabledThirdPartyLayers = parsed.enabledThirdPartyLayers.filter(name => typeof name === 'string');
+      }
+      if (parsed.mapView &&
+          Number.isFinite(parsed.mapView.lat) &&
+          Number.isFinite(parsed.mapView.lng) &&
+          Number.isFinite(parsed.mapView.zoom)) {
+        importedRuntimeConfig.mapView = {
+          lat: parsed.mapView.lat,
+          lng: parsed.mapView.lng,
+          zoom: parsed.mapView.zoom
+        };
+      }
+      pendingDisasterRuntime = cloneJson(importedRuntimeConfig);
       customFeatures = importedCustomFeatures;
       saveCustomFeatures();
       renderAllCustomFeatures();
@@ -4215,7 +4237,14 @@ const ALL_FA_ICONS = [
   function normalizeDisasterModesData(value) {
     const modes = Array.isArray(value && value.modes) ? value.modes : [];
     const normalizedModes = modes
-      .filter(mode => mode && typeof mode.id === 'string' && mode.id.trim() && typeof mode.label === 'string' && mode.label.trim())
+      .filter(mode => mode &&
+        typeof mode.id === 'string' &&
+        mode.id.trim() &&
+        typeof mode.label === 'string' &&
+        mode.label.trim() &&
+        mode.preset &&
+        typeof mode.preset === 'object' &&
+        Array.isArray(mode.preset.sheets))
       .map(mode => ({
         id: mode.id.trim(),
         label: mode.label.trim(),
@@ -4224,9 +4253,7 @@ const ALL_FA_ICONS = [
           ? { fa: mode.icon.fa, label: mode.icon.label || formatIconLabel(mode.icon.fa) }
           : { fa: 'fa-solid fa-triangle-exclamation', label: mode.label.trim() },
         preset: {
-          sheets: Array.isArray(mode.preset && mode.preset.sheets)
-            ? mode.preset.sheets.map(normalizePresetSheet)
-            : [],
+          sheets: mode.preset.sheets.map(normalizePresetSheet),
           geocoder: mode.preset && mode.preset.geocoder && typeof mode.preset.geocoder === 'object'
             ? {
                 url: typeof mode.preset.geocoder.url === 'string' ? mode.preset.geocoder.url : '',
@@ -4238,7 +4265,7 @@ const ALL_FA_ICONS = [
             : null,
           enabledThirdPartyLayers: Array.isArray(mode.preset && mode.preset.enabledThirdPartyLayers)
             ? mode.preset.enabledThirdPartyLayers.filter(name => typeof name === 'string')
-            : [],
+            : undefined,
           mapView: mode.preset && mode.preset.mapView &&
             Number.isFinite(mode.preset.mapView.lat) &&
             Number.isFinite(mode.preset.mapView.lng) &&
@@ -4597,11 +4624,21 @@ const ALL_FA_ICONS = [
       button.type = 'button';
       button.className = 'disaster-mode-option' + (mode.id === selectedDisasterModeId ? ' active' : '');
       button.setAttribute('aria-pressed', mode.id === selectedDisasterModeId ? 'true' : 'false');
-      button.innerHTML = `
-        <span class="disaster-mode-option-icon"><i class="${mode.icon.fa}"></i></span>
-        <span class="disaster-mode-option-title">${escHtml(mode.label)}</span>
-        <span class="disaster-mode-option-description">${escHtml(mode.description)}</span>
-      `;
+      button.disabled = mapIsReadOnly;
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'disaster-mode-option-icon';
+      const iconElement = document.createElement('i');
+      iconElement.className = mode.icon.fa;
+      iconSpan.appendChild(iconElement);
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'disaster-mode-option-title';
+      titleSpan.textContent = mode.label;
+      const descriptionSpan = document.createElement('span');
+      descriptionSpan.className = 'disaster-mode-option-description';
+      descriptionSpan.textContent = mode.description;
+      button.appendChild(iconSpan);
+      button.appendChild(titleSpan);
+      button.appendChild(descriptionSpan);
       button.addEventListener('click', function () {
         applyDisasterModeSelection(mode.id);
       });
@@ -5037,6 +5074,10 @@ const ALL_FA_ICONS = [
     }
     if (disasterModesLoadError) {
       showError(disasterModesLoadError);
+      return;
+    }
+    if (!Array.isArray(disasterModes.modes) || disasterModes.modes.length === 0) {
+      showError('Disaster modes are still loading. Please wait a moment and try again.');
       return;
     }
     clearError();

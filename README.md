@@ -6,8 +6,8 @@ publicly accessible Google Sheet.
 
 ## Features
 
-* **No server required** — open `index.html` directly in any modern browser, or
-  host it on any static file host (GitHub Pages, Netlify, etc.).
+* **Static hosting** — serve `index.html` from any static file host (GitHub Pages,
+  Netlify, etc.) or a local HTTP server.
 * **Multiple Google Sheets support** — add and plot multiple sheets simultaneously.
   Each sheet can have its own name, Google Sheets URL, column mapping, icon, and badge color.
 * **Startup disaster modes** — begin with a **Blank Map** or choose a predefined
@@ -105,7 +105,8 @@ setup dialog or via the toolbar:
 
 ### 3. Load the map
 
-1. Open `index.html` in a browser.
+1. Serve this repository over HTTP (for example, `python -m http.server`) and open
+   `index.html` from that server URL.
 2. Choose a **startup disaster mode**:
    * **Blank Map** starts with no Google Sheets so you can build the map from scratch.
    * **Earthquake**, **Evacuation**, and **Snow Emergency** preload starter sheet settings and icons.
@@ -135,7 +136,6 @@ setup dialog or via the toolbar:
 13. Use **Save Map File** to export the current configuration and loaded data. Use
     **Load Map File** in another browser to restore it; the imported snapshot is
     displayed first and then normal sheet refresh resumes.
-14. Open the top-right layers menu and select **Known Fire Incidents** or
 14. To collaborate through Google Drive:
     * Click **Create Shared Map** to create a map-state JSON file in your Drive, or
       **Open Shared Map** to open an existing Drive file by file ID/URL.
