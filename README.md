@@ -12,8 +12,8 @@ publicly accessible Google Sheet.
   Each sheet can have its own name, Google Sheets URL, column mapping, icon, and badge color.
 * **Startup disaster modes** — begin with a **Blank Map** or choose a predefined
   disaster preset such as **Earthquake**, **Evacuation**, or **Snow Emergency**.
-  Presets are loaded from `assets/disaster-modes.json` and can prefill sheet
-  names, icons, colours, and other startup settings.
+  `assets/disaster-modes.json` is the single source of truth for these presets
+  and can prefill sheet names, icons, colours, and other startup settings.
 * **Configurable column mapping per sheet** — automatically detects and allows you to select
   which sheet columns contain the incident address, open/closed status, and label/description for each sheet.
   Change column mapping at any time in the **Manage Sheets** dialog.
@@ -149,7 +149,7 @@ setup dialog or via the toolbar:
 
 ## Disaster preset schema
 
-The app looks for `assets/disaster-modes.json` at startup. The file shape is:
+The app loads `assets/disaster-modes.json` at startup. The file shape is:
 
 ```json
 {
@@ -198,6 +198,7 @@ Notes:
 * `preset.sheets` may be an empty array for a true blank-map startup.
 * `rawUrl` is optional, so presets can provide sheet styling before a Google Sheet is attached.
 * `geocoder`, `baseLayer`, `enabledThirdPartyLayers`, and `mapView` are optional future-facing preset fields; if omitted, the app keeps its normal defaults.
+* This file is required for the disaster picker; preset definitions are no longer duplicated in `index.html`.
 
 ### 4. (Optional) Configure Google Geocoding Fallback
 

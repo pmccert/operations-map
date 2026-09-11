@@ -67,6 +67,14 @@
       grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: 10px;
     }
+    .disaster-mode-status {
+      font-size: 0.82rem;
+      color: #555;
+      line-height: 1.4;
+    }
+    .disaster-mode-status.error {
+      color: #b42318;
+    }
     .disaster-mode-option {
       border: 2px solid #d0d7de;
       border-radius: 8px;
@@ -1430,66 +1438,6 @@
   const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';
   const APP_STATE_KEY = 'pmc_cert_map_state';
   const DISASTER_MODES_URL = 'assets/disaster-modes.json';
-  const DEFAULT_DISASTER_MODES_DATA = {
-    version: 1,
-    defaultModeId: 'blank-map',
-    modes: [
-      {
-        id: 'blank-map',
-        label: 'Blank Map',
-        description: 'Start with no Google Sheets and build your own map layers.',
-        icon: { fa: 'fa-regular fa-map', label: 'Blank Map' },
-        preset: {
-          sheets: []
-        }
-      },
-      {
-        id: 'earthquake',
-        label: 'Earthquake',
-        description: 'Preload a sheet template for quake response incidents.',
-        icon: { fa: 'fa-solid fa-house-crack', label: 'Earthquake' },
-        preset: {
-          sheets: [
-            {
-              name: 'Earthquake Incidents',
-              icon: { fa: 'fa-solid fa-house-crack', label: 'Earthquake' },
-              color: '#D97706'
-            }
-          ]
-        }
-      },
-      {
-        id: 'evacuation',
-        label: 'Evacuation',
-        description: 'Preload an evacuation tracking sheet template.',
-        icon: { fa: 'fa-solid fa-person-walking-arrow-right', label: 'Evacuation' },
-        preset: {
-          sheets: [
-            {
-              name: 'Evacuation Incidents',
-              icon: { fa: 'fa-solid fa-person-walking-arrow-right', label: 'Evacuation' },
-              color: '#DC2626'
-            }
-          ]
-        }
-      },
-      {
-        id: 'snow-emergency',
-        label: 'Snow Emergency',
-        description: 'Preload a snow emergency sheet template for winter operations.',
-        icon: { fa: 'fa-solid fa-snowflake', label: 'Snow Emergency' },
-        preset: {
-          sheets: [
-            {
-              name: 'Snow Emergency Incidents',
-              icon: { fa: 'fa-solid fa-snowflake', label: 'Snow Emergency' },
-              color: '#2563EB'
-            }
-          ]
-        }
-      }
-    ]
-  };
   const DRIVE_JSON_MIME_TYPE = 'application/json';
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
   const DRIVE_READONLY_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
@@ -1519,10 +1467,11 @@
   const savedAppState = readAppState();
   let savedGeocoderUrl = '';
   let savedGeocoderOverridden = false;
-  let disasterModes = DEFAULT_DISASTER_MODES_DATA;
+  let disasterModes = { version: 1, defaultModeId: '', modes: [] };
+  let disasterModesLoadError = '';
   let selectedDisasterModeId = savedAppState && typeof savedAppState.disasterModeId === 'string'
     ? savedAppState.disasterModeId
-    : DEFAULT_DISASTER_MODES_DATA.defaultModeId;
+    : '';
   let pendingDisasterRuntime = {};
   let savedModalStateSnapshot = null;
 
@@ -2427,6 +2376,7 @@ const ALL_FA_ICONS = [
     if (changed) {
       const activeSheetModal = document.getElementById('sheet-modal');
       if (activeSheetModal && !activeSheetModal.classList.contains('hidden')) {
+        renderDisasterModePicker();
         renderSheetsModal();
       }
       renderCustomFeatureList();
@@ -4301,18 +4251,19 @@ const ALL_FA_ICONS = [
             : null
         }
       }));
+    if (normalizedModes.length === 0) {
+      throw new Error('No valid disaster modes were found in the preset file.');
+    }
     const defaultModeId = value && typeof value.defaultModeId === 'string'
       ? value.defaultModeId
       : '';
     const resolvedDefaultModeId = normalizedModes.some(mode => mode.id === defaultModeId)
       ? defaultModeId
-      : (normalizedModes[0] ? normalizedModes[0].id : DEFAULT_DISASTER_MODES_DATA.defaultModeId);
+      : normalizedModes[0].id;
     return {
       version: Number.isInteger(value && value.version) ? value.version : 1,
       defaultModeId: resolvedDefaultModeId,
-      modes: normalizedModes.length > 0
-        ? normalizedModes
-        : normalizeDisasterModesData(DEFAULT_DISASTER_MODES_DATA).modes
+      modes: normalizedModes
     };
   }
 
@@ -4633,6 +4584,14 @@ const ALL_FA_ICONS = [
   function renderDisasterModePicker() {
     if (!disasterModePicker) return;
     disasterModePicker.innerHTML = '';
+    if (disasterModesLoadError) {
+      disasterModePicker.innerHTML = `<div class="disaster-mode-status error">${escHtml(disasterModesLoadError)}</div>`;
+      return;
+    }
+    if (!Array.isArray(disasterModes.modes) || disasterModes.modes.length === 0) {
+      disasterModePicker.innerHTML = '<div class="disaster-mode-status">Loading disaster modes…</div>';
+      return;
+    }
     disasterModes.modes.forEach(mode => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -4671,14 +4630,12 @@ const ALL_FA_ICONS = [
   }
 
   async function loadDisasterModes() {
-    try {
-      const response = await fetch(DISASTER_MODES_URL, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      disasterModes = normalizeDisasterModesData(await response.json());
-    } catch (err) {
-      console.warn(`Could not load ${DISASTER_MODES_URL}; using built-in disaster modes.`, err);
-      disasterModes = normalizeDisasterModesData(DEFAULT_DISASTER_MODES_DATA);
+    const response = await fetch(DISASTER_MODES_URL, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} loading ${DISASTER_MODES_URL}`);
     }
+    disasterModes = normalizeDisasterModesData(await response.json());
+    disasterModesLoadError = '';
     if (!disasterModes.modes.some(mode => mode.id === selectedDisasterModeId)) {
       selectedDisasterModeId = disasterModes.defaultModeId;
     }
@@ -5078,6 +5035,10 @@ const ALL_FA_ICONS = [
       showError('This map is read-only for your account.');
       return;
     }
+    if (disasterModesLoadError) {
+      showError(disasterModesLoadError);
+      return;
+    }
     clearError();
     submitBtn.disabled = true;
     submitBtn.textContent = 'Loading…';
@@ -5243,6 +5204,11 @@ const ALL_FA_ICONS = [
       if (savedAppState && (sheets.length === 0 || sheets.some(sheet => sheet.rawUrl))) {
         handleSubmit();
       }
+    })
+    .catch(function (err) {
+      disasterModesLoadError = `Could not load disaster modes from ${DISASTER_MODES_URL}: ${err.message}`;
+      renderDisasterModePicker();
+      showError(disasterModesLoadError);
     });
 
   // ── Toolbar: Manage Sheets ────────────────────────────────────

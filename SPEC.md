@@ -324,6 +324,7 @@ The application operates without a dedicated backend server, resolving incident 
 * `preset.sheets` may be empty to support a blank-map startup.
 * `preset.geocoder`, `preset.baseLayer`, `preset.enabledThirdPartyLayers`, and `preset.mapView` are optional; omitted values fall back to normal application defaults.
 * `preset.sheets[].rawUrl` is optional so a preset can define sheet styling before a Google Sheet URL is attached.
+* `assets/disaster-modes.json` shall be the single source of truth for disaster presets; the application shall not duplicate preset definitions in code.
 
 ---
 
