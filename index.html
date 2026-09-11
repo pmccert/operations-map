@@ -2195,6 +2195,7 @@ const ALL_FA_ICONS = [
   let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
   let sharedMapAlertTimer = null;
   let sharedMapState = null;
+  let remoteApplyInProgress = false;
 
   function getCurrentBaseLayerName() {
     return Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap';
@@ -2361,7 +2362,6 @@ const ALL_FA_ICONS = [
   let customFeatures = [];
   let customFeatureLayers = {};
   let mapIsReadOnly = false;
-  let remoteApplyInProgress = false;
   let customFeatureDrawControl = null;
   let customFeatureDrawControlAttached = false;
   sharedMapState = {
