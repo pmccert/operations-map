@@ -1422,7 +1422,7 @@
       <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
       <details class="toolbar-submenu" id="google-drive-submenu">
-        <summary class="toolbar-btn toolbar-submenu-trigger" id="google-drive-submenu-trigger" title="Open Google Drive actions" role="button" aria-controls="google-drive-submenu-content" aria-expanded="false"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span><span class="sr-only" id="google-drive-submenu-state">Collapsed</span></summary>
+        <summary class="toolbar-btn toolbar-submenu-trigger" id="google-drive-submenu-trigger" title="Open Google Drive actions" aria-controls="google-drive-submenu-content" aria-expanded="false"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span><span class="sr-only" id="google-drive-submenu-state">Collapsed</span></summary>
         <div class="toolbar-submenu-content" id="google-drive-submenu-content">
           <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
           <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
@@ -3668,6 +3668,7 @@ const ALL_FA_ICONS = [
   }
 
   async function connectSharedMapFile(fileId, options = {}) {
+    stopSharedMapPolling();
     const isDifferentFile = sharedMapState.fileId && sharedMapState.fileId !== fileId;
     sharedMapState.fileId = fileId;
     if (isDifferentFile) {
