@@ -1884,6 +1884,7 @@ const ALL_FA_ICONS = [
   let resolveSharedMapPublicChoice = null;
   const modalFocusReturnByOverlay = new WeakMap();
   const modalDialogPanelByOverlay = new WeakMap();
+  const managedModalOverlays = new Set();
   let managedModalBackgroundState = null;
   let managedModalOpenCount = 0;
   const closeCommitInfoModal = function () {
@@ -1965,15 +1966,43 @@ const ALL_FA_ICONS = [
     }
   }
 
+  function focusAppFallbackControl() {
+    const fallbackCandidates = [
+      'btn-google-auth-status',
+      'btn-shared-map-status',
+      'btn-change-sheet'
+    ];
+    for (const id of fallbackCandidates) {
+      const element = document.getElementById(id);
+      if (isUsableFocusTarget(element) && typeof element.focus === 'function') {
+        element.focus();
+        return;
+      }
+    }
+  }
+
+  function recountManagedVisibleModals() {
+    let count = 0;
+    managedModalOverlays.forEach(modal => {
+      if (isModalVisible(modal)) count += 1;
+    });
+    return count;
+  }
+
   function resetManagedModalState(modalOverlay) {
-    managedModalOpenCount = 0;
+    if (modalOverlay && isModalVisible(modalOverlay)) {
+      modalOverlay.classList.add('hidden');
+    }
+    managedModalOpenCount = recountManagedVisibleModals();
     restoreModalBackgroundInert(modalOverlay);
     modalFocusReturnByOverlay.delete(modalOverlay);
   }
 
   function openManagedModal(modalOverlay, options) {
     if (!modalOverlay) return;
+    if (isModalVisible(modalOverlay)) return;
     const { dialogPanel, initialFocus } = options || {};
+    managedModalOverlays.add(modalOverlay);
     modalDialogPanelByOverlay.set(modalOverlay, dialogPanel instanceof HTMLElement ? dialogPanel : null);
     modalFocusReturnByOverlay.set(
       modalOverlay,
@@ -2007,6 +2036,9 @@ const ALL_FA_ICONS = [
       focusReturnEl.focus();
     } else {
       fallbackFocusManagedModal(activeVisibleModal);
+      if (!activeVisibleModal) {
+        focusAppFallbackControl();
+      }
     }
     modalFocusReturnByOverlay.delete(modalOverlay);
   }
