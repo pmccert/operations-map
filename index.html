@@ -2310,6 +2310,15 @@ const ALL_FA_ICONS = [
 
   map.on('baselayerchange', function (e) {
     currentBaseLayer = e.layer;
+    if (sharedMapState && sharedMapState.fileId && !remoteApplyInProgress) {
+      sharedMapState.hasLocalBaseLayerOverride = Boolean(
+        sharedMapState.sourceBaseLayer &&
+        getCurrentBaseLayerName() !== sharedMapState.sourceBaseLayer
+      );
+      if (!sharedMapState.hasLocalBaseLayerOverride) {
+        sharedMapState.baseLayerNotice = '';
+      }
+    }
     persistAppState();
     updateMapAlerts();
   });
@@ -2360,8 +2369,10 @@ const ALL_FA_ICONS = [
     fileName: '',
     canEdit: false,
     lastVersion: null,
+    lastSeenVersion: null,
     lastModifiedTime: null,
     sourceBaseLayer: null,
+    hasLocalBaseLayerOverride: false,
     lastLoadedAt: null,
     nextRefreshAt: null,
     baseLayerNotice: '',
@@ -2743,7 +2754,9 @@ const ALL_FA_ICONS = [
       return;
     }
     const roleText = mapIsReadOnly ? 'View-only' : 'Editor';
-    const versionText = sharedMapState.lastVersion ? `v${sharedMapState.lastVersion}` : 'unversioned';
+    const versionText = sharedMapState.lastSeenVersion || sharedMapState.lastVersion
+      ? `v${sharedMapState.lastSeenVersion || sharedMapState.lastVersion}`
+      : 'unversioned';
     const nameText = sharedMapState.fileName || sharedMapState.fileId;
     statusTextEl.textContent = `Shared map: ${roleText} (${versionText}) — ${nameText}`;
   }
@@ -3322,11 +3335,10 @@ const ALL_FA_ICONS = [
         ? parsed.baseLayer
         : null;
       const currentBaseLayerName = getCurrentBaseLayerName();
-      const hasLocalBaseLayerOverride = options.preserveCustomBaseLayer === true &&
+      const preserveCustomBaseLayer = options.preserveCustomBaseLayer === true &&
+        sharedMapState.hasLocalBaseLayerOverride === true &&
         importedBaseLayerName &&
-        currentBaseLayerName !== importedBaseLayerName &&
-        (hasLoadedMap || (sharedMapState.sourceBaseLayer && currentBaseLayerName !== sharedMapState.sourceBaseLayer));
-      const preserveCustomBaseLayer = Boolean(hasLocalBaseLayerOverride);
+        currentBaseLayerName !== importedBaseLayerName;
       const baseLayerNotice = preserveCustomBaseLayer && importedBaseLayerName
         ? `Source basemap is ${importedBaseLayerName}; keeping your current basemap (${currentBaseLayerName}).`
         : '';
@@ -3387,6 +3399,9 @@ const ALL_FA_ICONS = [
         map.setView([parsed.mapView.lat, parsed.mapView.lng], parsed.mapView.zoom);
       }
       sharedMapState.sourceBaseLayer = importedBaseLayerName;
+      if (!preserveCustomBaseLayer) {
+        sharedMapState.hasLocalBaseLayerOverride = false;
+      }
       sharedMapState.baseLayerNotice = options.remote === true ? baseLayerNotice : '';
       geocoderIndex = null;
       hasLoadedMap = false;
@@ -3431,7 +3446,7 @@ const ALL_FA_ICONS = [
     const metadata = await driveFetchMetadata(sharedMapState.fileId);
     sharedMapState.fileName = metadata.name || sharedMapState.fileId;
     sharedMapState.canEdit = metadata.capabilities && metadata.capabilities.canEdit === true;
-    sharedMapState.lastVersion = metadata.version || null;
+    sharedMapState.lastSeenVersion = metadata.version || sharedMapState.lastSeenVersion;
     sharedMapState.lastModifiedTime = metadata.modifiedTime || null;
     setReadOnlyMode(forcedViewerMode || !sharedMapState.canEdit,
       forcedViewerMode
@@ -3445,13 +3460,14 @@ const ALL_FA_ICONS = [
 
   async function pullSharedMapFromDrive(options = {}) {
     if (!sharedMapState.fileId) return;
-    const previousVersion = sharedMapState.lastVersion;
+    const previousVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
     const metadata = await refreshSharedMapMetadata();
     if (!metadata) return;
     const hasChanged = options.force === true ||
       !previousVersion ||
       String(metadata.version || '') !== String(previousVersion || '');
     if (!hasChanged) return;
+    sharedMapState.lastSeenVersion = metadata.version || sharedMapState.lastSeenVersion;
     const payload = await driveFetchJson(sharedMapState.fileId);
     await applyMapSnapshot(payload, {
       remote: true,
@@ -3474,7 +3490,8 @@ const ALL_FA_ICONS = [
     try {
       const remoteMeta = await driveFetchMetadata(sharedMapState.fileId);
       const remoteVersion = remoteMeta.version || null;
-      if (sharedMapState.lastVersion && remoteVersion && String(remoteVersion) !== String(sharedMapState.lastVersion)) {
+      const knownVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
+      if (knownVersion && remoteVersion && String(remoteVersion) !== String(knownVersion)) {
         const shouldReload = window.confirm(
           'This shared map changed in Google Drive since your last sync. Reload the newer version now?'
         );
@@ -3489,6 +3506,7 @@ const ALL_FA_ICONS = [
       const updated = await driveUpdateJsonFile(sharedMapState.fileId, mapSnapshot());
       sharedMapState.fileName = updated.name || sharedMapState.fileName;
       sharedMapState.lastVersion = updated.version || sharedMapState.lastVersion;
+      sharedMapState.lastSeenVersion = updated.version || sharedMapState.lastSeenVersion;
       sharedMapState.lastModifiedTime = updated.modifiedTime || sharedMapState.lastModifiedTime;
       sharedMapState.dirty = false;
       updateSharedMapStatusLabel();
@@ -3540,10 +3558,12 @@ const ALL_FA_ICONS = [
       try {
         const meta = await driveFetchMetadata(sharedMapState.fileId);
         const remoteVersion = meta.version || null;
-        const hasChanged = sharedMapState.lastVersion && remoteVersion &&
-          String(remoteVersion) !== String(sharedMapState.lastVersion);
+        const knownVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
+        const hasChanged = knownVersion && remoteVersion &&
+          String(remoteVersion) !== String(knownVersion);
         if (hasChanged && !sharedMapState.writeInFlight) {
           sharedMapState.fileName = meta.name || sharedMapState.fileName;
+          sharedMapState.lastSeenVersion = remoteVersion;
           const payload = await driveFetchJson(sharedMapState.fileId);
           await applyMapSnapshot(payload, {
             remote: true,
@@ -3585,6 +3605,7 @@ const ALL_FA_ICONS = [
         preserveCustomBaseLayer: false,
         preserveMapView: false
       });
+      sharedMapState.lastVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
       sharedMapState.lastLoadedAt = new Date().toISOString();
     }
     startSharedMapPolling();
