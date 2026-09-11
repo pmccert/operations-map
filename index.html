@@ -1469,6 +1469,7 @@
   let savedGeocoderOverridden = false;
   let disasterModes = { version: 1, defaultModeId: '', modes: [] };
   let disasterModesLoadError = '';
+  let disasterModesLoadPending = true;
   let selectedDisasterModeId = savedAppState && typeof savedAppState.disasterModeId === 'string'
     ? savedAppState.disasterModeId
     : '';
@@ -5076,7 +5077,7 @@ const ALL_FA_ICONS = [
       showError(disasterModesLoadError);
       return;
     }
-    if (!Array.isArray(disasterModes.modes) || disasterModes.modes.length === 0) {
+    if (disasterModesLoadPending) {
       showError('Disaster modes are still loading. Please wait a moment and try again.');
       return;
     }
@@ -5250,6 +5251,9 @@ const ALL_FA_ICONS = [
       disasterModesLoadError = `Could not load disaster modes from ${DISASTER_MODES_URL}: ${err.message}`;
       renderDisasterModePicker();
       showError(disasterModesLoadError);
+    })
+    .finally(function () {
+      disasterModesLoadPending = false;
     });
 
   // ── Toolbar: Manage Sheets ────────────────────────────────────

@@ -198,7 +198,7 @@ Notes:
 * `preset.sheets` may be an empty array for a true blank-map startup.
 * `rawUrl` is optional, so presets can provide sheet styling before a Google Sheet is attached.
 * `geocoder`, `baseLayer`, `enabledThirdPartyLayers`, and `mapView` are optional future-facing preset fields; if omitted, the app keeps its normal defaults.
-* This file is required for the disaster picker; preset definitions are no longer duplicated in `index.html`.
+* This file is required for the disaster picker and setup flow; if it cannot be loaded, map setup stays blocked until a valid file is restored.
 
 ### 4. (Optional) Configure Google Geocoding Fallback
 
