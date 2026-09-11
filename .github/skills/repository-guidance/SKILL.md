@@ -1,3 +1,8 @@
+---
+name: repository-guidance
+description: Repository-specific guidance for making small, safe changes in this static incident map app.
+---
+
 # SKILL.md
 
 ## Purpose
@@ -51,7 +56,7 @@ Before finishing changes:
 1. Run `npm test`.
    - In this repository, that runs ESLint against `index.html`.
 2. If Python code changed, also run:
-   - `pytest tests/test_fetch_addresses.py`
+   - `python -m unittest discover tests`
 3. If UI behavior changed, do a quick manual smoke test over HTTP and confirm:
    - the app loads
    - the setup modal works
