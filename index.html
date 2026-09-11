@@ -1885,6 +1885,7 @@ const ALL_FA_ICONS = [
   const sharedMapPublicNoBtn = document.getElementById('shared-map-public-no');
   const sharedMapPublicYesBtn = document.getElementById('shared-map-public-yes');
   let resolveSharedMapPublicChoice = null;
+  let pendingSharedMapPublicChoicePromise = null;
   const modalFocusReturnByOverlay = new WeakMap();
   const modalDialogPanelByOverlay = new WeakMap();
   const managedModalOverlayA11yState = new WeakMap();
@@ -2036,25 +2037,6 @@ const ALL_FA_ICONS = [
     }
   }
 
-  function recountManagedVisibleModals() {
-    let count = 0;
-    managedModalOverlays.forEach(modal => {
-      if (isModalVisible(modal)) count += 1;
-    });
-    return count;
-  }
-
-  function resetManagedModalState(modalOverlay) {
-    if (modalOverlay && isModalVisible(modalOverlay)) {
-      modalOverlay.classList.add('hidden');
-    }
-    managedModalOpenCount = recountManagedVisibleModals();
-    restoreModalBackgroundInert(modalOverlay);
-    modalFocusReturnByOverlay.delete(modalOverlay);
-    modalDialogPanelByOverlay.delete(modalOverlay);
-    managedModalOverlayA11yState.delete(modalOverlay);
-  }
-
   function openManagedModal(modalOverlay, options) {
     if (!modalOverlay) return;
     if (isModalVisible(modalOverlay)) return;
@@ -2135,28 +2117,21 @@ const ALL_FA_ICONS = [
       resolveSharedMapPublicChoice = null;
       resolve(Boolean(choice));
     }
+    pendingSharedMapPublicChoicePromise = null;
   };
   function promptSharedMapPublicChoice() {
     if (!sharedMapPublicModal || !sharedMapPublicNoBtn || !sharedMapPublicYesBtn) {
       return Promise.resolve(false);
     }
-    if (resolveSharedMapPublicChoice) {
-      const resolve = resolveSharedMapPublicChoice;
-      resolveSharedMapPublicChoice = null;
-      if (isModalVisible(sharedMapPublicModal)) {
-        closeManagedModal(sharedMapPublicModal);
-      } else {
-        resetManagedModalState(sharedMapPublicModal);
-      }
-      resolve(false);
-    }
+    if (pendingSharedMapPublicChoicePromise) return pendingSharedMapPublicChoicePromise;
     openManagedModal(sharedMapPublicModal, {
       dialogPanel: sharedMapPublicDialog,
       initialFocus: sharedMapPublicYesBtn
     });
-    return new Promise(resolve => {
+    pendingSharedMapPublicChoicePromise = new Promise(resolve => {
       resolveSharedMapPublicChoice = resolve;
     });
+    return pendingSharedMapPublicChoicePromise;
   }
   document.addEventListener('click', function (e) {
     const attributionLink = e.target.closest('#pmc-cert-attribution-link');
@@ -2911,7 +2886,11 @@ const ALL_FA_ICONS = [
       }
       if (publicPermission && publicPermission.id) {
         await driveSetPermissionRole(fileId, publicPermission.id, 'reader');
-        return { status: 'downgraded_to_reader' };
+        const updatedPublicPermission = await driveGetPublicPermission(fileId);
+        if (updatedPublicPermission && updatedPublicPermission.role === 'reader') {
+          return { status: 'downgraded_to_reader' };
+        }
+        throw new Error('Google Drive public permission could not be confirmed as read-only after update.');
       } else {
         throw new Error('Google Drive public permission could not be updated.');
       }
