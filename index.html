@@ -3580,8 +3580,8 @@ const ALL_FA_ICONS = [
     persistSharedMapLinkInUrl();
     if (options.loadNow) {
       const payload = await driveFetchJson(sharedMapState.fileId);
-      const preserveCustomBaseLayer = hasLoadedMap ||
-        (sharedMapState.sourceBaseLayer && getCurrentBaseLayerName() !== sharedMapState.sourceBaseLayer);
+      const preserveCustomBaseLayer = sharedMapState.sourceBaseLayer &&
+        getCurrentBaseLayerName() !== sharedMapState.sourceBaseLayer;
       await applyMapSnapshot(payload, {
         remote: true,
         skipSharedWrite: true,
