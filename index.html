@@ -1373,6 +1373,8 @@
       <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
       <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
       <button class="toolbar-btn" id="btn-copy-viewer-url" title="Copy read-only viewer URL"><i class="fa-solid fa-link"></i> Copy Viewer URL</button>
+      <button class="toolbar-btn" id="btn-open-drive-file" title="Open the shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Open in Drive</button>
+      <button class="toolbar-btn" id="btn-copy-drive-url" title="Copy the shared map Google Drive URL"><i class="fa-solid fa-copy"></i> Copy Drive URL</button>
       <button class="toolbar-btn" id="btn-open-editor-url" title="Open URL for editing mode"><i class="fa-solid fa-pen-to-square"></i> Open Editor URL</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
       <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
@@ -2333,6 +2335,10 @@ const ALL_FA_ICONS = [
     return `${sharedMapBaseUrl()}?${params.toString()}`;
   }
 
+  function buildDriveFileUrl(fileId) {
+    return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+  }
+
   function extractDriveFileId(input) {
     const value = String(input || '').trim();
     if (!value) return '';
@@ -2516,6 +2522,28 @@ const ALL_FA_ICONS = [
     if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive file update failed (${resp.status}).`);
     return resp.json();
+  }
+
+  async function driveMakeFilePublic(fileId) {
+    if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?supportsAllDrives=true&sendNotificationEmail=false`,
+      {
+        method: 'POST',
+        headers: {
+          ...driveAuthHeaders(),
+          'Content-Type': 'application/json; charset=UTF-8'
+        },
+        body: JSON.stringify({
+          role: 'reader',
+          type: 'anyone',
+          allowFileDiscovery: false
+        })
+      }
+    );
+    if (resp.status === 401) throw handleSharedMapAuthFailure();
+    if (resp.status === 409) return;
+    if (!resp.ok) throw new Error(`Google Drive permission update failed (${resp.status}).`);
   }
 
   const THIRD_PARTY_ENDPOINTS = {
@@ -5835,7 +5863,18 @@ const ALL_FA_ICONS = [
         const filename = nameInput.trim() || defaultName;
         const created = await driveCreateJsonFile(filename, mapSnapshot());
         await connectSharedMapFile(created.id, { loadNow: false });
-        setStatus('Shared map created in Google Drive. Copy and share the viewer URL.');
+        let statusMessage = 'Shared map created in Google Drive. Copy and share the viewer URL.';
+        const shouldMakePublic = window.confirm('Make this shared map public (anyone with the link can view)?');
+        if (shouldMakePublic) {
+          try {
+            await driveMakeFilePublic(created.id);
+            statusMessage = 'Shared map created and made public in Google Drive. Copy and share URLs from the toolbar.';
+          } catch (err) {
+            console.error('Could not make shared map public:', err);
+            statusMessage = `Shared map created, but could not make it public: ${err.message}`;
+          }
+        }
+        setStatus(statusMessage);
       } catch (err) {
         console.error('Could not create shared map:', err);
         setStatus(`Could not create shared map: ${err.message}`);
@@ -5890,6 +5929,35 @@ const ALL_FA_ICONS = [
         return;
       }
       window.open(buildSharedMapUrl(sharedMapState.fileId, false), '_blank', 'noopener');
+    });
+  }
+
+  const btnOpenDriveFile = document.getElementById('btn-open-drive-file');
+  if (btnOpenDriveFile) {
+    btnOpenDriveFile.addEventListener('click', function () {
+      if (!sharedMapState.fileId) {
+        setStatus('Create or open a shared map first.');
+        return;
+      }
+      window.open(buildDriveFileUrl(sharedMapState.fileId), '_blank', 'noopener');
+    });
+  }
+
+  const btnCopyDriveUrl = document.getElementById('btn-copy-drive-url');
+  if (btnCopyDriveUrl) {
+    btnCopyDriveUrl.addEventListener('click', function () {
+      if (!sharedMapState.fileId) {
+        setStatus('Create or open a shared map first.');
+        return;
+      }
+      const driveUrl = buildDriveFileUrl(sharedMapState.fileId);
+      copyTextToClipboard(driveUrl)
+        .then(function () {
+          setStatus('Google Drive file URL copied to clipboard.');
+        })
+        .catch(function () {
+          setStatus('Could not copy Google Drive file URL.');
+        });
     });
   }
 

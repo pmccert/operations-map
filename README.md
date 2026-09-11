@@ -35,8 +35,9 @@ publicly accessible Google Sheet.
 * **Google Drive shared map state** — create or open a shared map JSON file in
   Google Drive and load it by URL (`?mapFileId=...`). Drive permissions control
   who can edit vs. view.
-* **Viewer and editor URLs** — copy a read-only viewer link from the toolbar, or
-  open an editor link. Viewers can watch layer, feature, and map-state changes.
+* **Viewer, editor, and Drive URLs** — copy a read-only viewer link, open an
+  editor link, open the backing Google Drive file, or copy its Drive URL from
+  the toolbar. Viewers can watch layer, feature, and map-state changes.
 * **Shared map polling sync** — shared map state is refreshed from Google Drive
   on a polling interval (near-real-time), not via push/realtime backend.
 * **Portable map files** — save the current sheet configuration and loaded incident
@@ -139,9 +140,13 @@ setup dialog or via the toolbar:
 14. To collaborate through Google Drive:
     * Click **Create Shared Map** to create a map-state JSON file in your Drive, or
       **Open Shared Map** to open an existing Drive file by file ID/URL.
-    * Share Drive access to that file (editor for one user, viewer for everyone
-      else) using normal Google Drive sharing controls.
+    * After creating a shared map, confirm the prompt to make the file public
+      (anyone with the link can view), or leave it private.
+    * You can still use normal Google Drive sharing controls to manage
+      editor/viewer access.
     * Click **Copy Viewer URL** and send that URL to viewers.
+    * Click **Open in Drive** to open the shared file in Google Drive, or
+      **Copy Drive URL** to share the Drive link directly.
     * Use **Open Editor URL** when opening the map in edit mode.
 15. Open the top-right layers menu and select **Known Fire Incidents** or
     **ADS-B Aircraft** to load those live third-party overlays. Use their
