@@ -1210,7 +1210,7 @@
 <body>
 
 <!-- ── Sheet URL + configuration modal ─────────────────────────── -->
-<div id="sheet-modal" class="modal-overlay">
+<div id="sheet-modal" class="modal-overlay hidden">
   <div class="modal-box">
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
       <h2 style="margin-bottom: 0;">PMC CERT Incident Map</h2>
@@ -1518,6 +1518,7 @@
   const OAUTH_SCOPES = `${SHEETS_READONLY_SCOPE} ${DRIVE_SCOPE} ${DRIVE_READONLY_SCOPE}`;
   const urlParams = new URLSearchParams(window.location.search);
   const initialSharedMapFileId = urlParams.get('mapFileId');
+  const openedFromSharedMapUrl = Boolean(initialSharedMapFileId);
   const forcedViewerMode = urlParams.get('mode') === 'view';
 
   function readAppState() {
@@ -2414,7 +2415,7 @@ const ALL_FA_ICONS = [
   let hasLoadedMap = false;
   let customFeatures = [];
   let customFeatureLayers = {};
-  let mapIsReadOnly = false;
+  let mapIsReadOnly = forcedViewerMode || openedFromSharedMapUrl;
   let customFeatureDrawControl = null;
   let customFeatureDrawControlAttached = false;
   sharedMapState = {
@@ -5901,7 +5902,13 @@ const ALL_FA_ICONS = [
     if (e.key === 'Enter') handleSubmit();
   });
 
+  const shouldAutoLoadSavedMapState = !openedFromSharedMapUrl &&
+    Boolean(savedAppState && (sheets.length === 0 || sheets.some(sheet => sheet.rawUrl)));
+
   renderSheetsModal();
+  if (!shouldAutoLoadSavedMapState && !openedFromSharedMapUrl) {
+    openSheetModal();
+  }
   if (savedAppState && savedAppState.geocoderOverridden && typeof savedAppState.geocoderUrl === 'string') {
     isOverridden = true;
     savedGeocoderOverridden = true;
@@ -5926,7 +5933,7 @@ const ALL_FA_ICONS = [
     })
     .then(checkLocalAddresses)
     .then(function () {
-      if (savedAppState && (sheets.length === 0 || sheets.some(sheet => sheet.rawUrl))) {
+      if (shouldAutoLoadSavedMapState) {
         handleSubmit();
       }
     })
