@@ -840,12 +840,10 @@
       bottom: 24px;
       right: 10px;
       z-index: 1100;
-      background: rgba(192, 57, 43, 0.95);
       color: #fff;
       backdrop-filter: blur(2px);
       padding: 6px 12px;
       border-radius: 4px;
-      border: 1px solid #962d22;
       font-size: 0.78rem;
       font-weight: 500;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
@@ -855,6 +853,16 @@
       max-width: min(340px, 90vw);
       user-select: none;
       pointer-events: auto;
+    }
+
+    #zoom-alert.zoom-alert-error {
+      background: rgba(192, 57, 43, 0.95);
+      border: 1px solid #962d22;
+    }
+
+    #zoom-alert.zoom-alert-success {
+      background: rgba(39, 174, 96, 0.95);
+      border: 1px solid #1d874b;
     }
 
     /* ── Toolbar ─────────────────────────────────────────────── */
@@ -880,6 +888,37 @@
     }
     .toolbar-menu[open] .toolbar-menu-trigger::after {
       content: '▴';
+    }
+    .toolbar-submenu {
+      display: grid;
+      gap: 4px;
+    }
+    .toolbar-submenu-trigger {
+      list-style: none;
+      width: 100%;
+      box-sizing: border-box;
+      justify-content: space-between;
+    }
+    .toolbar-submenu-trigger::-webkit-details-marker {
+      display: none;
+    }
+    .toolbar-submenu-trigger::after {
+      content: '▾';
+      font-size: 0.72rem;
+      margin-left: 8px;
+    }
+    .toolbar-submenu[open] .toolbar-submenu-trigger::after {
+      content: '▴';
+    }
+    .toolbar-submenu-content {
+      display: grid;
+      gap: 4px;
+      padding-left: 10px;
+    }
+    .toolbar-btn:focus-visible,
+    .toolbar-select:focus-visible {
+      outline: 2px solid #1a73e8;
+      outline-offset: 2px;
     }
     .toolbar-menu-content {
       position: absolute;
@@ -930,6 +969,17 @@
       font-size: 0.8rem;
       box-shadow: 0 1px 4px rgba(0,0,0,0.2);
       cursor: pointer;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
     .custom-feature-list {
       display: grid;
@@ -1370,22 +1420,28 @@
       <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
       <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
       <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
-      <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
-      <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
-      <button class="toolbar-btn" id="btn-copy-viewer-url" title="Copy read-only viewer URL"><i class="fa-solid fa-link"></i> Copy Viewer URL</button>
-      <button class="toolbar-btn" id="btn-open-drive-file" title="Open the shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Open in Drive</button>
-      <button class="toolbar-btn" id="btn-copy-drive-url" title="Copy the shared map Google Drive URL"><i class="fa-solid fa-copy"></i> Copy Drive URL</button>
-      <button class="toolbar-btn" id="btn-open-editor-url" title="Open URL for editing mode"><i class="fa-solid fa-pen-to-square"></i> Open Editor URL</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
-      <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
-        <option value="0">Auto-refresh: Off</option>
-        <option value="15000">Auto-refresh: 15s</option>
-        <option value="30000" selected>Auto-refresh: 30s</option>
-        <option value="60000">Auto-refresh: 1m</option>
-        <option value="300000">Auto-refresh: 5m</option>
-      </select>
-      <button class="toolbar-btn" id="btn-shared-map-status" disabled title="Google Drive shared map status"><i class="fa-brands fa-google-drive"></i> <span id="shared-map-status-text">Shared map: Off</span></button>
-      <button class="toolbar-btn" id="btn-google-auth-status" title="Google Authentication Status"><i class="fa-brands fa-google"></i> <span id="google-auth-btn-text">Sign In</span></button>
+      <details class="toolbar-submenu" id="google-drive-submenu">
+        <summary class="toolbar-btn toolbar-submenu-trigger" id="google-drive-submenu-trigger" title="Open Google Drive actions" aria-controls="google-drive-submenu-content"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span><span class="sr-only" id="google-drive-submenu-status">collapsed</span></summary>
+        <div class="toolbar-submenu-content" id="google-drive-submenu-content">
+          <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
+          <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
+          <button class="toolbar-btn" id="btn-match-source-map" title="Match the shared source map basemap and extent"><i class="fa-solid fa-map"></i> Match Source Map</button>
+          <button class="toolbar-btn" id="btn-copy-viewer-url" title="Copy read-only viewer URL"><i class="fa-solid fa-link"></i> Copy Viewer URL</button>
+          <button class="toolbar-btn" id="btn-open-drive-file" title="Open the shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Open in Drive</button>
+          <button class="toolbar-btn" id="btn-copy-drive-url" title="Copy the shared map Google Drive URL"><i class="fa-solid fa-copy"></i> Copy Drive URL</button>
+          <button class="toolbar-btn" id="btn-open-editor-url" title="Open URL for editing mode"><i class="fa-solid fa-pen-to-square"></i> Open Editor URL</button>
+          <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
+            <option value="0">Auto-refresh: Off</option>
+            <option value="15000">Auto-refresh: 15s</option>
+            <option value="30000" selected>Auto-refresh: 30s</option>
+            <option value="60000">Auto-refresh: 1m</option>
+            <option value="300000">Auto-refresh: 5m</option>
+          </select>
+          <button class="toolbar-btn" id="btn-shared-map-status" disabled title="Google Drive shared map status"><i class="fa-brands fa-google-drive"></i> <span id="shared-map-status-text">Shared map: Off</span></button>
+          <button class="toolbar-btn" id="btn-google-auth-status" title="Google Authentication Status"><i class="fa-brands fa-google"></i> <span id="google-auth-btn-text">Sign In</span></button>
+        </div>
+      </details>
     </div>
   </details>
 </div>
@@ -1428,8 +1484,8 @@
 </div>
 
 <!-- Zoom availability alert (lower right) -->
-<div id="zoom-alert" class="hidden" role="alert" aria-live="polite">
-  <i class="fa-solid fa-triangle-exclamation"></i>
+<div id="zoom-alert" class="hidden zoom-alert-error" role="alert" aria-live="polite">
+  <i id="zoom-alert-icon" class="fa-solid fa-triangle-exclamation"></i>
   <span id="zoom-alert-text">The requested zoom level is not available for this base map.</span>
 </div>
 
@@ -2183,8 +2239,70 @@ const ALL_FA_ICONS = [
   });
 
   const zoomAlert = document.getElementById('zoom-alert');
+  const zoomAlertIcon = document.getElementById('zoom-alert-icon');
   const zoomAlertText = document.getElementById('zoom-alert-text');
   let incidentMarkers = {};   // key (sheetId__rowIdx) → Leaflet marker
+  let sharedMapAlertTimer = null;
+  let sharedMapState = null;
+  let remoteApplyInProgress = false;
+
+  function getCurrentBaseLayerName() {
+    return Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap';
+  }
+
+  function formatAlertTimestamp(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+  }
+
+  function formatCountdown(ms) {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    return `${totalSeconds}s`;
+  }
+
+  function normalizeDriveVersion(value) {
+    return value === undefined || value === null || value === '' ? null : String(value);
+  }
+
+  function updateSharedMapAlertTimer() {
+    if (!sharedMapState) return;
+    if (!sharedMapState.nextRefreshAt) {
+      if (sharedMapAlertTimer) {
+        clearInterval(sharedMapAlertTimer);
+        sharedMapAlertTimer = null;
+      }
+      return;
+    }
+    if (sharedMapAlertTimer) return;
+    sharedMapAlertTimer = setInterval(function () {
+      if (!sharedMapState || !sharedMapState.nextRefreshAt) {
+        clearInterval(sharedMapAlertTimer);
+        sharedMapAlertTimer = null;
+        return;
+      }
+      updateMapAlerts();
+      if (Date.now() >= sharedMapState.nextRefreshAt) {
+        clearInterval(sharedMapAlertTimer);
+        sharedMapAlertTimer = null;
+      }
+    }, 1000);
+  }
+
+  function buildSharedMapAlertMessage() {
+    if (!sharedMapState) return '';
+    if (!sharedMapState.lastLoadedAt && !sharedMapState.baseLayerNotice && !sharedMapState.nextRefreshAt) return '';
+    const alertParts = [];
+    if (sharedMapState.lastLoadedAt) {
+      alertParts.push(`Shared map loaded from Google Drive at ${formatAlertTimestamp(sharedMapState.lastLoadedAt)}.`);
+    }
+    if (sharedMapState.nextRefreshAt) {
+      alertParts.push(`Next refresh in ${formatCountdown(sharedMapState.nextRefreshAt - Date.now())}.`);
+    }
+    if (sharedMapState.baseLayerNotice) {
+      alertParts.push(sharedMapState.baseLayerNotice);
+    }
+    return alertParts.join(' ');
+  }
 
   function isMoreThanOneDegreeFromPmc(lat, lon) {
     const toRadians = degrees => degrees * Math.PI / 180;
@@ -2221,9 +2339,23 @@ const ALL_FA_ICONS = [
         `${outOfRangeCount} plotted ${pointLabel} more than 1° from Pine Mountain Club.`
       );
     }
+    const sharedMapAlertMessage = buildSharedMapAlertMessage();
+    if (sharedMapAlertMessage) {
+      alertMessages.push(sharedMapAlertMessage);
+    }
 
     if (alertMessages.length > 0) {
+      const showErrorState = currentZoom > maxZoom ||
+        currentZoom < minZoom ||
+        outOfRangeCount > 0;
       if (zoomAlertText) zoomAlertText.textContent = alertMessages.join(' ');
+      if (zoomAlertIcon) {
+        zoomAlertIcon.className = showErrorState
+          ? 'fa-solid fa-triangle-exclamation'
+          : 'fa-solid fa-circle-check';
+      }
+      zoomAlert.classList.toggle('zoom-alert-success', !showErrorState);
+      zoomAlert.classList.toggle('zoom-alert-error', showErrorState);
       zoomAlert.classList.remove('hidden');
     } else {
       zoomAlert.classList.add('hidden');
@@ -2232,6 +2364,15 @@ const ALL_FA_ICONS = [
 
   map.on('baselayerchange', function (e) {
     currentBaseLayer = e.layer;
+    if (sharedMapState && sharedMapState.fileId && !remoteApplyInProgress) {
+      sharedMapState.hasLocalBaseLayerOverride = Boolean(
+        sharedMapState.sourceBaseLayer &&
+        getCurrentBaseLayerName() !== sharedMapState.sourceBaseLayer
+      );
+      if (!sharedMapState.hasLocalBaseLayerOverride) {
+        sharedMapState.baseLayerNotice = '';
+      }
+    }
     persistAppState();
     updateMapAlerts();
   });
@@ -2274,15 +2415,23 @@ const ALL_FA_ICONS = [
   let customFeatures = [];
   let customFeatureLayers = {};
   let mapIsReadOnly = false;
-  let remoteApplyInProgress = false;
   let customFeatureDrawControl = null;
   let customFeatureDrawControlAttached = false;
-  const sharedMapState = {
+  sharedMapState = {
     fileId: initialSharedMapFileId || null,
     fileName: '',
     canEdit: false,
     lastVersion: null,
+    lastSeenVersion: null,
     lastModifiedTime: null,
+    sourceBaseLayer: null,
+    sourceMapView: null,
+    hasLocalBaseLayerOverride: false,
+    lastLoadedAt: null,
+    nextRefreshAt: null,
+    baseLayerNotice: '',
+    pollingActive: false,
+    pollInFlight: false,
     syncTimer: null,
     writeTimer: null,
     writeInFlight: false,
@@ -2660,9 +2809,25 @@ const ALL_FA_ICONS = [
       return;
     }
     const roleText = mapIsReadOnly ? 'View-only' : 'Editor';
-    const versionText = sharedMapState.lastVersion ? `v${sharedMapState.lastVersion}` : 'unversioned';
+    const activeVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
+    const versionText = activeVersion
+      ? `v${activeVersion}`
+      : 'unversioned';
     const nameText = sharedMapState.fileName || sharedMapState.fileId;
     statusTextEl.textContent = `Shared map: ${roleText} (${versionText}) — ${nameText}`;
+  }
+
+  function updateMatchSourceMapButton() {
+    const matchButton = document.getElementById('btn-match-source-map');
+    if (!matchButton) return;
+    const hasSourceView = sharedMapState.sourceMapView &&
+      Number.isFinite(sharedMapState.sourceMapView.lat) &&
+      Number.isFinite(sharedMapState.sourceMapView.lng) &&
+      Number.isFinite(sharedMapState.sourceMapView.zoom);
+    const hasSourceBaseLayer = typeof sharedMapState.sourceBaseLayer === 'string' &&
+      Boolean(baseLayers[sharedMapState.sourceBaseLayer]);
+    const isEnabled = Boolean(sharedMapState.fileId && (hasSourceView || hasSourceBaseLayer));
+    matchButton.disabled = !isEnabled;
   }
 
   function updateReadOnlyUI() {
@@ -3195,8 +3360,9 @@ const ALL_FA_ICONS = [
       .filter(Boolean);
   }
 
-  function applySharedLayerState(baseLayerName, enabledLayerNames) {
-    if (typeof baseLayerName === 'string' && baseLayers[baseLayerName] && currentBaseLayer !== baseLayers[baseLayerName]) {
+  function applySharedLayerState(baseLayerName, enabledLayerNames, options = {}) {
+    const shouldApplyBaseLayer = options.applyBaseLayer !== false;
+    if (shouldApplyBaseLayer && typeof baseLayerName === 'string' && baseLayers[baseLayerName] && currentBaseLayer !== baseLayers[baseLayerName]) {
       if (map.hasLayer(currentBaseLayer)) map.removeLayer(currentBaseLayer);
       currentBaseLayer = baseLayers[baseLayerName];
       currentBaseLayer.addTo(map);
@@ -3234,6 +3400,17 @@ const ALL_FA_ICONS = [
         selectedDisasterModeId = disasterModes.defaultModeId;
       }
       const importedRuntimeConfig = {};
+      const importedBaseLayerName = typeof parsed.baseLayer === 'string' && baseLayers[parsed.baseLayer]
+        ? parsed.baseLayer
+        : null;
+      const currentBaseLayerName = getCurrentBaseLayerName();
+      const preserveCustomBaseLayer = options.preserveCustomBaseLayer === true &&
+        sharedMapState.hasLocalBaseLayerOverride === true &&
+        importedBaseLayerName &&
+        currentBaseLayerName !== importedBaseLayerName;
+      const baseLayerNotice = preserveCustomBaseLayer && importedBaseLayerName
+        ? `Source basemap is ${importedBaseLayerName}; keeping your current basemap (${currentBaseLayerName}).`
+        : '';
       if (typeof parsed.baseLayer === 'string') {
         importedRuntimeConfig.baseLayer = parsed.baseLayer;
       }
@@ -3250,6 +3427,9 @@ const ALL_FA_ICONS = [
           zoom: parsed.mapView.zoom
         };
       }
+      sharedMapState.sourceMapView = importedRuntimeConfig.mapView
+        ? cloneJson(importedRuntimeConfig.mapView)
+        : null;
       pendingDisasterRuntime = cloneJson(importedRuntimeConfig);
       customFeatures = importedCustomFeatures;
       saveCustomFeatures();
@@ -3280,14 +3460,22 @@ const ALL_FA_ICONS = [
         showClosedIncidents = parsed.showClosedIncidents;
       }
       if (parsed.version === 2 || typeof parsed.baseLayer === 'string' || Array.isArray(parsed.enabledThirdPartyLayers)) {
-        applySharedLayerState(parsed.baseLayer, parsed.enabledThirdPartyLayers);
+        applySharedLayerState(parsed.baseLayer, parsed.enabledThirdPartyLayers, {
+          applyBaseLayer: !preserveCustomBaseLayer
+        });
       }
-      if (parsed.mapView &&
+      if (options.preserveMapView !== true && parsed.mapView &&
           Number.isFinite(parsed.mapView.lat) &&
           Number.isFinite(parsed.mapView.lng) &&
           Number.isFinite(parsed.mapView.zoom)) {
         map.setView([parsed.mapView.lat, parsed.mapView.lng], parsed.mapView.zoom);
       }
+      sharedMapState.sourceBaseLayer = importedBaseLayerName;
+      if (!preserveCustomBaseLayer) {
+        sharedMapState.hasLocalBaseLayerOverride = false;
+      }
+      sharedMapState.baseLayerNotice = options.remote === true ? baseLayerNotice : '';
+      updateMatchSourceMapButton();
       geocoderIndex = null;
       hasLoadedMap = false;
       renderSheetsModal();
@@ -3298,6 +3486,9 @@ const ALL_FA_ICONS = [
           ? 'Shared map updated from Google Drive.'
           : 'Map file loaded. Live refresh will continue when sheet access is available.');
       }
+      return {
+        baseLayerNotice
+      };
     } finally {
       remoteApplyInProgress = false;
     }
@@ -3309,14 +3500,19 @@ const ALL_FA_ICONS = [
   }
 
   function stopSharedMapPolling() {
+    sharedMapState.pollingActive = false;
+    sharedMapState.pollInFlight = false;
     if (sharedMapState.syncTimer) {
-      clearInterval(sharedMapState.syncTimer);
+      clearTimeout(sharedMapState.syncTimer);
       sharedMapState.syncTimer = null;
     }
     if (sharedMapState.writeTimer) {
       clearTimeout(sharedMapState.writeTimer);
       sharedMapState.writeTimer = null;
     }
+    sharedMapState.nextRefreshAt = null;
+    updateSharedMapAlertTimer();
+    updateMapAlerts();
   }
 
   async function refreshSharedMapMetadata() {
@@ -3324,7 +3520,7 @@ const ALL_FA_ICONS = [
     const metadata = await driveFetchMetadata(sharedMapState.fileId);
     sharedMapState.fileName = metadata.name || sharedMapState.fileId;
     sharedMapState.canEdit = metadata.capabilities && metadata.capabilities.canEdit === true;
-    sharedMapState.lastVersion = metadata.version || null;
+    sharedMapState.lastSeenVersion = normalizeDriveVersion(metadata.version);
     sharedMapState.lastModifiedTime = metadata.modifiedTime || null;
     setReadOnlyMode(forcedViewerMode || !sharedMapState.canEdit,
       forcedViewerMode
@@ -3338,18 +3534,27 @@ const ALL_FA_ICONS = [
 
   async function pullSharedMapFromDrive(options = {}) {
     if (!sharedMapState.fileId) return;
-    const previousVersion = sharedMapState.lastVersion;
     const metadata = await refreshSharedMapMetadata();
     if (!metadata) return;
+    const metadataVersion = normalizeDriveVersion(metadata.version);
     const hasChanged = options.force === true ||
-      !previousVersion ||
-      String(metadata.version || '') !== String(previousVersion || '');
+      !sharedMapState.lastVersion ||
+      metadataVersion !== sharedMapState.lastVersion;
     if (!hasChanged) return;
     const payload = await driveFetchJson(sharedMapState.fileId);
-    await applyMapSnapshot(payload, { remote: true, skipSharedWrite: true, silent: options.silent === true });
-    sharedMapState.lastVersion = metadata.version || sharedMapState.lastVersion;
+    await applyMapSnapshot(payload, {
+      remote: true,
+      skipSharedWrite: true,
+      silent: options.silent === true,
+      preserveCustomBaseLayer: options.preserveCustomBaseLayer !== false,
+      preserveMapView: options.preserveMapView !== false
+    });
+    sharedMapState.lastVersion = metadataVersion;
+    sharedMapState.lastSeenVersion = metadataVersion;
     sharedMapState.lastModifiedTime = metadata.modifiedTime || sharedMapState.lastModifiedTime;
+    sharedMapState.lastLoadedAt = new Date().toISOString();
     updateSharedMapStatusLabel();
+    updateMapAlerts();
   }
 
   async function flushSharedMapWrite() {
@@ -3358,13 +3563,14 @@ const ALL_FA_ICONS = [
     sharedMapState.writeInFlight = true;
     try {
       const remoteMeta = await driveFetchMetadata(sharedMapState.fileId);
-      const remoteVersion = remoteMeta.version || null;
-      if (sharedMapState.lastVersion && remoteVersion && String(remoteVersion) !== String(sharedMapState.lastVersion)) {
+      const remoteVersion = normalizeDriveVersion(remoteMeta.version);
+      const knownVersion = sharedMapState.lastVersion;
+      if (knownVersion && remoteVersion && String(remoteVersion) !== String(knownVersion)) {
         const shouldReload = window.confirm(
           'This shared map changed in Google Drive since your last sync. Reload the newer version now?'
         );
         if (shouldReload) {
-          await pullSharedMapFromDrive({ force: true });
+          await pullSharedMapFromDrive({ force: true, preserveCustomBaseLayer: true, preserveMapView: true });
         } else {
           setStatus('Shared map write canceled due to version conflict.');
         }
@@ -3372,8 +3578,10 @@ const ALL_FA_ICONS = [
         return;
       }
       const updated = await driveUpdateJsonFile(sharedMapState.fileId, mapSnapshot());
+      const updatedVersion = normalizeDriveVersion(updated.version);
       sharedMapState.fileName = updated.name || sharedMapState.fileName;
-      sharedMapState.lastVersion = updated.version || sharedMapState.lastVersion;
+      sharedMapState.lastVersion = updatedVersion;
+      sharedMapState.lastSeenVersion = updatedVersion;
       sharedMapState.lastModifiedTime = updated.modifiedTime || sharedMapState.lastModifiedTime;
       sharedMapState.dirty = false;
       updateSharedMapStatusLabel();
@@ -3404,40 +3612,97 @@ const ALL_FA_ICONS = [
 
   function startSharedMapPolling() {
     if (!sharedMapState.fileId) return;
-    if (sharedMapState.syncTimer) clearInterval(sharedMapState.syncTimer);
-    sharedMapState.syncTimer = setInterval(async function () {
+    sharedMapState.pollingActive = true;
+    if (sharedMapState.syncTimer) clearTimeout(sharedMapState.syncTimer);
+    function scheduleNextSharedMapPoll(delayMs = SHARED_MAP_POLL_INTERVAL_MS) {
+      if (!sharedMapState.fileId || !sharedMapState.pollingActive) return;
+      sharedMapState.nextRefreshAt = Date.now() + delayMs;
+      if (sharedMapState.syncTimer) clearTimeout(sharedMapState.syncTimer);
+      sharedMapState.syncTimer = setTimeout(runSharedMapPoll, delayMs);
+      updateSharedMapAlertTimer();
+      updateMapAlerts();
+    }
+    async function runSharedMapPoll() {
+      sharedMapState.syncTimer = null;
+      if (!sharedMapState.pollingActive || !sharedMapState.fileId) {
+        sharedMapState.nextRefreshAt = null;
+        updateSharedMapAlertTimer();
+        updateMapAlerts();
+        return;
+      }
+      const pollStartedAt = Date.now();
+      sharedMapState.pollInFlight = true;
       try {
         const meta = await driveFetchMetadata(sharedMapState.fileId);
-        const remoteVersion = meta.version || null;
-        const hasChanged = sharedMapState.lastVersion && remoteVersion &&
-          String(remoteVersion) !== String(sharedMapState.lastVersion);
+        const remoteVersion = normalizeDriveVersion(meta.version);
+        sharedMapState.lastSeenVersion = remoteVersion;
+        const hasChanged = !sharedMapState.lastVersion || remoteVersion !== sharedMapState.lastVersion;
         if (hasChanged && !sharedMapState.writeInFlight) {
           sharedMapState.fileName = meta.name || sharedMapState.fileName;
           const payload = await driveFetchJson(sharedMapState.fileId);
-          await applyMapSnapshot(payload, { remote: true, skipSharedWrite: true, silent: true });
+          await applyMapSnapshot(payload, {
+            remote: true,
+            skipSharedWrite: true,
+            silent: true,
+            preserveCustomBaseLayer: true,
+            preserveMapView: true
+          });
           sharedMapState.lastVersion = remoteVersion;
           sharedMapState.lastModifiedTime = meta.modifiedTime || sharedMapState.lastModifiedTime;
+          sharedMapState.lastLoadedAt = new Date().toISOString();
           updateSharedMapStatusLabel();
           setStatus('Shared map changes loaded from Google Drive.');
+          updateMapAlerts();
         }
       } catch (err) {
         if (err && err.code !== 'shared-map-auth') {
           console.warn('Shared map poll failed:', err);
         }
+      } finally {
+        sharedMapState.pollInFlight = false;
+        if (sharedMapState.pollingActive && sharedMapState.fileId) {
+          scheduleNextSharedMapPoll(Math.max(0, (pollStartedAt + SHARED_MAP_POLL_INTERVAL_MS) - Date.now()));
+        }
       }
-    }, SHARED_MAP_POLL_INTERVAL_MS);
+    }
+    scheduleNextSharedMapPoll();
   }
 
   async function connectSharedMapFile(fileId, options = {}) {
+    stopSharedMapPolling();
     sharedMapState.fileId = fileId;
-    await refreshSharedMapMetadata();
+    sharedMapState.fileName = '';
+    sharedMapState.lastVersion = null;
+    sharedMapState.lastSeenVersion = null;
+    sharedMapState.lastModifiedTime = null;
+    sharedMapState.sourceBaseLayer = null;
+    sharedMapState.sourceMapView = null;
+    sharedMapState.hasLocalBaseLayerOverride = false;
+    sharedMapState.lastLoadedAt = null;
+    sharedMapState.baseLayerNotice = '';
+    updateMatchSourceMapButton();
+    const metadata = await refreshSharedMapMetadata();
+    updateMapAlerts();
     persistSharedMapLinkInUrl();
     if (options.loadNow) {
       const payload = await driveFetchJson(sharedMapState.fileId);
-      await applyMapSnapshot(payload, { remote: true, skipSharedWrite: true, silent: true });
+      const loadedVersion = metadata ? normalizeDriveVersion(metadata.version) : null;
+      await applyMapSnapshot(payload, {
+        remote: true,
+        skipSharedWrite: true,
+        silent: true,
+        preserveCustomBaseLayer: false,
+        preserveMapView: false
+      });
+      const loadedMetadata = await refreshSharedMapMetadata();
+      sharedMapState.lastVersion = loadedMetadata
+        ? normalizeDriveVersion(loadedMetadata.version)
+        : loadedVersion;
+      sharedMapState.lastLoadedAt = new Date().toISOString();
     }
     startSharedMapPolling();
     updateSharedMapStatusLabel();
+    updateMapAlerts();
   }
   /* eslint-enable no-use-before-define */
 
@@ -6343,6 +6608,54 @@ const ALL_FA_ICONS = [
     });
   }
 
+  const googleDriveSubmenu = document.getElementById('google-drive-submenu');
+  const googleDriveSubmenuTrigger = document.getElementById('google-drive-submenu-trigger');
+  const googleDriveSubmenuStatus = document.getElementById('google-drive-submenu-status');
+  if (googleDriveSubmenu && googleDriveSubmenuStatus && googleDriveSubmenuTrigger) {
+    const syncGoogleDriveSubmenuStatus = function () {
+      googleDriveSubmenuStatus.textContent = googleDriveSubmenu.open ? 'expanded' : 'collapsed';
+    };
+    syncGoogleDriveSubmenuStatus();
+    googleDriveSubmenu.addEventListener('toggle', syncGoogleDriveSubmenuStatus);
+  }
+
+  const btnMatchSourceMap = document.getElementById('btn-match-source-map');
+  if (btnMatchSourceMap) {
+    btnMatchSourceMap.addEventListener('click', function () {
+      if (!sharedMapState.fileId) {
+        setStatus('Open a shared map first.');
+        return;
+      }
+      let matched = false;
+      if (typeof sharedMapState.sourceBaseLayer === 'string' &&
+          baseLayers[sharedMapState.sourceBaseLayer] &&
+          currentBaseLayer !== baseLayers[sharedMapState.sourceBaseLayer]) {
+        if (map.hasLayer(currentBaseLayer)) map.removeLayer(currentBaseLayer);
+        currentBaseLayer = baseLayers[sharedMapState.sourceBaseLayer];
+        currentBaseLayer.addTo(map);
+        matched = true;
+      }
+      if (sharedMapState.sourceMapView &&
+          Number.isFinite(sharedMapState.sourceMapView.lat) &&
+          Number.isFinite(sharedMapState.sourceMapView.lng) &&
+          Number.isFinite(sharedMapState.sourceMapView.zoom)) {
+        map.setView(
+          [sharedMapState.sourceMapView.lat, sharedMapState.sourceMapView.lng],
+          sharedMapState.sourceMapView.zoom
+        );
+        matched = true;
+      }
+      sharedMapState.hasLocalBaseLayerOverride = false;
+      sharedMapState.baseLayerNotice = '';
+      updateMatchSourceMapButton();
+      updateMapAlerts();
+      persistAppState();
+      setStatus(matched
+        ? 'Matched the shared source map.'
+        : 'Shared source map details are not available yet.');
+    });
+  }
+
   const btnOAuthAuth = document.getElementById('btn-oauth-auth');
   async function handleGoogleSignInSuccess() {
     try {
@@ -6381,6 +6694,7 @@ const ALL_FA_ICONS = [
 
   clearLegacyOAuthStorage();
   updateSharedMapStatusLabel();
+  updateMatchSourceMapButton();
   updateReadOnlyUI();
   savedThirdPartyLayerNames.forEach(function (layerName) {
     const layerConfig = thirdPartyLayers[layerName];
