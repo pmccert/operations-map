@@ -1883,6 +1883,7 @@ const ALL_FA_ICONS = [
   const sharedMapPublicYesBtn = document.getElementById('shared-map-public-yes');
   let resolveSharedMapPublicChoice = null;
   const modalFocusReturnByOverlay = new WeakMap();
+  const modalDialogPanelByOverlay = new WeakMap();
   let managedModalBackgroundState = null;
   let managedModalOpenCount = 0;
   const closeCommitInfoModal = function () {
@@ -1951,9 +1952,29 @@ const ALL_FA_ICONS = [
     managedModalBackgroundState = null;
   }
 
+  function fallbackFocusManagedModal(modalOverlay) {
+    if (!modalOverlay) return;
+    const fallbackFocusable = listFocusableModalElements(modalOverlay)[0];
+    if (fallbackFocusable && typeof fallbackFocusable.focus === 'function') {
+      fallbackFocusable.focus();
+      return;
+    }
+    const dialogPanel = modalDialogPanelByOverlay.get(modalOverlay);
+    if (dialogPanel && typeof dialogPanel.focus === 'function') {
+      dialogPanel.focus();
+    }
+  }
+
+  function resetManagedModalState(modalOverlay) {
+    managedModalOpenCount = 0;
+    restoreModalBackgroundInert(modalOverlay);
+    modalFocusReturnByOverlay.delete(modalOverlay);
+  }
+
   function openManagedModal(modalOverlay, options) {
     if (!modalOverlay) return;
     const { dialogPanel, initialFocus } = options || {};
+    modalDialogPanelByOverlay.set(modalOverlay, dialogPanel instanceof HTMLElement ? dialogPanel : null);
     modalFocusReturnByOverlay.set(
       modalOverlay,
       document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -1974,12 +1995,7 @@ const ALL_FA_ICONS = [
     restoreModalBackgroundInert(modalOverlay);
     const activeVisibleModal = topVisibleModalOverlay();
     if (managedModalOpenCount > 0 && activeVisibleModal) {
-      const fallbackFocusable = listFocusableModalElements(activeVisibleModal)[0];
-      if (fallbackFocusable && typeof fallbackFocusable.focus === 'function') {
-        fallbackFocusable.focus();
-      } else if (activeVisibleModal && typeof activeVisibleModal.focus === 'function') {
-        activeVisibleModal.focus();
-      }
+      fallbackFocusManagedModal(activeVisibleModal);
       modalFocusReturnByOverlay.delete(modalOverlay);
       return;
     }
@@ -1990,12 +2006,7 @@ const ALL_FA_ICONS = [
     if (canReturnFocus) {
       focusReturnEl.focus();
     } else {
-      const fallbackFocusable = listFocusableModalElements(activeVisibleModal)[0];
-      if (fallbackFocusable && typeof fallbackFocusable.focus === 'function') {
-        fallbackFocusable.focus();
-      } else if (activeVisibleModal && typeof activeVisibleModal.focus === 'function') {
-        activeVisibleModal.focus();
-      }
+      fallbackFocusManagedModal(activeVisibleModal);
     }
     modalFocusReturnByOverlay.delete(modalOverlay);
   }
@@ -2036,7 +2047,14 @@ const ALL_FA_ICONS = [
       return Promise.resolve(false);
     }
     if (resolveSharedMapPublicChoice) {
-      closeSharedMapPublicModal(false);
+      const resolve = resolveSharedMapPublicChoice;
+      resolveSharedMapPublicChoice = null;
+      if (isModalVisible(sharedMapPublicModal)) {
+        closeManagedModal(sharedMapPublicModal);
+      } else {
+        resetManagedModalState(sharedMapPublicModal);
+      }
+      resolve(false);
     }
     openManagedModal(sharedMapPublicModal, {
       dialogPanel: sharedMapPublicDialog,
