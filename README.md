@@ -6,10 +6,14 @@ publicly accessible Google Sheet.
 
 ## Features
 
-* **No server required** — open `index.html` directly in any modern browser, or
-  host it on any static file host (GitHub Pages, Netlify, etc.).
+* **Static hosting** — serve `index.html` from any static file host (GitHub Pages,
+  Netlify, etc.) or a local HTTP server.
 * **Multiple Google Sheets support** — add and plot multiple sheets simultaneously.
   Each sheet can have its own name, Google Sheets URL, column mapping, icon, and badge color.
+* **Startup disaster modes** — begin with a **Blank Map** or choose a predefined
+  disaster preset such as **Earthquake**, **Evacuation**, or **Snow Emergency**.
+  `assets/disaster-modes.json` is the single source of truth for these presets
+  and can prefill sheet names, icons, colours, and other startup settings.
 * **Configurable column mapping per sheet** — automatically detects and allows you to select
   which sheet columns contain the incident address, open/closed status, and label/description for each sheet.
   Change column mapping at any time in the **Manage Sheets** dialog.
@@ -101,41 +105,100 @@ setup dialog or via the toolbar:
 
 ### 3. Load the map
 
-1. Open `index.html` in a browser.
-2. Paste your **Google Sheet URL** for Sheet 1 (and optionally click **+ Add Another Sheet** to add more sheets).
+1. Serve this repository over HTTP (for example, `python -m http.server`) and open
+   `index.html` from that server URL.
+2. Choose a **startup disaster mode**:
+   * **Blank Map** starts with no Google Sheets so you can build the map from scratch.
+   * **Earthquake**, **Evacuation**, and **Snow Emergency** preload starter sheet settings and icons.
+3. Paste your **Google Sheet URL** into any preloaded sheet, or click **+ Add Another Sheet** to add your own.
    The app auto-detects sheet columns and selects matching Address, Status, and Label columns for each sheet.
-3. Choose an incident icon and color for each sheet.
+4. Choose or adjust the incident icon and color for each sheet.
    Optionally select a **Category** column. When signed in with Google, the app reads that
    column's configured dropdown options through the Sheets API; each option can then be styled
    with its own icon and color. Without sign-in, the app uses distinct values currently present
    in the column.
-4. If `addresses.json` is available locally alongside `index.html`, it is
+5. If `addresses.json` is available locally alongside `index.html`, it is
    automatically detected and used (with an option to override if needed);
    otherwise, enter your **addresses.json URL**.
-5. Click **Load Map**.
-6. Incidents from all sheets are plotted immediately and refresh every 30
+6. Click **Load Map**.
+7. Incidents from all configured sheets are plotted immediately and refresh every 30
    seconds. Unmatched addresses appear in the status bar count and show an
    error note in their popup.
-7. Click any marker to see its details (sheet name, label, status, resolved address).
-8.  Use the Leaflet drawing controls on the map to draw points, lines, and polygons.
+8. A blank map can be loaded with no sheets configured; you can still add custom features,
+   enable overlay layers, or return to **Manage Sheets** later.
+9. Click any marker to see its details (sheet name, label, status, resolved address).
+10. Use the Leaflet drawing controls on the map to draw points, lines, and polygons.
     Click a feature to set or edit its label, icon, color, and private description;
     use **Custom Features** to manage saved features.
-9.  Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
-10. Use **Manage Sheets** in the top-left **Map Actions** menu at any time to edit
+11. Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
+12. Use **Manage Sheets** in the top-left **Map Actions** menu at any time to edit
      sheet URLs, column mappings, icons, and colors.
-11. Use **Save Map File** to export the current configuration and loaded data. Use
+13. Use **Save Map File** to export the current configuration and loaded data. Use
     **Load Map File** in another browser to restore it; the imported snapshot is
     displayed first and then normal sheet refresh resumes.
-12. To collaborate through Google Drive:
+14. To collaborate through Google Drive:
     * Click **Create Shared Map** to create a map-state JSON file in your Drive, or
-     **Open Shared Map** to open an existing Drive file by file ID/URL.
+      **Open Shared Map** to open an existing Drive file by file ID/URL.
     * Share Drive access to that file (editor for one user, viewer for everyone
-     else) using normal Google Drive sharing controls.
+      else) using normal Google Drive sharing controls.
     * Click **Copy Viewer URL** and send that URL to viewers.
     * Use **Open Editor URL** when opening the map in edit mode.
-13. Open the top-right layers menu and select **Known Fire Incidents** or
+15. Open the top-right layers menu and select **Known Fire Incidents** or
     **ADS-B Aircraft** to load those live third-party overlays. Use their
     legend checkboxes to hide an enabled overlay.
+
+## Disaster preset schema
+
+The app loads `assets/disaster-modes.json` at startup. The file shape is:
+
+```json
+{
+  "version": 1,
+  "defaultModeId": "blank-map",
+  "modes": [
+    {
+     "id": "earthquake",
+     "label": "Earthquake",
+     "description": "Preload a sheet template for quake response incidents.",
+     "icon": { "fa": "fa-solid fa-house-crack", "label": "Earthquake" },
+     "preset": {
+       "geocoder": {
+         "url": "",
+         "useLocalFile": true
+       },
+       "baseLayer": "OpenStreetMap",
+       "enabledThirdPartyLayers": ["Known Fire Incidents"],
+       "mapView": { "lat": 34.857, "lng": -119.155, "zoom": 13 },
+       "sheets": [
+         {
+           "name": "Earthquake Incidents",
+           "rawUrl": "",
+           "columnMapping": {
+             "address": 0,
+             "status": 1,
+             "label": 2,
+             "category": null
+           },
+           "headers": ["Address", "Status", "Label"],
+           "icon": { "fa": "fa-solid fa-house-crack", "label": "Earthquake" },
+           "color": "#D97706",
+           "categoryOptions": []
+         }
+       ]
+     }
+    }
+  ]
+}
+```
+
+Notes:
+
+* `modes` is the list shown in the startup picker modal.
+* `icon.fa` must be a valid Font Awesome class string.
+* `preset.sheets` may be an empty array for a true blank-map startup.
+* `rawUrl` is optional, so presets can provide sheet styling before a Google Sheet is attached.
+* `geocoder`, `baseLayer`, `enabledThirdPartyLayers`, and `mapView` are optional preset runtime fields used when a mode is selected. If omitted, the app keeps its current map/geocoder values.
+* This file is required for the disaster picker and setup flow; if it cannot be loaded, map setup stays blocked until a valid file is restored.
 
 ### 4. (Optional) Configure Google Geocoding Fallback
 

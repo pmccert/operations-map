@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "defaultModeId": "blank-map",
+  "modes": [
+    {
+      "id": "blank-map",
+      "label": "Blank Map",
+      "description": "Start with no Google Sheets and build your own map layers.",
+      "icon": {
+        "fa": "fa-regular fa-map",
+        "label": "Blank Map"
+      },
+      "preset": {
+        "sheets": []
+      }
+    },
+    {
+      "id": "earthquake",
+      "label": "Earthquake",
+      "description": "Preload a sheet template for quake response incidents.",
+      "icon": {
+        "fa": "fa-solid fa-house-crack",
+        "label": "Earthquake"
+      },
+      "preset": {
+        "sheets": [
+          {
+            "name": "Earthquake Incidents",
+            "icon": {
+              "fa": "fa-solid fa-house-crack",
+              "label": "Earthquake"
+            },
+            "color": "#D97706"
+          }
+        ]
+      }
+    },
+    {
+      "id": "evacuation",
+      "label": "Evacuation",
+      "description": "Preload an evacuation tracking sheet template.",
+      "icon": {
+        "fa": "fa-solid fa-person-walking-arrow-right",
+        "label": "Evacuation"
+      },
+      "preset": {
+        "sheets": [
+          {
+            "name": "Evacuation Incidents",
+            "icon": {
+              "fa": "fa-solid fa-person-walking-arrow-right",
+              "label": "Evacuation"
+            },
+            "color": "#DC2626"
+          }
+        ]
+      }
+    },
+    {
+      "id": "snow-emergency",
+      "label": "Snow Emergency",
+      "description": "Preload a snow emergency sheet template for winter operations.",
+      "icon": {
+        "fa": "fa-solid fa-snowflake",
+        "label": "Snow Emergency"
+      },
+      "preset": {
+        "sheets": [
+          {
+            "name": "Snow Emergency Incidents",
+            "icon": {
+              "fa": "fa-solid fa-snowflake",
+              "label": "Snow Emergency"
+            },
+            "color": "#2563EB"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -55,6 +55,71 @@
     .modal-box h2 { margin-bottom: 8px; font-size: 1.25rem; color: #1a202c; }
     .modal-box p  { font-size: 0.88rem; color: #555; margin-bottom: 14px; line-height: 1.5; }
 
+    .disaster-mode-section {
+      margin-bottom: 18px;
+      padding: 14px;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .disaster-mode-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+    }
+    .disaster-mode-status {
+      font-size: 0.82rem;
+      color: #555;
+      line-height: 1.4;
+    }
+    .disaster-mode-status.error {
+      color: #b42318;
+    }
+    .disaster-mode-option {
+      border: 2px solid #d0d7de;
+      border-radius: 8px;
+      padding: 12px 10px;
+      background: #fff;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+    .disaster-mode-option:hover {
+      border-color: #2c7bb6;
+      background: #f4f9fd;
+    }
+    .disaster-mode-option.active {
+      border-color: #2c7bb6;
+      box-shadow: 0 0 0 2px rgba(44, 123, 182, 0.15);
+      background: #eef6fc;
+    }
+    .disaster-mode-option-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+      color: #fff;
+      font-size: 1rem;
+      background: #2c7bb6;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.22);
+    }
+    .disaster-mode-option-title {
+      display: block;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 4px;
+    }
+    .disaster-mode-option-description {
+      display: block;
+      font-size: 0.8rem;
+      color: #555;
+      line-height: 1.4;
+    }
+
     .field-label {
       display: block;
       font-size: 0.85rem;
@@ -1102,9 +1167,14 @@
       <button type="button" id="sheet-modal-close" class="modal-close-btn hidden" title="Close modal" aria-label="Close modal">&times;</button>
     </div>
     <p>
-      Configure your Google Sheets below. You can add multiple sheets, each with
-      its own icon, color, and column mapping.
+      Choose a startup disaster mode, then configure any Google Sheets below. You
+      can add multiple sheets, each with its own icon, color, and column mapping.
     </p>
+
+    <div class="disaster-mode-section">
+      <label class="field-label" style="margin-bottom: 8px;">Startup disaster mode</label>
+      <div id="disaster-mode-picker" class="disaster-mode-grid"></div>
+    </div>
 
     <!-- Google OAuth 2.0 sign-in -->
     <div class="oauth-config-box">
@@ -1367,6 +1437,7 @@
   const SHARED_MAP_POLL_INTERVAL_MS = 15000;
   const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';
   const APP_STATE_KEY = 'pmc_cert_map_state';
+  const DISASTER_MODES_URL = 'assets/disaster-modes.json';
   const DRIVE_JSON_MIME_TYPE = 'application/json';
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
   const DRIVE_READONLY_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
@@ -1396,6 +1467,14 @@
   const savedAppState = readAppState();
   let savedGeocoderUrl = '';
   let savedGeocoderOverridden = false;
+  let disasterModes = { version: 1, defaultModeId: '', modes: [] };
+  let disasterModesLoadError = '';
+  let disasterModesLoadPending = true;
+  let selectedDisasterModeId = savedAppState && typeof savedAppState.disasterModeId === 'string'
+    ? savedAppState.disasterModeId
+    : '';
+  let pendingDisasterRuntime = {};
+  let savedModalStateSnapshot = null;
 
   // Available incident icons: { fa: FA classes, label }
   const ICON_OPTIONS = [
@@ -1420,6 +1499,10 @@
       .split('-')
       .map(part => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
+  }
+
+  function cloneJson(value) {
+    return JSON.parse(JSON.stringify(value));
   }
 
 const ALL_FA_ICONS = [
@@ -2105,8 +2188,9 @@ const ALL_FA_ICONS = [
   }
 
   let sheets = [createSheet('Sheet 1')];
+  const hasSavedSheetsState = savedAppState && Array.isArray(savedAppState.sheets);
 
-  if (savedAppState && Array.isArray(savedAppState.sheets) && savedAppState.sheets.length > 0) {
+  if (hasSavedSheetsState) {
     const restoredSheets = savedAppState.sheets.map((savedSheet, index) => {
       const restored = createSheet(savedSheet.name || `Sheet ${index + 1}`, savedSheet.rawUrl || '');
       if (typeof savedSheet.id === 'string' && savedSheet.id) restored.id = savedSheet.id;
@@ -2148,6 +2232,7 @@ const ALL_FA_ICONS = [
 
   function persistAppState() {
     writeAppState({
+      disasterModeId: selectedDisasterModeId,
       sheets: sheets.map(sheet => ({
         id: sheet.id,
         name: sheet.name,
@@ -2173,6 +2258,62 @@ const ALL_FA_ICONS = [
       }
     });
     syncSharedMapAfterLocalChange('app-state');
+  }
+
+  function getSelectedDisasterMode() {
+    return disasterModes.modes.find(mode => mode.id === selectedDisasterModeId) || null;
+  }
+
+  function buildRuntimeConfigFromPreset(preset) {
+    const runtimeConfig = {};
+    if (preset && typeof preset.baseLayer === 'string') {
+      runtimeConfig.baseLayer = preset.baseLayer;
+    }
+    if (Array.isArray(preset && preset.enabledThirdPartyLayers)) {
+      runtimeConfig.enabledThirdPartyLayers = preset.enabledThirdPartyLayers.filter(name => typeof name === 'string');
+    }
+    if (preset && preset.mapView &&
+        Number.isFinite(preset.mapView.lat) &&
+        Number.isFinite(preset.mapView.lng) &&
+        Number.isFinite(preset.mapView.zoom)) {
+      runtimeConfig.mapView = {
+        lat: preset.mapView.lat,
+        lng: preset.mapView.lng,
+        zoom: preset.mapView.zoom
+      };
+    }
+    return runtimeConfig;
+  }
+
+  function applyDisasterRuntimeConfig(runtimeConfig) {
+    const nextConfig = runtimeConfig && typeof runtimeConfig === 'object' ? runtimeConfig : {};
+    if (typeof nextConfig.baseLayer === 'string' && baseLayers[nextConfig.baseLayer] && currentBaseLayer !== baseLayers[nextConfig.baseLayer]) {
+      map.removeLayer(currentBaseLayer);
+      currentBaseLayer = baseLayers[nextConfig.baseLayer];
+      currentBaseLayer.addTo(map);
+    }
+    if (nextConfig.mapView &&
+        Number.isFinite(nextConfig.mapView.lat) &&
+        Number.isFinite(nextConfig.mapView.lng) &&
+        Number.isFinite(nextConfig.mapView.zoom)) {
+      map.setView([nextConfig.mapView.lat, nextConfig.mapView.lng], nextConfig.mapView.zoom);
+    }
+    if (Array.isArray(nextConfig.enabledThirdPartyLayers)) {
+      const enabledLayerNames = new Set(nextConfig.enabledThirdPartyLayers);
+      Object.entries(thirdPartyLayers).forEach(([name, config]) => {
+        const shouldEnable = enabledLayerNames.has(name);
+        const isEnabled = map.hasLayer(config.layer);
+        config.activated = shouldEnable;
+        if (shouldEnable && !isEnabled) {
+          map.addLayer(config.layer);
+          loadThirdPartyLayer(name);
+        } else if (!shouldEnable && isEnabled) {
+          map.removeLayer(config.layer);
+        }
+      });
+    }
+    updateLegend();
+    updateMapAlerts();
   }
 
   // Geocoder index (populated from addresses.json)
@@ -2261,6 +2402,7 @@ const ALL_FA_ICONS = [
     if (changed) {
       const activeSheetModal = document.getElementById('sheet-modal');
       if (activeSheetModal && !activeSheetModal.classList.contains('hidden')) {
+        renderDisasterModePicker();
         renderSheetsModal();
       }
       renderCustomFeatureList();
@@ -2521,6 +2663,7 @@ const ALL_FA_ICONS = [
       format: 'pmc-cert-map',
       version: 2,
       exportedAt: new Date().toISOString(),
+      disasterModeId: selectedDisasterModeId,
       pollIntervalMs,
       geocoder: {
         url: geocoderInput.value.trim(),
@@ -2671,7 +2814,7 @@ const ALL_FA_ICONS = [
   }
 
   async function applyMapSnapshot(parsed, options = {}) {
-    if (!parsed || parsed.format !== 'pmc-cert-map' || !Array.isArray(parsed.sheets) || parsed.sheets.length === 0) {
+    if (!parsed || parsed.format !== 'pmc-cert-map' || !Array.isArray(parsed.sheets)) {
       throw new Error('This is not a valid PMC CERT map file.');
     }
     if (parsed.version !== 1 && parsed.version !== 2) {
@@ -2683,6 +2826,30 @@ const ALL_FA_ICONS = [
     remoteApplyInProgress = options.remote === true;
     try {
       sheets = importedSheets;
+      const importedDisasterModeId = typeof parsed.disasterModeId === 'string' ? parsed.disasterModeId.trim() : '';
+      if (importedDisasterModeId && disasterModes.modes.some(mode => mode.id === importedDisasterModeId)) {
+        selectedDisasterModeId = importedDisasterModeId;
+      } else if (importedDisasterModeId || !disasterModes.modes.some(mode => mode.id === selectedDisasterModeId)) {
+        selectedDisasterModeId = disasterModes.defaultModeId;
+      }
+      const importedRuntimeConfig = {};
+      if (typeof parsed.baseLayer === 'string') {
+        importedRuntimeConfig.baseLayer = parsed.baseLayer;
+      }
+      if (Array.isArray(parsed.enabledThirdPartyLayers)) {
+        importedRuntimeConfig.enabledThirdPartyLayers = parsed.enabledThirdPartyLayers.filter(name => typeof name === 'string');
+      }
+      if (parsed.mapView &&
+          Number.isFinite(parsed.mapView.lat) &&
+          Number.isFinite(parsed.mapView.lng) &&
+          Number.isFinite(parsed.mapView.zoom)) {
+        importedRuntimeConfig.mapView = {
+          lat: parsed.mapView.lat,
+          lng: parsed.mapView.lng,
+          zoom: parsed.mapView.zoom
+        };
+      }
+      pendingDisasterRuntime = cloneJson(importedRuntimeConfig);
       customFeatures = importedCustomFeatures;
       saveCustomFeatures();
       renderAllCustomFeatures();
@@ -2700,9 +2867,13 @@ const ALL_FA_ICONS = [
       if (parsed.geocoder && typeof parsed.geocoder.url === 'string') {
         isOverridden = parsed.geocoder.useLocalFile !== true;
         geocoderInput.value = isOverridden ? parsed.geocoder.url : '';
+        savedGeocoderUrl = geocoderInput.value;
+        savedGeocoderOverridden = isOverridden;
       } else {
         isOverridden = false;
         geocoderInput.value = '';
+        savedGeocoderUrl = '';
+        savedGeocoderOverridden = false;
       }
       if (typeof parsed.showClosedIncidents === 'boolean') {
         showClosedIncidents = parsed.showClosedIncidents;
@@ -4042,6 +4213,109 @@ const ALL_FA_ICONS = [
     return null;
   }
 
+  function normalizePresetSheet(value, index) {
+    const restored = createSheet(
+      value && typeof value.name === 'string' && value.name.trim()
+        ? value.name.trim()
+        : `Sheet ${index + 1}`,
+      value && typeof value.rawUrl === 'string' ? value.rawUrl : ''
+    );
+    if (value && typeof value.id === 'string' && value.id.trim()) restored.id = value.id.trim();
+    if (value && value.columnMapping && typeof value.columnMapping === 'object') {
+      restored.columnMapping = {
+        address: Number.isInteger(value.columnMapping.address) ? value.columnMapping.address : 0,
+        status: Number.isInteger(value.columnMapping.status) ? value.columnMapping.status : 1,
+        label: Number.isInteger(value.columnMapping.label) ? value.columnMapping.label : 2,
+        category: Number.isInteger(value.columnMapping.category) ? value.columnMapping.category : null
+      };
+    }
+    if (Array.isArray(value && value.headers)) {
+      restored.headers = value.headers.map(header => String(header));
+    }
+    if (value && value.icon && typeof value.icon.fa === 'string') {
+      restored.icon = {
+        fa: value.icon.fa,
+        label: value.icon.label || formatIconLabel(value.icon.fa)
+      };
+    }
+    const normalizedColor = normalizeHexColor(value && value.color);
+    if (normalizedColor) restored.color = normalizedColor;
+    if (Array.isArray(value && value.categoryOptions)) {
+      restored.categoryOptions = value.categoryOptions
+        .filter(option => option && typeof option.value === 'string')
+        .map((option, optionIndex) => ({
+          value: option.value.trim(),
+          icon: option.icon && typeof option.icon.fa === 'string'
+            ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
+            : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
+          color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
+        }))
+        .filter(option => option.value);
+    }
+    restored.csvUrl = toCsvUrl(restored.rawUrl);
+    return restored;
+  }
+
+  function normalizeDisasterModesData(value) {
+    const modes = Array.isArray(value && value.modes) ? value.modes : [];
+    const normalizedModes = modes
+      .filter(mode => mode &&
+        typeof mode.id === 'string' &&
+        mode.id.trim() &&
+        typeof mode.label === 'string' &&
+        mode.label.trim() &&
+        mode.preset &&
+        typeof mode.preset === 'object' &&
+        Array.isArray(mode.preset.sheets))
+      .map(mode => ({
+        id: mode.id.trim(),
+        label: mode.label.trim(),
+        description: typeof mode.description === 'string' ? mode.description.trim() : '',
+        icon: mode.icon && typeof mode.icon.fa === 'string'
+          ? { fa: mode.icon.fa, label: mode.icon.label || formatIconLabel(mode.icon.fa) }
+          : { fa: 'fa-solid fa-triangle-exclamation', label: mode.label.trim() },
+        preset: {
+          sheets: mode.preset.sheets.map(normalizePresetSheet),
+          geocoder: mode.preset && mode.preset.geocoder && typeof mode.preset.geocoder === 'object'
+            ? {
+                url: typeof mode.preset.geocoder.url === 'string' ? mode.preset.geocoder.url : '',
+                useLocalFile: mode.preset.geocoder.useLocalFile !== false
+              }
+            : { url: '', useLocalFile: true },
+          baseLayer: mode.preset && typeof mode.preset.baseLayer === 'string'
+            ? mode.preset.baseLayer
+            : null,
+          enabledThirdPartyLayers: Array.isArray(mode.preset && mode.preset.enabledThirdPartyLayers)
+            ? mode.preset.enabledThirdPartyLayers.filter(name => typeof name === 'string')
+            : undefined,
+          mapView: mode.preset && mode.preset.mapView &&
+            Number.isFinite(mode.preset.mapView.lat) &&
+            Number.isFinite(mode.preset.mapView.lng) &&
+            Number.isFinite(mode.preset.mapView.zoom)
+            ? {
+                lat: mode.preset.mapView.lat,
+                lng: mode.preset.mapView.lng,
+                zoom: mode.preset.mapView.zoom
+              }
+            : null
+        }
+      }));
+    if (normalizedModes.length === 0) {
+      throw new Error('No valid disaster modes were found in the preset file.');
+    }
+    const defaultModeId = value && typeof value.defaultModeId === 'string'
+      ? value.defaultModeId
+      : '';
+    const resolvedDefaultModeId = normalizedModes.some(mode => mode.id === defaultModeId)
+      ? defaultModeId
+      : normalizedModes[0].id;
+    return {
+      version: Number.isInteger(value && value.version) ? value.version : 1,
+      defaultModeId: resolvedDefaultModeId,
+      modes: normalizedModes
+    };
+  }
+
   function buildColorPicker(container, currentColor, onSelect, options = {}) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
@@ -4322,6 +4596,7 @@ const ALL_FA_ICONS = [
   // ── Sheet Modal UI Rendering ─────────────────────────────────────────────────
 
   const sheetModal          = document.getElementById('sheet-modal');
+  const disasterModePicker  = document.getElementById('disaster-mode-picker');
   const sheetsContainer     = document.getElementById('sheets-container');
   const btnAddSheet         = document.getElementById('btn-add-sheet');
   const geocoderLocalNotice = document.getElementById('geocoder-local-notice');
@@ -4338,6 +4613,90 @@ const ALL_FA_ICONS = [
   let isOverridden       = false;
   let localAddressesData = null;
   let savedSheetsSnapshot = null;
+
+  function updateGeocoderUi() {
+    if (hasLocalAddresses && !isOverridden) {
+      geocoderFieldGroup.classList.add('hidden');
+      geocoderLocalNotice.classList.remove('hidden');
+      btnUseLocalGeocoder.classList.remove('hidden');
+      return;
+    }
+    geocoderFieldGroup.classList.remove('hidden');
+    geocoderLocalNotice.classList.add('hidden');
+    if (hasLocalAddresses) {
+      btnUseLocalGeocoder.classList.remove('hidden');
+    } else {
+      btnUseLocalGeocoder.classList.add('hidden');
+    }
+  }
+
+  function renderDisasterModePicker() {
+    if (!disasterModePicker) return;
+    disasterModePicker.innerHTML = '';
+    if (disasterModesLoadError) {
+      disasterModePicker.innerHTML = `<div class="disaster-mode-status error">${escHtml(disasterModesLoadError)}</div>`;
+      return;
+    }
+    if (!Array.isArray(disasterModes.modes) || disasterModes.modes.length === 0) {
+      disasterModePicker.innerHTML = '<div class="disaster-mode-status">Loading disaster modes…</div>';
+      return;
+    }
+    disasterModes.modes.forEach(mode => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'disaster-mode-option' + (mode.id === selectedDisasterModeId ? ' active' : '');
+      button.setAttribute('aria-pressed', mode.id === selectedDisasterModeId ? 'true' : 'false');
+      button.disabled = mapIsReadOnly;
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'disaster-mode-option-icon';
+      const iconElement = document.createElement('i');
+      iconElement.className = mode.icon.fa;
+      iconSpan.appendChild(iconElement);
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'disaster-mode-option-title';
+      titleSpan.textContent = mode.label;
+      const descriptionSpan = document.createElement('span');
+      descriptionSpan.className = 'disaster-mode-option-description';
+      descriptionSpan.textContent = mode.description;
+      button.appendChild(iconSpan);
+      button.appendChild(titleSpan);
+      button.appendChild(descriptionSpan);
+      button.addEventListener('click', function () {
+        applyDisasterModeSelection(mode.id);
+      });
+      disasterModePicker.appendChild(button);
+    });
+  }
+
+  function applyDisasterModeSelection(modeId) {
+    const mode = disasterModes.modes.find(candidate => candidate.id === modeId);
+    if (!mode) return;
+    selectedDisasterModeId = mode.id;
+    pendingDisasterRuntime = cloneJson(buildRuntimeConfigFromPreset(mode.preset));
+    sheets = mode.preset.sheets.map(normalizePresetSheet);
+    savedGeocoderUrl = mode.preset.geocoder.url || '';
+    savedGeocoderOverridden = mode.preset.geocoder.useLocalFile === false;
+    isOverridden = savedGeocoderOverridden;
+    geocoderInput.value = savedGeocoderOverridden ? savedGeocoderUrl : '';
+    renderDisasterModePicker();
+    renderSheetsModal();
+    updateGeocoderUi();
+    clearError();
+  }
+
+  async function loadDisasterModes() {
+    const response = await fetch(DISASTER_MODES_URL, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} loading ${DISASTER_MODES_URL}`);
+    }
+    disasterModes = normalizeDisasterModesData(await response.json());
+    disasterModesLoadError = '';
+    if (!disasterModes.modes.some(mode => mode.id === selectedDisasterModeId)) {
+      selectedDisasterModeId = disasterModes.defaultModeId;
+    }
+    pendingDisasterRuntime = cloneJson(buildRuntimeConfigFromPreset(getSelectedDisasterMode() ? getSelectedDisasterMode().preset : null));
+    renderDisasterModePicker();
+  }
 
   async function tryDetectHeadersForSheet(sheet, cardEl) {
     const card = cardEl || document.querySelector(`.sheet-card[data-sheet-id="${sheet.id}"]`);
@@ -4696,28 +5055,20 @@ const ALL_FA_ICONS = [
       if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
         localAddressesData = data;
         hasLocalAddresses = true;
-        if (!isOverridden) {
-          geocoderFieldGroup.classList.add('hidden');
-          geocoderLocalNotice.classList.remove('hidden');
-          btnUseLocalGeocoder.classList.remove('hidden');
-        }
       }
     } catch (_) {
       localAddressesData = null;
       hasLocalAddresses = false;
-      geocoderFieldGroup.classList.remove('hidden');
-      geocoderLocalNotice.classList.add('hidden');
-      btnUseLocalGeocoder.classList.add('hidden');
     }
+    updateGeocoderUi();
   }
 
   btnOverrideGeocoder.addEventListener('click', function () {
     if (mapIsReadOnly) return;
     isOverridden = true;
     savedGeocoderOverridden = true;
-    geocoderLocalNotice.classList.add('hidden');
-    geocoderFieldGroup.classList.remove('hidden');
-    btnUseLocalGeocoder.classList.remove('hidden');
+    savedGeocoderUrl = geocoderInput.value.trim();
+    updateGeocoderUi();
     geocoderInput.focus();
   });
 
@@ -4727,8 +5078,7 @@ const ALL_FA_ICONS = [
     savedGeocoderOverridden = false;
     savedGeocoderUrl = '';
     geocoderInput.value = '';
-    geocoderFieldGroup.classList.add('hidden');
-    geocoderLocalNotice.classList.remove('hidden');
+    updateGeocoderUi();
   });
 
   function showError(msg) { errorMsgEl.textContent = msg; }
@@ -4740,11 +5090,14 @@ const ALL_FA_ICONS = [
       showError('This map is read-only for your account.');
       return;
     }
-    if (sheets.length === 0) {
-      showError('Please add at least one sheet.');
+    if (disasterModesLoadError) {
+      showError(disasterModesLoadError);
       return;
     }
-
+    if (disasterModesLoadPending) {
+      showError('Disaster modes are still loading. Please wait a moment and try again.');
+      return;
+    }
     clearError();
     submitBtn.disabled = true;
     submitBtn.textContent = 'Loading…';
@@ -4811,7 +5164,14 @@ const ALL_FA_ICONS = [
 
     submitBtn.disabled = false;
     hasLoadedMap = true;
+    applyDisasterRuntimeConfig(pendingDisasterRuntime);
     savedSheetsSnapshot = JSON.parse(JSON.stringify(sheets));
+    savedModalStateSnapshot = {
+      selectedDisasterModeId,
+      geocoderUrl: savedGeocoderUrl,
+      geocoderOverridden: savedGeocoderOverridden,
+      pendingDisasterRuntime: cloneJson(pendingDisasterRuntime)
+    };
     persistAppState();
     if (!options.skipSharedWrite) syncSharedMapAfterLocalChange('submit');
     submitBtn.textContent = 'Save & Load Map';
@@ -4826,6 +5186,13 @@ const ALL_FA_ICONS = [
 
   function openSheetModal() {
     savedSheetsSnapshot = JSON.parse(JSON.stringify(sheets));
+    savedModalStateSnapshot = {
+      selectedDisasterModeId,
+      geocoderUrl: savedGeocoderUrl,
+      geocoderOverridden: savedGeocoderOverridden,
+      pendingDisasterRuntime: cloneJson(pendingDisasterRuntime)
+    };
+    renderDisasterModePicker();
     renderSheetsModal();
     clearError();
     if (hasLoadedMap) {
@@ -4844,6 +5211,16 @@ const ALL_FA_ICONS = [
     if (savedSheetsSnapshot) {
       sheets = JSON.parse(JSON.stringify(savedSheetsSnapshot));
       renderSheetsModal();
+    }
+    if (savedModalStateSnapshot) {
+      selectedDisasterModeId = savedModalStateSnapshot.selectedDisasterModeId;
+      savedGeocoderUrl = savedModalStateSnapshot.geocoderUrl || '';
+      savedGeocoderOverridden = savedModalStateSnapshot.geocoderOverridden === true;
+      pendingDisasterRuntime = cloneJson(savedModalStateSnapshot.pendingDisasterRuntime || {});
+      isOverridden = savedGeocoderOverridden;
+      geocoderInput.value = isOverridden ? savedGeocoderUrl : '';
+      renderDisasterModePicker();
+      updateGeocoderUi();
     }
     clearError();
     sheetModal.classList.add('hidden');
@@ -4864,9 +5241,6 @@ const ALL_FA_ICONS = [
     savedGeocoderOverridden = true;
     savedGeocoderUrl = savedAppState.geocoderUrl;
     geocoderInput.value = savedAppState.geocoderUrl;
-    geocoderLocalNotice.classList.add('hidden');
-    geocoderFieldGroup.classList.remove('hidden');
-    btnUseLocalGeocoder.classList.remove('hidden');
   }
   const savedRefreshSelect = document.getElementById('select-refresh-interval');
   if (savedRefreshSelect) {
@@ -4876,11 +5250,28 @@ const ALL_FA_ICONS = [
       pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
     }
   }
-  checkLocalAddresses().then(function () {
-    if (savedAppState && sheets.some(sheet => sheet.rawUrl)) {
-      handleSubmit();
-    }
-  });
+  loadDisasterModes()
+    .then(function () {
+      if (!hasSavedSheetsState) {
+        applyDisasterModeSelection(selectedDisasterModeId);
+      } else {
+        renderDisasterModePicker();
+      }
+    })
+    .then(checkLocalAddresses)
+    .then(function () {
+      if (savedAppState && (sheets.length === 0 || sheets.some(sheet => sheet.rawUrl))) {
+        handleSubmit();
+      }
+    })
+    .catch(function (err) {
+      disasterModesLoadError = `Could not load disaster modes from ${DISASTER_MODES_URL}: ${err.message}`;
+      renderDisasterModePicker();
+      showError(disasterModesLoadError);
+    })
+    .finally(function () {
+      disasterModesLoadPending = false;
+    });
 
   // ── Toolbar: Manage Sheets ────────────────────────────────────
 
