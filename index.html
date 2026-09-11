@@ -889,6 +889,32 @@
     .toolbar-menu[open] .toolbar-menu-trigger::after {
       content: '▴';
     }
+    .toolbar-submenu {
+      display: grid;
+      gap: 4px;
+    }
+    .toolbar-submenu-trigger {
+      list-style: none;
+      width: 100%;
+      box-sizing: border-box;
+      justify-content: space-between;
+    }
+    .toolbar-submenu-trigger::-webkit-details-marker {
+      display: none;
+    }
+    .toolbar-submenu-trigger::after {
+      content: '▾';
+      font-size: 0.72rem;
+      margin-left: 8px;
+    }
+    .toolbar-submenu[open] .toolbar-submenu-trigger::after {
+      content: '▴';
+    }
+    .toolbar-submenu-content {
+      display: grid;
+      gap: 4px;
+      padding-left: 10px;
+    }
     .toolbar-menu-content {
       position: absolute;
       top: calc(100% + 6px);
@@ -1378,22 +1404,28 @@
       <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
       <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
       <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
-      <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
-      <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
-      <button class="toolbar-btn" id="btn-copy-viewer-url" title="Copy read-only viewer URL"><i class="fa-solid fa-link"></i> Copy Viewer URL</button>
-      <button class="toolbar-btn" id="btn-open-drive-file" title="Open the shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Open in Drive</button>
-      <button class="toolbar-btn" id="btn-copy-drive-url" title="Copy the shared map Google Drive URL"><i class="fa-solid fa-copy"></i> Copy Drive URL</button>
-      <button class="toolbar-btn" id="btn-open-editor-url" title="Open URL for editing mode"><i class="fa-solid fa-pen-to-square"></i> Open Editor URL</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
-      <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
-        <option value="0">Auto-refresh: Off</option>
-        <option value="15000">Auto-refresh: 15s</option>
-        <option value="30000" selected>Auto-refresh: 30s</option>
-        <option value="60000">Auto-refresh: 1m</option>
-        <option value="300000">Auto-refresh: 5m</option>
-      </select>
-      <button class="toolbar-btn" id="btn-shared-map-status" disabled title="Google Drive shared map status"><i class="fa-brands fa-google-drive"></i> <span id="shared-map-status-text">Shared map: Off</span></button>
-      <button class="toolbar-btn" id="btn-google-auth-status" title="Google Authentication Status"><i class="fa-brands fa-google"></i> <span id="google-auth-btn-text">Sign In</span></button>
+      <details class="toolbar-submenu">
+        <summary class="toolbar-btn toolbar-submenu-trigger" title="Open Google Drive actions"><span><i class="fa-brands fa-google-drive"></i> Google Drive</span></summary>
+        <div class="toolbar-submenu-content">
+          <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
+          <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
+          <button class="toolbar-btn" id="btn-match-source-map" title="Match the shared source map basemap and extent"><i class="fa-solid fa-map"></i> Match Source Map</button>
+          <button class="toolbar-btn" id="btn-copy-viewer-url" title="Copy read-only viewer URL"><i class="fa-solid fa-link"></i> Copy Viewer URL</button>
+          <button class="toolbar-btn" id="btn-open-drive-file" title="Open the shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Open in Drive</button>
+          <button class="toolbar-btn" id="btn-copy-drive-url" title="Copy the shared map Google Drive URL"><i class="fa-solid fa-copy"></i> Copy Drive URL</button>
+          <button class="toolbar-btn" id="btn-open-editor-url" title="Open URL for editing mode"><i class="fa-solid fa-pen-to-square"></i> Open Editor URL</button>
+          <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
+            <option value="0">Auto-refresh: Off</option>
+            <option value="15000">Auto-refresh: 15s</option>
+            <option value="30000" selected>Auto-refresh: 30s</option>
+            <option value="60000">Auto-refresh: 1m</option>
+            <option value="300000">Auto-refresh: 5m</option>
+          </select>
+          <button class="toolbar-btn" id="btn-shared-map-status" disabled title="Google Drive shared map status"><i class="fa-brands fa-google-drive"></i> <span id="shared-map-status-text">Shared map: Off</span></button>
+          <button class="toolbar-btn" id="btn-google-auth-status" title="Google Authentication Status"><i class="fa-brands fa-google"></i> <span id="google-auth-btn-text">Sign In</span></button>
+        </div>
+      </details>
     </div>
   </details>
 </div>
@@ -2377,6 +2409,7 @@ const ALL_FA_ICONS = [
     lastAttemptedVersion: null,
     lastModifiedTime: null,
     sourceBaseLayer: null,
+    sourceMapView: null,
     hasLocalBaseLayerOverride: false,
     lastLoadedAt: null,
     nextRefreshAt: null,
@@ -2766,6 +2799,20 @@ const ALL_FA_ICONS = [
       : 'unversioned';
     const nameText = sharedMapState.fileName || sharedMapState.fileId;
     statusTextEl.textContent = `Shared map: ${roleText} (${versionText}) — ${nameText}`;
+    updateMatchSourceMapButton();
+  }
+
+  function updateMatchSourceMapButton() {
+    const matchButton = document.getElementById('btn-match-source-map');
+    if (!matchButton) return;
+    const hasSourceView = sharedMapState.sourceMapView &&
+      Number.isFinite(sharedMapState.sourceMapView.lat) &&
+      Number.isFinite(sharedMapState.sourceMapView.lng) &&
+      Number.isFinite(sharedMapState.sourceMapView.zoom);
+    const hasSourceBaseLayer = typeof sharedMapState.sourceBaseLayer === 'string' &&
+      Boolean(baseLayers[sharedMapState.sourceBaseLayer]);
+    const isEnabled = Boolean(sharedMapState.fileId && (hasSourceView || hasSourceBaseLayer));
+    matchButton.disabled = !isEnabled;
   }
 
   function updateReadOnlyUI() {
@@ -3365,6 +3412,9 @@ const ALL_FA_ICONS = [
           zoom: parsed.mapView.zoom
         };
       }
+      sharedMapState.sourceMapView = importedRuntimeConfig.mapView
+        ? cloneJson(importedRuntimeConfig.mapView)
+        : null;
       pendingDisasterRuntime = cloneJson(importedRuntimeConfig);
       customFeatures = importedCustomFeatures;
       saveCustomFeatures();
@@ -6530,6 +6580,43 @@ const ALL_FA_ICONS = [
     });
   }
 
+  const btnMatchSourceMap = document.getElementById('btn-match-source-map');
+  if (btnMatchSourceMap) {
+    btnMatchSourceMap.addEventListener('click', function () {
+      if (!sharedMapState.fileId) {
+        setStatus('Open a shared map first.');
+        return;
+      }
+      let matched = false;
+      if (typeof sharedMapState.sourceBaseLayer === 'string' &&
+          baseLayers[sharedMapState.sourceBaseLayer] &&
+          currentBaseLayer !== baseLayers[sharedMapState.sourceBaseLayer]) {
+        if (map.hasLayer(currentBaseLayer)) map.removeLayer(currentBaseLayer);
+        currentBaseLayer = baseLayers[sharedMapState.sourceBaseLayer];
+        currentBaseLayer.addTo(map);
+        matched = true;
+      }
+      if (sharedMapState.sourceMapView &&
+          Number.isFinite(sharedMapState.sourceMapView.lat) &&
+          Number.isFinite(sharedMapState.sourceMapView.lng) &&
+          Number.isFinite(sharedMapState.sourceMapView.zoom)) {
+        map.setView(
+          [sharedMapState.sourceMapView.lat, sharedMapState.sourceMapView.lng],
+          sharedMapState.sourceMapView.zoom
+        );
+        matched = true;
+      }
+      sharedMapState.hasLocalBaseLayerOverride = false;
+      sharedMapState.baseLayerNotice = '';
+      updateMatchSourceMapButton();
+      updateMapAlerts();
+      persistAppState();
+      setStatus(matched
+        ? 'Matched the shared source map.'
+        : 'Shared source map details are not available yet.');
+    });
+  }
+
   const btnOAuthAuth = document.getElementById('btn-oauth-auth');
   async function handleGoogleSignInSuccess() {
     try {
@@ -6568,6 +6655,7 @@ const ALL_FA_ICONS = [
 
   clearLegacyOAuthStorage();
   updateSharedMapStatusLabel();
+  updateMatchSourceMapButton();
   updateReadOnlyUI();
   savedThirdPartyLayerNames.forEach(function (layerName) {
     const layerConfig = thirdPartyLayers[layerName];
