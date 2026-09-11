@@ -3551,7 +3551,13 @@ const ALL_FA_ICONS = [
     persistSharedMapLinkInUrl();
     if (options.loadNow) {
       const payload = await driveFetchJson(sharedMapState.fileId);
-      await applyMapSnapshot(payload, { remote: true, skipSharedWrite: true, silent: true });
+      await applyMapSnapshot(payload, {
+        remote: true,
+        skipSharedWrite: true,
+        silent: true,
+        preserveCustomBaseLayer: true,
+        preserveMapView: true
+      });
       sharedMapState.lastLoadedAt = new Date().toISOString();
     }
     startSharedMapPolling();
