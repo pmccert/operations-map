@@ -2211,6 +2211,10 @@ const ALL_FA_ICONS = [
     return `${totalSeconds}s`;
   }
 
+  function normalizeDriveVersion(value) {
+    return value === undefined || value === null || value === '' ? null : String(value);
+  }
+
   function updateSharedMapAlertTimer() {
     if (!sharedMapState) return;
     if (!sharedMapState.nextRefreshAt) {
@@ -2370,6 +2374,7 @@ const ALL_FA_ICONS = [
     canEdit: false,
     lastVersion: null,
     lastSeenVersion: null,
+    lastAttemptedVersion: null,
     lastModifiedTime: null,
     sourceBaseLayer: null,
     hasLocalBaseLayerOverride: false,
@@ -2754,8 +2759,9 @@ const ALL_FA_ICONS = [
       return;
     }
     const roleText = mapIsReadOnly ? 'View-only' : 'Editor';
-    const versionText = sharedMapState.lastSeenVersion || sharedMapState.lastVersion
-      ? `v${sharedMapState.lastSeenVersion || sharedMapState.lastVersion}`
+    const activeVersion = sharedMapState.lastSeenVersion || sharedMapState.lastAttemptedVersion || sharedMapState.lastVersion;
+    const versionText = activeVersion
+      ? `v${activeVersion}`
       : 'unversioned';
     const nameText = sharedMapState.fileName || sharedMapState.fileId;
     statusTextEl.textContent = `Shared map: ${roleText} (${versionText}) — ${nameText}`;
@@ -3446,7 +3452,7 @@ const ALL_FA_ICONS = [
     const metadata = await driveFetchMetadata(sharedMapState.fileId);
     sharedMapState.fileName = metadata.name || sharedMapState.fileId;
     sharedMapState.canEdit = metadata.capabilities && metadata.capabilities.canEdit === true;
-    sharedMapState.lastSeenVersion = metadata.version || sharedMapState.lastSeenVersion;
+    sharedMapState.lastSeenVersion = normalizeDriveVersion(metadata.version);
     sharedMapState.lastModifiedTime = metadata.modifiedTime || null;
     setReadOnlyMode(forcedViewerMode || !sharedMapState.canEdit,
       forcedViewerMode
@@ -3460,14 +3466,15 @@ const ALL_FA_ICONS = [
 
   async function pullSharedMapFromDrive(options = {}) {
     if (!sharedMapState.fileId) return;
-    const previousVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
+    const previousAttemptedVersion = sharedMapState.lastAttemptedVersion;
     const metadata = await refreshSharedMapMetadata();
     if (!metadata) return;
+    const metadataVersion = normalizeDriveVersion(metadata.version);
     const hasChanged = options.force === true ||
-      !previousVersion ||
-      String(metadata.version || '') !== String(previousVersion || '');
+      !sharedMapState.lastVersion ||
+      metadataVersion !== previousAttemptedVersion;
     if (!hasChanged) return;
-    sharedMapState.lastSeenVersion = metadata.version || sharedMapState.lastSeenVersion;
+    sharedMapState.lastAttemptedVersion = metadataVersion;
     const payload = await driveFetchJson(sharedMapState.fileId);
     await applyMapSnapshot(payload, {
       remote: true,
@@ -3476,7 +3483,7 @@ const ALL_FA_ICONS = [
       preserveCustomBaseLayer: options.preserveCustomBaseLayer !== false,
       preserveMapView: options.preserveMapView !== false
     });
-    sharedMapState.lastVersion = metadata.version || sharedMapState.lastVersion;
+    sharedMapState.lastVersion = metadataVersion;
     sharedMapState.lastModifiedTime = metadata.modifiedTime || sharedMapState.lastModifiedTime;
     sharedMapState.lastLoadedAt = new Date().toISOString();
     updateSharedMapStatusLabel();
@@ -3489,8 +3496,8 @@ const ALL_FA_ICONS = [
     sharedMapState.writeInFlight = true;
     try {
       const remoteMeta = await driveFetchMetadata(sharedMapState.fileId);
-      const remoteVersion = remoteMeta.version || null;
-      const knownVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
+      const remoteVersion = normalizeDriveVersion(remoteMeta.version);
+      const knownVersion = sharedMapState.lastAttemptedVersion || sharedMapState.lastVersion;
       if (knownVersion && remoteVersion && String(remoteVersion) !== String(knownVersion)) {
         const shouldReload = window.confirm(
           'This shared map changed in Google Drive since your last sync. Reload the newer version now?'
@@ -3504,9 +3511,11 @@ const ALL_FA_ICONS = [
         return;
       }
       const updated = await driveUpdateJsonFile(sharedMapState.fileId, mapSnapshot());
+      const updatedVersion = normalizeDriveVersion(updated.version);
       sharedMapState.fileName = updated.name || sharedMapState.fileName;
-      sharedMapState.lastVersion = updated.version || sharedMapState.lastVersion;
-      sharedMapState.lastSeenVersion = updated.version || sharedMapState.lastSeenVersion;
+      sharedMapState.lastVersion = updatedVersion;
+      sharedMapState.lastSeenVersion = updatedVersion;
+      sharedMapState.lastAttemptedVersion = updatedVersion;
       sharedMapState.lastModifiedTime = updated.modifiedTime || sharedMapState.lastModifiedTime;
       sharedMapState.dirty = false;
       updateSharedMapStatusLabel();
@@ -3557,13 +3566,14 @@ const ALL_FA_ICONS = [
       }
       try {
         const meta = await driveFetchMetadata(sharedMapState.fileId);
-        const remoteVersion = meta.version || null;
-        const knownVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
-        const hasChanged = knownVersion && remoteVersion &&
-          String(remoteVersion) !== String(knownVersion);
+        const remoteVersion = normalizeDriveVersion(meta.version);
+        sharedMapState.lastSeenVersion = remoteVersion;
+        const attemptedVersion = sharedMapState.lastAttemptedVersion;
+        const hasChanged = remoteVersion !== attemptedVersion &&
+          (!sharedMapState.lastVersion || remoteVersion !== sharedMapState.lastVersion);
         if (hasChanged && !sharedMapState.writeInFlight) {
           sharedMapState.fileName = meta.name || sharedMapState.fileName;
-          sharedMapState.lastSeenVersion = remoteVersion;
+          sharedMapState.lastAttemptedVersion = remoteVersion;
           const payload = await driveFetchJson(sharedMapState.fileId);
           await applyMapSnapshot(payload, {
             remote: true,
@@ -3598,6 +3608,8 @@ const ALL_FA_ICONS = [
     persistSharedMapLinkInUrl();
     if (options.loadNow) {
       const payload = await driveFetchJson(sharedMapState.fileId);
+      const loadedVersion = sharedMapState.lastSeenVersion;
+      sharedMapState.lastAttemptedVersion = loadedVersion;
       await applyMapSnapshot(payload, {
         remote: true,
         skipSharedWrite: true,
@@ -3605,7 +3617,7 @@ const ALL_FA_ICONS = [
         preserveCustomBaseLayer: false,
         preserveMapView: false
       });
-      sharedMapState.lastVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
+      sharedMapState.lastVersion = loadedVersion;
       sharedMapState.lastLoadedAt = new Date().toISOString();
     }
     startSharedMapPolling();
