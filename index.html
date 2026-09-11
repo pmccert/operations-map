@@ -1939,7 +1939,11 @@ const ALL_FA_ICONS = [
     if (managedModalOpenCount > 0) return;
     const bodyChildren = Array.from(document.body.children || []);
     managedModalBackgroundState = bodyChildren
-      .filter(element => element !== modalOverlay)
+      .filter(element => {
+        if (element === modalOverlay) return false;
+        if (managedModalOverlays.has(element) && isModalVisible(element)) return false;
+        return true;
+      })
       .map(element => ({
         element,
         ariaHidden: element.getAttribute('aria-hidden'),
@@ -2099,26 +2103,29 @@ const ALL_FA_ICONS = [
   }
 
   function handleManagedModalKeyboard(event, modalOverlay, closeHandler) {
-    if (!isModalVisible(modalOverlay)) return;
+    if (!isModalVisible(modalOverlay)) return false;
     const topModal = topVisibleModalOverlay();
-    if (topModal !== modalOverlay) return;
+    if (topModal !== modalOverlay) return false;
     if (event.key === 'Escape') {
       event.preventDefault();
       closeHandler();
-      return;
+      return true;
     }
-    if (event.key !== 'Tab') return;
+    if (event.key !== 'Tab') return false;
     const focusable = listFocusableModalElements(modalOverlay);
-    if (!focusable.length) return;
+    if (!focusable.length) return false;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
       last.focus();
+      return true;
     } else if (!event.shiftKey && document.activeElement === last) {
       event.preventDefault();
       first.focus();
+      return true;
     }
+    return false;
   }
 
   const closeSharedMapPublicModal = function (choice) {
@@ -2193,10 +2200,11 @@ const ALL_FA_ICONS = [
     });
   }
   document.addEventListener('keydown', function (e) {
-    handleManagedModalKeyboard(e, commitInfoModal, closeCommitInfoModal);
-    handleManagedModalKeyboard(e, sharedMapPublicModal, function () {
+    const handledByShared = handleManagedModalKeyboard(e, sharedMapPublicModal, function () {
       closeSharedMapPublicModal(false);
     });
+    if (handledByShared) return;
+    handleManagedModalKeyboard(e, commitInfoModal, closeCommitInfoModal);
   });
 
   const zoomAlert = document.getElementById('zoom-alert');
@@ -2898,18 +2906,20 @@ const ALL_FA_ICONS = [
     const publicPermission = await driveGetPublicPermission(fileId);
     const action = sharedMapPublicPermissionAction(publicPermission);
     if (action === 'update') {
-      if (!allowDowngradePublicPermission) return;
+      if (!allowDowngradePublicPermission) {
+        throw new Error('Google Drive public permission is broader than read-only. Re-run with downgrade permission enabled.');
+      }
       if (publicPermission && publicPermission.id) {
         await driveSetPermissionRole(fileId, publicPermission.id, 'reader');
+        return { status: 'downgraded_to_reader' };
       } else {
         throw new Error('Google Drive public permission could not be updated.');
       }
-      return;
     }
     if (action === 'non_downgradable') {
       throw new Error('Google Drive public permission exists but cannot be changed to read-only from this app.');
     }
-    if (action === 'none') return;
+    if (action === 'none') return { status: 'already_public_reader' };
     const resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?supportsAllDrives=true&sendNotificationEmail=false`,
       {
@@ -2927,6 +2937,7 @@ const ALL_FA_ICONS = [
     );
     if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive permission update failed (${resp.status}).`);
+    return { status: 'created_public_reader' };
   }
 
   const THIRD_PARTY_ENDPOINTS = {
