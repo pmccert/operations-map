@@ -1535,103 +1535,6 @@
     return JSON.parse(JSON.stringify(value));
   }
 
-  function normalizePresetSheet(value, index) {
-    const restored = createSheet(
-      value && typeof value.name === 'string' && value.name.trim()
-        ? value.name.trim()
-        : `Sheet ${index + 1}`,
-      value && typeof value.rawUrl === 'string' ? value.rawUrl : ''
-    );
-    if (value && typeof value.id === 'string' && value.id.trim()) restored.id = value.id.trim();
-    if (value && value.columnMapping && typeof value.columnMapping === 'object') {
-      restored.columnMapping = {
-        address: Number.isInteger(value.columnMapping.address) ? value.columnMapping.address : 0,
-        status: Number.isInteger(value.columnMapping.status) ? value.columnMapping.status : 1,
-        label: Number.isInteger(value.columnMapping.label) ? value.columnMapping.label : 2,
-        category: Number.isInteger(value.columnMapping.category) ? value.columnMapping.category : null
-      };
-    }
-    if (Array.isArray(value && value.headers)) {
-      restored.headers = value.headers.map(header => String(header));
-    }
-    if (value && value.icon && typeof value.icon.fa === 'string') {
-      restored.icon = {
-        fa: value.icon.fa,
-        label: value.icon.label || formatIconLabel(value.icon.fa)
-      };
-    }
-    const normalizedColor = normalizeHexColor(value && value.color);
-    if (normalizedColor) restored.color = normalizedColor;
-    if (Array.isArray(value && value.categoryOptions)) {
-      restored.categoryOptions = value.categoryOptions
-        .filter(option => option && typeof option.value === 'string')
-        .map((option, optionIndex) => ({
-          value: option.value.trim(),
-          icon: option.icon && typeof option.icon.fa === 'string'
-            ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
-            : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
-          color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
-        }))
-        .filter(option => option.value);
-    }
-    restored.csvUrl = toCsvUrl(restored.rawUrl);
-    return restored;
-  }
-
-  function normalizeDisasterModesData(value) {
-    const modes = Array.isArray(value && value.modes) ? value.modes : [];
-    const normalizedModes = modes
-      .filter(mode => mode && typeof mode.id === 'string' && mode.id.trim() && typeof mode.label === 'string' && mode.label.trim())
-      .map(mode => ({
-        id: mode.id.trim(),
-        label: mode.label.trim(),
-        description: typeof mode.description === 'string' ? mode.description.trim() : '',
-        icon: mode.icon && typeof mode.icon.fa === 'string'
-          ? { fa: mode.icon.fa, label: mode.icon.label || formatIconLabel(mode.icon.fa) }
-          : { fa: 'fa-solid fa-triangle-exclamation', label: mode.label.trim() },
-        preset: {
-          sheets: Array.isArray(mode.preset && mode.preset.sheets)
-            ? mode.preset.sheets.map(normalizePresetSheet)
-            : [],
-          geocoder: mode.preset && mode.preset.geocoder && typeof mode.preset.geocoder === 'object'
-            ? {
-                url: typeof mode.preset.geocoder.url === 'string' ? mode.preset.geocoder.url : '',
-                useLocalFile: mode.preset.geocoder.useLocalFile !== false
-              }
-            : { url: '', useLocalFile: true },
-          baseLayer: mode.preset && typeof mode.preset.baseLayer === 'string'
-            ? mode.preset.baseLayer
-            : null,
-          enabledThirdPartyLayers: Array.isArray(mode.preset && mode.preset.enabledThirdPartyLayers)
-            ? mode.preset.enabledThirdPartyLayers.filter(name => typeof name === 'string')
-            : [],
-          mapView: mode.preset && mode.preset.mapView &&
-            Number.isFinite(mode.preset.mapView.lat) &&
-            Number.isFinite(mode.preset.mapView.lng) &&
-            Number.isFinite(mode.preset.mapView.zoom)
-            ? {
-                lat: mode.preset.mapView.lat,
-                lng: mode.preset.mapView.lng,
-                zoom: mode.preset.mapView.zoom
-              }
-            : null
-        }
-      }));
-    const defaultModeId = typeof value && typeof value.defaultModeId === 'string'
-      ? value.defaultModeId
-      : '';
-    const resolvedDefaultModeId = normalizedModes.some(mode => mode.id === defaultModeId)
-      ? defaultModeId
-      : (normalizedModes[0] ? normalizedModes[0].id : DEFAULT_DISASTER_MODES_DATA.defaultModeId);
-    return {
-      version: Number.isInteger(value && value.version) ? value.version : 1,
-      defaultModeId: resolvedDefaultModeId,
-      modes: normalizedModes.length > 0
-        ? normalizedModes
-        : normalizeDisasterModesData(DEFAULT_DISASTER_MODES_DATA).modes
-    };
-  }
-
 const ALL_FA_ICONS = [
     "0", "1", "2", "3", "4", "5", "500px", "6", "7", "8", "9", "a",
     "accessible-icon", "accusoft", "adn", "adversal", "affiliatetheme", "airbnb", "algolia", "align-center", "align-justify", "align-left", "align-right", "alipay",
@@ -2308,22 +2211,6 @@ const ALL_FA_ICONS = [
 
   function getSelectedDisasterMode() {
     return disasterModes.modes.find(mode => mode.id === selectedDisasterModeId) || null;
-  }
-
-  function updateGeocoderUi() {
-    if (hasLocalAddresses && !isOverridden) {
-      geocoderFieldGroup.classList.add('hidden');
-      geocoderLocalNotice.classList.remove('hidden');
-      btnUseLocalGeocoder.classList.remove('hidden');
-      return;
-    }
-    geocoderFieldGroup.classList.remove('hidden');
-    geocoderLocalNotice.classList.add('hidden');
-    if (hasLocalAddresses) {
-      btnUseLocalGeocoder.classList.remove('hidden');
-    } else {
-      btnUseLocalGeocoder.classList.add('hidden');
-    }
   }
 
   function applyDisasterRuntimeConfig(runtimeConfig) {
@@ -3781,6 +3668,103 @@ const ALL_FA_ICONS = [
     return null;
   }
 
+  function normalizePresetSheet(value, index) {
+    const restored = createSheet(
+      value && typeof value.name === 'string' && value.name.trim()
+        ? value.name.trim()
+        : `Sheet ${index + 1}`,
+      value && typeof value.rawUrl === 'string' ? value.rawUrl : ''
+    );
+    if (value && typeof value.id === 'string' && value.id.trim()) restored.id = value.id.trim();
+    if (value && value.columnMapping && typeof value.columnMapping === 'object') {
+      restored.columnMapping = {
+        address: Number.isInteger(value.columnMapping.address) ? value.columnMapping.address : 0,
+        status: Number.isInteger(value.columnMapping.status) ? value.columnMapping.status : 1,
+        label: Number.isInteger(value.columnMapping.label) ? value.columnMapping.label : 2,
+        category: Number.isInteger(value.columnMapping.category) ? value.columnMapping.category : null
+      };
+    }
+    if (Array.isArray(value && value.headers)) {
+      restored.headers = value.headers.map(header => String(header));
+    }
+    if (value && value.icon && typeof value.icon.fa === 'string') {
+      restored.icon = {
+        fa: value.icon.fa,
+        label: value.icon.label || formatIconLabel(value.icon.fa)
+      };
+    }
+    const normalizedColor = normalizeHexColor(value && value.color);
+    if (normalizedColor) restored.color = normalizedColor;
+    if (Array.isArray(value && value.categoryOptions)) {
+      restored.categoryOptions = value.categoryOptions
+        .filter(option => option && typeof option.value === 'string')
+        .map((option, optionIndex) => ({
+          value: option.value.trim(),
+          icon: option.icon && typeof option.icon.fa === 'string'
+            ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
+            : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
+          color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
+        }))
+        .filter(option => option.value);
+    }
+    restored.csvUrl = toCsvUrl(restored.rawUrl);
+    return restored;
+  }
+
+  function normalizeDisasterModesData(value) {
+    const modes = Array.isArray(value && value.modes) ? value.modes : [];
+    const normalizedModes = modes
+      .filter(mode => mode && typeof mode.id === 'string' && mode.id.trim() && typeof mode.label === 'string' && mode.label.trim())
+      .map(mode => ({
+        id: mode.id.trim(),
+        label: mode.label.trim(),
+        description: typeof mode.description === 'string' ? mode.description.trim() : '',
+        icon: mode.icon && typeof mode.icon.fa === 'string'
+          ? { fa: mode.icon.fa, label: mode.icon.label || formatIconLabel(mode.icon.fa) }
+          : { fa: 'fa-solid fa-triangle-exclamation', label: mode.label.trim() },
+        preset: {
+          sheets: Array.isArray(mode.preset && mode.preset.sheets)
+            ? mode.preset.sheets.map(normalizePresetSheet)
+            : [],
+          geocoder: mode.preset && mode.preset.geocoder && typeof mode.preset.geocoder === 'object'
+            ? {
+                url: typeof mode.preset.geocoder.url === 'string' ? mode.preset.geocoder.url : '',
+                useLocalFile: mode.preset.geocoder.useLocalFile !== false
+              }
+            : { url: '', useLocalFile: true },
+          baseLayer: mode.preset && typeof mode.preset.baseLayer === 'string'
+            ? mode.preset.baseLayer
+            : null,
+          enabledThirdPartyLayers: Array.isArray(mode.preset && mode.preset.enabledThirdPartyLayers)
+            ? mode.preset.enabledThirdPartyLayers.filter(name => typeof name === 'string')
+            : [],
+          mapView: mode.preset && mode.preset.mapView &&
+            Number.isFinite(mode.preset.mapView.lat) &&
+            Number.isFinite(mode.preset.mapView.lng) &&
+            Number.isFinite(mode.preset.mapView.zoom)
+            ? {
+                lat: mode.preset.mapView.lat,
+                lng: mode.preset.mapView.lng,
+                zoom: mode.preset.mapView.zoom
+              }
+            : null
+        }
+      }));
+    const defaultModeId = value && typeof value.defaultModeId === 'string'
+      ? value.defaultModeId
+      : '';
+    const resolvedDefaultModeId = normalizedModes.some(mode => mode.id === defaultModeId)
+      ? defaultModeId
+      : (normalizedModes[0] ? normalizedModes[0].id : DEFAULT_DISASTER_MODES_DATA.defaultModeId);
+    return {
+      version: Number.isInteger(value && value.version) ? value.version : 1,
+      defaultModeId: resolvedDefaultModeId,
+      modes: normalizedModes.length > 0
+        ? normalizedModes
+        : normalizeDisasterModesData(DEFAULT_DISASTER_MODES_DATA).modes
+    };
+  }
+
   function buildColorPicker(container, currentColor, onSelect) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
@@ -4059,6 +4043,22 @@ const ALL_FA_ICONS = [
   let isOverridden       = false;
   let localAddressesData = null;
   let savedSheetsSnapshot = null;
+
+  function updateGeocoderUi() {
+    if (hasLocalAddresses && !isOverridden) {
+      geocoderFieldGroup.classList.add('hidden');
+      geocoderLocalNotice.classList.remove('hidden');
+      btnUseLocalGeocoder.classList.remove('hidden');
+      return;
+    }
+    geocoderFieldGroup.classList.remove('hidden');
+    geocoderLocalNotice.classList.add('hidden');
+    if (hasLocalAddresses) {
+      btnUseLocalGeocoder.classList.remove('hidden');
+    } else {
+      btnUseLocalGeocoder.classList.add('hidden');
+    }
+  }
 
   function renderDisasterModePicker() {
     if (!disasterModePicker) return;
