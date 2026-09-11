@@ -1876,6 +1876,9 @@ const ALL_FA_ICONS = [
   );
 
   const commitInfoModal = document.getElementById('commit-info-modal');
+  const commitInfoDialog = commitInfoModal ? commitInfoModal.querySelector('.modal-box') : null;
+  const commitInfoCloseBtn = document.getElementById('commit-info-close');
+  const commitInfoDoneBtn = document.getElementById('commit-info-done');
   const sharedMapPublicModal = document.getElementById('shared-map-public-modal');
   const sharedMapPublicDialog = document.getElementById('shared-map-public-dialog');
   const sharedMapPublicCloseBtn = document.getElementById('shared-map-public-close');
@@ -1889,7 +1892,7 @@ const ALL_FA_ICONS = [
   let managedModalBackgroundState = null;
   let managedModalOpenCount = 0;
   const closeCommitInfoModal = function () {
-    commitInfoModal.classList.add('hidden');
+    closeManagedModal(commitInfoModal);
   };
 
   function isModalVisible(modalOverlay) {
@@ -1899,6 +1902,13 @@ const ALL_FA_ICONS = [
   function topVisibleModalOverlay() {
     const visibleModals = document.querySelectorAll('.modal-overlay:not(.hidden)');
     return visibleModals.length ? visibleModals[visibleModals.length - 1] : null;
+  }
+
+  function topVisibleManagedModalOverlay() {
+    const visibleManagedModals = Array.from(
+      document.querySelectorAll('.modal-overlay:not(.hidden)')
+    ).filter(modal => managedModalOverlays.has(modal));
+    return visibleManagedModals.length ? visibleManagedModals[visibleManagedModals.length - 1] : null;
   }
 
   function isUsableFocusTarget(element) {
@@ -2037,6 +2047,8 @@ const ALL_FA_ICONS = [
     managedModalOpenCount = recountManagedVisibleModals();
     restoreModalBackgroundInert(modalOverlay);
     modalFocusReturnByOverlay.delete(modalOverlay);
+    modalDialogPanelByOverlay.delete(modalOverlay);
+    managedModalOverlayA11yState.delete(modalOverlay);
   }
 
   function openManagedModal(modalOverlay, options) {
@@ -2065,7 +2077,7 @@ const ALL_FA_ICONS = [
     managedModalOpenCount = Math.max(0, managedModalOpenCount - 1);
     syncManagedModalInteractivity();
     restoreModalBackgroundInert(modalOverlay);
-    const activeVisibleModal = topVisibleModalOverlay();
+    const activeVisibleModal = topVisibleManagedModalOverlay();
     if (managedModalOpenCount > 0 && activeVisibleModal) {
       fallbackFocusManagedModal(activeVisibleModal);
       modalFocusReturnByOverlay.delete(modalOverlay);
@@ -2143,16 +2155,21 @@ const ALL_FA_ICONS = [
     const attributionLink = e.target.closest('#pmc-cert-attribution-link');
     if (attributionLink) {
       e.preventDefault();
-      commitInfoModal.classList.remove('hidden');
+      openManagedModal(commitInfoModal, {
+        dialogPanel: commitInfoDialog,
+        initialFocus: commitInfoCloseBtn || commitInfoDialog
+      });
     }
   });
-  document.getElementById('commit-info-close').addEventListener('click', closeCommitInfoModal);
-  document.getElementById('commit-info-done').addEventListener('click', closeCommitInfoModal);
-  commitInfoModal.addEventListener('click', function (e) {
-    if (e.target === commitInfoModal) {
-      closeCommitInfoModal();
-    }
-  });
+  if (commitInfoCloseBtn) commitInfoCloseBtn.addEventListener('click', closeCommitInfoModal);
+  if (commitInfoDoneBtn) commitInfoDoneBtn.addEventListener('click', closeCommitInfoModal);
+  if (commitInfoModal) {
+    commitInfoModal.addEventListener('click', function (e) {
+      if (e.target === commitInfoModal) {
+        closeCommitInfoModal();
+      }
+    });
+  }
   if (sharedMapPublicNoBtn) {
     sharedMapPublicNoBtn.addEventListener('click', function () {
       closeSharedMapPublicModal(false);
@@ -2176,6 +2193,7 @@ const ALL_FA_ICONS = [
     });
   }
   document.addEventListener('keydown', function (e) {
+    handleManagedModalKeyboard(e, commitInfoModal, closeCommitInfoModal);
     handleManagedModalKeyboard(e, sharedMapPublicModal, function () {
       closeSharedMapPublicModal(false);
     });
