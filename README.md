@@ -155,8 +155,8 @@ setup dialog or via the toolbar:
       **Match Source Map** to jump back to the shared map's current basemap
       and extent.
     * When a shared map is loaded, the lower-right alert shows the load time and
-      a countdown to the next Drive refresh. Subsequent Drive refreshes keep a
-      viewer's custom basemap and current map center, but still apply source
+      a countdown to the next Drive refresh. Subsequent Drive refreshes keep
+      the current local basemap override and map center, but still apply source
       updates to layers and geometries.
 15. Open the top-right layers menu and select **Known Fire Incidents** or
     **ADS-B Aircraft** to load those live third-party overlays. Use their
