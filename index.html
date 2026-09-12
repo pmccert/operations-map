@@ -3469,7 +3469,7 @@ const ALL_FA_ICONS = [
     const enabled = Array.isArray(enabledLayerNames) ? new Set(enabledLayerNames) : new Set();
     Object.entries(thirdPartyLayers).forEach(([name, config]) => {
       const shouldEnable = enabled.has(name);
-      if (shouldEnable && !canEnableThirdPartyLayer(config, name)) {
+      if (shouldEnable && !canEnableThirdPartyLayer(config, name, { notify: false })) {
         config.activated = false;
         if (map.hasLayer(config.layer)) {
           if (config.clearOnDisable) clearThirdPartyLayer(config.layer);
