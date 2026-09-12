@@ -2010,6 +2010,7 @@ const ALL_FA_ICONS = [
   let currentBaseLayer = baseLayers['OpenStreetMap'];
   let mapLayersControl = null;
   let mapLayersControlAttached = false;
+  const incidentLayerGroups = {};
 
   baseLayers['OpenStreetMap'].addTo(map);
   mapLayersControl = L.control.layers({}, thirdPartyOverlayLayers, { position: 'topright', collapsed: false });
@@ -3999,6 +4000,22 @@ const ALL_FA_ICONS = [
         </div>
       `;
     });
+    Object.entries(incidentLayerGroups).forEach(([key, group]) => {
+      const category = group._categoryValue || 'Uncategorized';
+      const sheet = sheets.find(candidate => candidate.id === group._sheetId);
+      const categoryStyle = sheet ? getCategoryStyle(sheet, category) : null;
+      itemsHtml += `
+        <div class="legend-item" title="${escHtml(category)}">
+          <label class="legend-checkbox-label" for="toggle-category-${escHtml(key)}">
+            <input type="checkbox" id="toggle-category-${escHtml(key)}"
+              data-incident-layer-group="${escHtml(key)}"
+              ${map.hasLayer(group) ? 'checked' : ''} />
+            <span class="legend-color-swatch" style="background-color: ${sanitizeLegendColor(categoryStyle && categoryStyle.color)};"></span>
+            <span class="legend-sheet-name">${escHtml(sheet ? sheet.name + ': ' : '')}${escHtml(category)}</span>
+          </label>
+        </div>
+      `;
+    });
 
     div.innerHTML = `
       <div class="legend-title">Legend</div>
@@ -4713,6 +4730,35 @@ const ALL_FA_ICONS = [
     });
   }
 
+  function incidentLayerGroupKey(sheet, categoryValue) {
+    const category = String(categoryValue || '').trim();
+    return `${sheet.id}__${category.toLowerCase() || '__uncategorized'}`;
+  }
+
+  function getIncidentLayerGroup(sheet, categoryValue) {
+    const key = incidentLayerGroupKey(sheet, categoryValue);
+    if (incidentLayerGroups[key]) return incidentLayerGroups[key];
+    const category = String(categoryValue || '').trim() || 'Uncategorized';
+    const name = `${sheet.name}: ${category}`;
+    const group = L.layerGroup().addTo(map);
+    group._sheetId = sheet.id;
+    group._categoryValue = category;
+    incidentLayerGroups[key] = group;
+    if (mapLayersControl) mapLayersControl.addOverlay(group, name);
+    updateLegend();
+    return group;
+  }
+
+  function syncIncidentMarkerLayer(marker, shouldShow) {
+    const group = marker._incidentLayerGroup;
+    if (!group) return;
+    if (shouldShow) {
+      if (!group.hasLayer(marker)) group.addLayer(marker);
+    } else if (group.hasLayer(marker)) {
+      group.removeLayer(marker);
+    }
+  }
+
   function escHtml(str) {
     return String(str)
       .replace(/&/g, '&amp;')
@@ -4825,7 +4871,10 @@ const ALL_FA_ICONS = [
   }
 
   function clearMarkers() {
-    Object.values(incidentMarkers).forEach(m => map.removeLayer(m));
+    Object.values(incidentMarkers).forEach(m => {
+      if (m._incidentLayerGroup) m._incidentLayerGroup.removeLayer(m);
+      else map.removeLayer(m);
+    });
     incidentMarkers = {};
     updateMapAlerts();
   }
@@ -4846,11 +4895,7 @@ const ALL_FA_ICONS = [
   function updateClosedMarkersVisibility() {
     Object.values(incidentMarkers).forEach(m => {
       if (!m._isOpen) {
-        if (showClosedIncidents) {
-          if (!map.hasLayer(m)) map.addLayer(m);
-        } else {
-          if (map.hasLayer(m)) map.removeLayer(m);
-        }
+        syncIncidentMarkerLayer(m, showClosedIncidents);
       }
     });
   }
@@ -4871,6 +4916,16 @@ const ALL_FA_ICONS = [
           map.addLayer(layerConfig.layer);
         } else {
           map.removeLayer(layerConfig.layer);
+        }
+      }
+    }
+    if (e.target && e.target.dataset.incidentLayerGroup) {
+      const group = incidentLayerGroups[e.target.dataset.incidentLayerGroup];
+      if (group) {
+        if (e.target.checked) {
+          map.addLayer(group);
+        } else {
+          map.removeLayer(group);
         }
       }
     }
@@ -4948,22 +5003,23 @@ const ALL_FA_ICONS = [
       const incidentStyle = getIncidentStyle(sheet, categoryValue);
 
       const shouldShow = geo && (isOpen || showClosedIncidents);
+      const incidentLayerGroup = getIncidentLayerGroup(sheet, categoryValue);
 
       if (incidentMarkers[key]) {
         const m = incidentMarkers[key];
         m._isOpen = isOpen;
         m._sheetId = sheet.id;
         m._categoryValue = categoryValue;
+        if (m._incidentLayerGroup !== incidentLayerGroup) {
+          if (m._incidentLayerGroup) m._incidentLayerGroup.removeLayer(m);
+          m._incidentLayerGroup = incidentLayerGroup;
+        }
         m._isOutOfRange = geo ? isMoreThanOneDegreeFromPmc(lat, lon) : false;
         if (geo) {
           m.setLatLng([lat, lon]);
-          if (shouldShow) {
-            if (!map.hasLayer(m)) m.addTo(map);
-          } else {
-            if (map.hasLayer(m)) map.removeLayer(m);
-          }
+          syncIncidentMarkerLayer(m, shouldShow);
         } else {
-          if (map.hasLayer(m)) map.removeLayer(m);
+          syncIncidentMarkerLayer(m, false);
         }
         m.setIcon(buildDivIcon(isOpen, incidentStyle.icon.fa, incidentStyle.color));
         m.setPopupContent(popupHtml(incident, sheet));
@@ -4974,10 +5030,9 @@ const ALL_FA_ICONS = [
         marker._isOpen = isOpen;
         marker._sheetId = sheet.id;
         marker._categoryValue = categoryValue;
+        marker._incidentLayerGroup = incidentLayerGroup;
         marker._isOutOfRange = isMoreThanOneDegreeFromPmc(lat, lon);
-        if (shouldShow) {
-          marker.addTo(map);
-        }
+        syncIncidentMarkerLayer(marker, shouldShow);
         incidentMarkers[key] = marker;
       }
     }
@@ -5004,7 +5059,9 @@ const ALL_FA_ICONS = [
       // Clean up removed rows for this specific sheet
       Object.keys(incidentMarkers).forEach(k => {
         if (incidentMarkers[k]._sheetId === sheet.id && !sheetKeys.has(k)) {
-          map.removeLayer(incidentMarkers[k]);
+          const marker = incidentMarkers[k];
+          if (marker._incidentLayerGroup) marker._incidentLayerGroup.removeLayer(marker);
+          else map.removeLayer(marker);
           delete incidentMarkers[k];
         }
       });
@@ -5051,7 +5108,9 @@ const ALL_FA_ICONS = [
 
       Object.keys(incidentMarkers).forEach(k => {
         if (!currentKeys.has(k)) {
-          map.removeLayer(incidentMarkers[k]);
+          const marker = incidentMarkers[k];
+          if (marker._incidentLayerGroup) marker._incidentLayerGroup.removeLayer(marker);
+          else map.removeLayer(marker);
           delete incidentMarkers[k];
         }
       });
@@ -5926,7 +5985,6 @@ const ALL_FA_ICONS = [
     sheets.forEach(sheet => {
       sheetsContainer.appendChild(renderSheetCard(sheet));
     });
-
     // Update remove button visibility
     const removeButtons = sheetsContainer.querySelectorAll('.btn-remove-sheet');
     removeButtons.forEach(btn => {
