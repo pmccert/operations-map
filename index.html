@@ -3176,7 +3176,7 @@ const ALL_FA_ICONS = [
 
   function canEnableThirdPartyLayer(layerConfig, layerName) {
     if (layerConfig && layerConfig.requiresWebMercator && !isWebMercatorMap()) {
-      setStatus(`${layerName} requires an EPSG:3857 map.`);
+      setStatus(`${layerName} needs a standard web basemap. Switch basemaps and try again.`);
       return false;
     }
     return true;
@@ -6797,14 +6797,20 @@ const ALL_FA_ICONS = [
   updateSharedMapStatusLabel();
   updateMatchSourceMapButton();
   updateReadOnlyUI();
+  let clearedIncompatibleSavedThirdPartyLayer = false;
   savedThirdPartyLayerNames.forEach(function (layerName) {
     const layerConfig = thirdPartyLayers[layerName];
     if (!layerConfig) return;
-    if (!canEnableThirdPartyLayer(layerConfig, layerName)) return;
+    if (!canEnableThirdPartyLayer(layerConfig, layerName)) {
+      layerConfig.activated = false;
+      clearedIncompatibleSavedThirdPartyLayer = true;
+      return;
+    }
     layerConfig.activated = true;
     map.addLayer(layerConfig.layer);
     loadThirdPartyLayer(layerName);
   });
+  if (clearedIncompatibleSavedThirdPartyLayer) persistAppState();
   updateLegend();
   if (sharedMapState.fileId) {
     ensureGoogleAuth()
