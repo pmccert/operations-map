@@ -1987,6 +1987,17 @@ const ALL_FA_ICONS = [
         { label: 'Very High', color: '#d73027', colorName: 'red' }
       ],
       requiresWebMercator: true
+    },
+    '100 Year Flood Zone': {
+      id: 'awareness-zone',
+      layer: createAwarenessZoneLayer(),
+      activated: false,
+      clearOnDisable: true,
+      icon: 'fa-solid fa-triangle-exclamation',
+      color: '#5d00af',
+      legendItems: [
+        { label: '100 Year Flood Zone', color: '#5d00af', colorName: 'purple' }
+      ]
     }
   };
   const thirdPartyOverlayLayers = Object.fromEntries(
@@ -3192,8 +3203,24 @@ const ALL_FA_ICONS = [
 
   const THIRD_PARTY_ENDPOINTS = {
     fires: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?where=1%3D1&geometry=-119.7%2C34.4%2C-118.6%2C35.3&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&outFields=*&outSR=4326&f=geojson',
-    adsb: `https://api.airplanes.live/v2/point/${PMC_LAT}/${PMC_LNG}/100`
+    adsb: `https://api.airplanes.live/v2/point/${PMC_LAT}/${PMC_LNG}/100`,
+    awarenessZone: 'https://dpsgeo.carto.com/api/v2/sql?api_key=N2szY6xjxnwJuPTc7zcV5Q&format=geojson&q=SELECT%20*%20FROM%20kc26_az%20WHERE%20haz_az%20=%20%27Yes%27'
   };
+
+  function createAwarenessZoneLayer() {
+    return L.geoJSON(null, {
+      attribution: '100 Year Flood Zone data © <a href="https://mitigatehazards.com/Kern2026CountyRAMP/" target="_blank" rel="noopener">Kern County RAMP</a>',
+      style: {
+        color: '#5d00af',
+        weight: 1,
+        fillColor: '#5d00af',
+        fillOpacity: 0.35
+      },
+      onEachFeature: function (_feature, featureLayer) {
+        featureLayer.bindPopup('<strong>100 Year Flood Zone</strong>');
+      }
+    });
+  }
 
   function createWebMercatorArcGisExportLayer(serviceUrl, options = {}) {
     const sanitizedServiceUrl = String(serviceUrl).replace(/\/+$/, '');
@@ -3323,6 +3350,18 @@ const ALL_FA_ICONS = [
     });
   }
 
+  async function loadAwarenessZone() {
+    const layer = thirdPartyLayers['100 Year Flood Zone'].layer;
+    const response = await fetch(THIRD_PARTY_ENDPOINTS.awarenessZone, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`100 year awareness zone request failed (${response.status})`);
+    const data = await response.json();
+    clearThirdPartyLayer(layer);
+    if (!data || data.type !== 'FeatureCollection') {
+      throw new Error('100 year awareness zone source did not return valid GeoJSON.');
+    }
+    layer.addData(data);
+  }
+
   async function loadThirdPartyLayer(layerName) {
     try {
       setStatus(`Loading ${layerName}…`);
@@ -3330,6 +3369,8 @@ const ALL_FA_ICONS = [
         await loadFireIncidents();
       } else if (layerName === 'ADS-B Aircraft') {
         await loadAdsbAircraft();
+      } else if (layerName === '100 Year Flood Zone') {
+        await loadAwarenessZone();
       }
       setStatus(`${layerName} loaded.`);
     } catch (err) {
