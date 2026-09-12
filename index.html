@@ -1922,16 +1922,32 @@ const ALL_FA_ICONS = [
 
   const thirdPartyLayers = {
     'Known Fire Incidents': {
+      id: 'fires',
       layer: createFireIncidentsLayer(),
       activated: false,
+      clearOnDisable: true,
       icon: 'fa-solid fa-fire',
       color: '#d35400'
     },
     'ADS-B Aircraft': {
+      id: 'adsb',
       layer: L.layerGroup(),
       activated: false,
+      clearOnDisable: true,
       icon: 'fa-solid fa-plane',
       color: '#2980b9'
+    },
+    'Landslide Risk Map': {
+      id: 'landslide-risk',
+      layer: createWebMercatorArcGisExportLayer('https://gis.conservation.ca.gov/server/rest/services/CGS/MS58_LandslideSusceptibility_Classes/MapServer', {
+        attribution: 'Landslide data © California Geological Survey',
+        layers: 'show:0',
+        opacity: 0.55
+      }),
+      activated: false,
+      icon: 'fa-solid fa-mountain',
+      color: '#8e5a2b',
+      requiresWebMercator: true
     }
   };
   const thirdPartyOverlayLayers = Object.fromEntries(
@@ -2413,6 +2429,13 @@ const ALL_FA_ICONS = [
   map.on('overlayadd', function (e) {
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
+      if (!canEnableThirdPartyLayer(thirdPartyLayers[layerName], layerName)) {
+        thirdPartyLayers[layerName].activated = false;
+        map.removeLayer(e.layer);
+        persistAppState();
+        updateLegend();
+        return;
+      }
       thirdPartyLayers[layerName].activated = true;
       persistAppState();
       updateLegend();
@@ -2424,6 +2447,9 @@ const ALL_FA_ICONS = [
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
       thirdPartyLayers[layerName].activated = false;
+      if (thirdPartyLayers[layerName].clearOnDisable) {
+        clearThirdPartyLayer(thirdPartyLayers[layerName].layer);
+      }
       persistAppState();
       updateLegend();
     }
@@ -2790,11 +2816,20 @@ const ALL_FA_ICONS = [
       Object.entries(thirdPartyLayers).forEach(([name, config]) => {
         const shouldEnable = enabledLayerNames.has(name);
         const isEnabled = map.hasLayer(config.layer);
+        if (shouldEnable && !canEnableThirdPartyLayer(config, name)) {
+          config.activated = false;
+          if (isEnabled) {
+            if (config.clearOnDisable) clearThirdPartyLayer(config.layer);
+            map.removeLayer(config.layer);
+          }
+          return;
+        }
         config.activated = shouldEnable;
         if (shouldEnable && !isEnabled) {
           map.addLayer(config.layer);
           loadThirdPartyLayer(name);
         } else if (!shouldEnable && isEnabled) {
+          clearThirdPartyLayer(config.layer);
           map.removeLayer(config.layer);
         }
       });
@@ -3122,8 +3157,71 @@ const ALL_FA_ICONS = [
     adsb: `https://api.airplanes.live/v2/point/${PMC_LAT}/${PMC_LNG}/100`
   };
 
+  function createWebMercatorArcGisExportLayer(serviceUrl, options = {}) {
+    const sanitizedServiceUrl = String(serviceUrl).replace(/\/+$/, '');
+    const layer = L.tileLayer('', {
+      attribution: options.attribution || '',
+      format: options.format || 'png32',
+      layers: options.layers,
+      noWrap: options.noWrap !== false,
+      opacity: options.opacity ?? 1,
+      tileSize: options.tileSize || 256,
+      transparent: options.transparent !== false
+    });
+
+    layer.getTileUrl = function (coords) {
+      const tileSize = this.getTileSize();
+      const serviceCrs = L.CRS.EPSG3857;
+      const northWest = serviceCrs.pointToLatLng(coords.scaleBy(tileSize), coords.z);
+      const southEast = serviceCrs.pointToLatLng(coords.add([1, 1]).scaleBy(tileSize), coords.z);
+      const northWestProjected = serviceCrs.project(northWest);
+      const southEastProjected = serviceCrs.project(southEast);
+      const query = new URLSearchParams({
+        bbox: [
+          northWestProjected.x,
+          southEastProjected.y,
+          southEastProjected.x,
+          northWestProjected.y
+        ].join(','),
+        bboxSR: '3857',
+        dpi: '96',
+        f: 'image',
+        format: this.options.format,
+        imageSR: '3857',
+        size: `${tileSize.x},${tileSize.y}`,
+        transparent: this.options.transparent ? 'true' : 'false'
+      });
+      if (this.options.layers !== undefined) query.set('layers', this.options.layers);
+      return `${sanitizedServiceUrl}/export?${query.toString()}`;
+    };
+
+    return layer;
+  }
+
   function clearThirdPartyLayer(layer) {
-    layer.clearLayers();
+    if (typeof layer.clearLayers === 'function') layer.clearLayers();
+  }
+
+  function isWebMercatorMap() {
+    const crs = map && map.options ? map.options.crs : null;
+    return Boolean(
+      crs &&
+      (
+        crs === L.CRS.EPSG3857 ||
+        crs.code === 'EPSG:3857' ||
+        crs.projection === L.Projection.SphericalMercator
+      )
+    );
+  }
+
+  function canEnableThirdPartyLayer(layerConfig, layerName, options = {}) {
+    if (layerConfig && layerConfig.requiresWebMercator && !isWebMercatorMap()) {
+      if (options.notify !== false) {
+        setStatus(`${layerName} needs a Web Mercator basemap. Switch to OpenStreetMap, Esri, or another web basemap and try again.`);
+      }
+      return false;
+    }
+    return true;
   }
 
   function fireProperty(properties, names) {
@@ -3377,11 +3475,20 @@ const ALL_FA_ICONS = [
     const enabled = Array.isArray(enabledLayerNames) ? new Set(enabledLayerNames) : new Set();
     Object.entries(thirdPartyLayers).forEach(([name, config]) => {
       const shouldEnable = enabled.has(name);
+      if (shouldEnable && !canEnableThirdPartyLayer(config, name, { notify: false })) {
+        config.activated = false;
+        if (map.hasLayer(config.layer)) {
+          if (config.clearOnDisable) clearThirdPartyLayer(config.layer);
+          map.removeLayer(config.layer);
+        }
+        return;
+      }
       config.activated = shouldEnable;
       if (shouldEnable && !map.hasLayer(config.layer)) {
         map.addLayer(config.layer);
         loadThirdPartyLayer(name);
       } else if (!shouldEnable && map.hasLayer(config.layer)) {
+        clearThirdPartyLayer(config.layer);
         map.removeLayer(config.layer);
       }
     });
@@ -3766,8 +3873,7 @@ const ALL_FA_ICONS = [
     const thirdPartyItemsHtml = Object.entries(thirdPartyLayers)
       .filter(([, config]) => config.activated)
       .map(([name, config]) => {
-        const isFireLayer = name === 'Known Fire Incidents';
-        const id = `toggle-third-party-${isFireLayer ? 'fires' : 'adsb'}`;
+        const id = `toggle-third-party-${config.id}`;
         return `
           <div class="legend-item legend-third-party" title="${escHtml(name)}">
             <label class="legend-checkbox-label" for="${id}">
@@ -6710,13 +6816,20 @@ const ALL_FA_ICONS = [
   updateSharedMapStatusLabel();
   updateMatchSourceMapButton();
   updateReadOnlyUI();
+  let clearedIncompatibleSavedThirdPartyLayer = false;
   savedThirdPartyLayerNames.forEach(function (layerName) {
     const layerConfig = thirdPartyLayers[layerName];
     if (!layerConfig) return;
+    if (!canEnableThirdPartyLayer(layerConfig, layerName, { notify: false })) {
+      layerConfig.activated = false;
+      clearedIncompatibleSavedThirdPartyLayer = true;
+      return;
+    }
     layerConfig.activated = true;
     map.addLayer(layerConfig.layer);
     loadThirdPartyLayer(layerName);
   });
+  if (clearedIncompatibleSavedThirdPartyLayer) persistAppState();
   updateLegend();
   if (sharedMapState.fileId) {
     ensureGoogleAuth()

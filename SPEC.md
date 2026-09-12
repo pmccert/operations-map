@@ -107,7 +107,8 @@ The application operates without a dedicated backend server, resolving incident 
 
 * **FR-3.4: Third-Party Map Layers**
   * The map shall provide selectable overlay layers for known fire incidents
-    (National Interagency Fire Center data) and nearby ADS-B aircraft.
+    (National Interagency Fire Center data), nearby ADS-B aircraft, and the
+    California Geological Survey landslide risk map.
   * Third-party overlays shall load on demand when selected from the layer menu,
     appear as entries in the legend while enabled, and be hideable from that
     legend without changing configured Google Sheet incidents.
