@@ -3106,6 +3106,7 @@ const ALL_FA_ICONS = [
       attribution: options.attribution || '',
       format: options.format || 'png32',
       layers: options.layers || '',
+      noWrap: options.noWrap !== false,
       opacity: options.opacity ?? 1,
       tileSize: options.tileSize || 256,
       transparent: options.transparent !== false
@@ -3113,12 +3114,10 @@ const ALL_FA_ICONS = [
 
     layer.getTileUrl = function (coords) {
       const tileSize = this.getTileSize();
-      const mapCrs = this._map && this._map.options && this._map.options.crs ? this._map.options.crs : L.CRS.EPSG3857;
       const serviceCrs = L.CRS.EPSG3857;
-      const northWest = mapCrs.pointToLatLng(coords.scaleBy(tileSize), coords.z);
-      const southEast = mapCrs.pointToLatLng(coords.add([1, 1]).scaleBy(tileSize), coords.z);
-      const northWestProjected = serviceCrs.project(northWest);
-      const southEastProjected = serviceCrs.project(southEast);
+      const bounds = this._tileCoordsToBounds(coords);
+      const northWestProjected = serviceCrs.project(bounds.getNorthWest());
+      const southEastProjected = serviceCrs.project(bounds.getSouthEast());
       const query = new URLSearchParams({
         bbox: [
           northWestProjected.x,
