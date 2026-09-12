@@ -3116,7 +3116,16 @@ const ALL_FA_ICONS = [
     });
 
     layer.getTileUrl = function (coords) {
-      if (!this._map || this._map.options.crs !== L.CRS.EPSG3857) return '';
+      const mapCrs = this._map && this._map.options ? this._map.options.crs : null;
+      const isWebMercator = Boolean(
+        mapCrs &&
+        (
+          mapCrs === L.CRS.EPSG3857 ||
+          mapCrs.code === 'EPSG:3857' ||
+          mapCrs.projection === L.Projection.SphericalMercator
+        )
+      );
+      if (!isWebMercator) return '';
       const tileSize = this.getTileSize();
       const serviceCrs = L.CRS.EPSG3857;
       const bounds = this._tileCoordsToBounds(coords);
