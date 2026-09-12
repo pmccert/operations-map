@@ -1198,12 +1198,33 @@
       margin-right: 2px;
     }
     .map-legend .legend-third-party {
+      margin-top: 5px;
       padding-bottom: 5px;
       border-bottom: 1px solid #ddd;
     }
     .map-legend .legend-third-party:last-child {
       border-bottom: none;
       padding-bottom: 0;
+    }
+    .map-legend .legend-subitems {
+      margin: 4px 0 0 28px;
+      display: grid;
+      gap: 3px;
+    }
+    .map-legend .legend-subitem {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444;
+      line-height: 1.2;
+    }
+    .map-legend .legend-color-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+      flex-shrink: 0;
     }
   </style>
 </head>
@@ -1939,14 +1960,23 @@ const ALL_FA_ICONS = [
     },
     'Landslide Risk Map': {
       id: 'landslide-risk',
+      arcGisServiceUrl: 'https://gis.conservation.ca.gov/server/rest/services/CGS/MS58_LandslideSusceptibility_Classes/MapServer',
       layer: createWebMercatorArcGisExportLayer('https://gis.conservation.ca.gov/server/rest/services/CGS/MS58_LandslideSusceptibility_Classes/MapServer', {
         attribution: 'Landslide data © California Geological Survey',
         layers: 'show:0',
+        maxZoom: 20,
         opacity: 0.55
       }),
       activated: false,
       icon: 'fa-solid fa-mountain',
       color: '#8e5a2b',
+      legendItems: [
+        { label: 'Very Low', color: '#1a9850' },
+        { label: 'Low', color: '#91cf60' },
+        { label: 'Moderate', color: '#fee08b' },
+        { label: 'High', color: '#fc8d59' },
+        { label: 'Very High', color: '#d73027' }
+      ],
       requiresWebMercator: true
     }
   };
@@ -3163,6 +3193,8 @@ const ALL_FA_ICONS = [
       attribution: options.attribution || '',
       format: options.format || 'png32',
       layers: options.layers,
+      maxZoom: Number.isFinite(options.maxZoom) ? options.maxZoom : 20,
+      maxNativeZoom: Number.isFinite(options.maxNativeZoom) ? options.maxNativeZoom : undefined,
       noWrap: options.noWrap !== false,
       opacity: options.opacity ?? 1,
       tileSize: options.tileSize || 256,
@@ -3196,6 +3228,63 @@ const ALL_FA_ICONS = [
     };
 
     return layer;
+  }
+
+  function arcGisColorArrayToCss(color) {
+    if (!Array.isArray(color) || color.length < 3) return null;
+    const red = Number(color[0]);
+    const green = Number(color[1]);
+    const blue = Number(color[2]);
+    const alphaRaw = color.length > 3 ? Number(color[3]) : 255;
+    if (![red, green, blue, alphaRaw].every(Number.isFinite)) return null;
+    const alpha = Math.max(0, Math.min(1, alphaRaw / 255));
+    return `rgba(${Math.max(0, Math.min(255, red))}, ${Math.max(0, Math.min(255, green))}, ${Math.max(0, Math.min(255, blue))}, ${alpha.toFixed(3)})`;
+  }
+
+  function extractArcGisLegendItems(metadata) {
+    const renderer = metadata && metadata.drawingInfo && metadata.drawingInfo.renderer;
+    if (!renderer || !Array.isArray(renderer.classBreakInfos)) return [];
+    return renderer.classBreakInfos
+      .map(function (entry) {
+        const color = arcGisColorArrayToCss(entry && entry.symbol && entry.symbol.color);
+        if (!color) return null;
+        return {
+          label: String(entry.label || 'Class').trim(),
+          color
+        };
+      })
+      .filter(Boolean);
+  }
+
+  async function updateArcGisLayerMetadata(layerConfig) {
+    if (!layerConfig || !layerConfig.arcGisServiceUrl || layerConfig.metadataLoaded || layerConfig.metadataLoading) return;
+    layerConfig.metadataLoading = true;
+    try {
+      const response = await fetch(`${layerConfig.arcGisServiceUrl}?f=pjson`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`metadata request failed (${response.status})`);
+      const metadata = await response.json();
+      const lods = metadata && metadata.tileInfo && Array.isArray(metadata.tileInfo.lods) ? metadata.tileInfo.lods : [];
+      const nativeZoomLevels = lods
+        .map(function (lod) { return Number(lod.level); })
+        .filter(Number.isFinite);
+      if (nativeZoomLevels.length > 0) {
+        layerConfig.layer.options.maxNativeZoom = Math.max(...nativeZoomLevels);
+      }
+      const mapMaxZoom = map && map.options && Number.isFinite(map.options.maxZoom) ? map.options.maxZoom : 20;
+      layerConfig.layer.options.maxZoom = mapMaxZoom;
+
+      const metadataLegendItems = extractArcGisLegendItems(metadata);
+      if (metadataLegendItems.length > 0) {
+        layerConfig.legendItems = metadataLegendItems;
+      }
+      if (typeof layerConfig.layer.redraw === 'function') layerConfig.layer.redraw();
+      updateLegend();
+      layerConfig.metadataLoaded = true;
+    } catch (err) {
+      console.warn(`Could not load ArcGIS metadata for ${layerConfig.id}:`, err);
+    } finally {
+      layerConfig.metadataLoading = false;
+    }
   }
 
   function clearThirdPartyLayer(layer) {
@@ -3278,6 +3367,10 @@ const ALL_FA_ICONS = [
   async function loadThirdPartyLayer(layerName) {
     try {
       setStatus(`Loading ${layerName}…`);
+      const layerConfig = thirdPartyLayers[layerName];
+      if (layerConfig && layerConfig.arcGisServiceUrl) {
+        await updateArcGisLayerMetadata(layerConfig);
+      }
       if (layerName === 'Known Fire Incidents') {
         await loadFireIncidents();
       } else if (layerName === 'ADS-B Aircraft') {
@@ -3874,13 +3967,30 @@ const ALL_FA_ICONS = [
       .filter(([, config]) => config.activated)
       .map(([name, config]) => {
         const id = `toggle-third-party-${config.id}`;
+        const legendItemsHtml = Array.isArray(config.legendItems) && config.legendItems.length > 0
+          ? `
+            <div class="legend-subitems" aria-label="${escHtml(name)} classes">
+              ${config.legendItems.map(function (item) {
+                return `
+                  <div class="legend-subitem">
+                    <span class="legend-color-swatch" style="background-color: ${escHtml(item.color)};"></span>
+                    <span>${escHtml(item.label)}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `
+          : '';
         return `
-          <div class="legend-item legend-third-party" title="${escHtml(name)}">
-            <label class="legend-checkbox-label" for="${id}">
-              <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(config.layer) ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
-              <span class="legend-icon" style="background-color: ${config.color};"><i class="${config.icon}"></i></span>
-              <span class="legend-sheet-name">${escHtml(name)}</span>
-            </label>
+          <div class="legend-third-party" title="${escHtml(name)}">
+            <div class="legend-item">
+              <label class="legend-checkbox-label" for="${id}">
+                <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(config.layer) ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
+                <span class="legend-icon" style="background-color: ${config.color};"><i class="${config.icon}"></i></span>
+                <span class="legend-sheet-name">${escHtml(name)}</span>
+              </label>
+            </div>
+            ${legendItemsHtml}
           </div>
         `;
       })

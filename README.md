@@ -70,7 +70,9 @@ publicly accessible Google Sheet.
   incidents from the National Interagency Fire Center, nearby ADS-B aircraft,
   and the California Geological Survey landslide risk map. Enabled third-party
   layers also appear in the legend, where they can be hidden without affecting
-  the incident sheets.
+  the incident sheets. The landslide layer includes a color-class legend, and
+  ArcGIS-backed layers keep the highest available native resolution visible at
+  deeper zoom levels.
 
 ## Setup
 
