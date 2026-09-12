@@ -1912,7 +1912,8 @@ const ALL_FA_ICONS = [
       }),
       activated: false,
       icon: 'fa-solid fa-mountain',
-      color: '#8e5a2b'
+      color: '#8e5a2b',
+      requiresWebMercator: true
     }
   };
   const thirdPartyOverlayLayers = Object.fromEntries(
@@ -2394,7 +2395,7 @@ const ALL_FA_ICONS = [
   map.on('overlayadd', function (e) {
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
-      if (!canEnableThirdPartyLayer(layerName)) {
+      if (!canEnableThirdPartyLayer(thirdPartyLayers[layerName], layerName)) {
         thirdPartyLayers[layerName].activated = false;
         map.removeLayer(e.layer);
         persistAppState();
@@ -2412,6 +2413,7 @@ const ALL_FA_ICONS = [
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
       thirdPartyLayers[layerName].activated = false;
+      clearThirdPartyLayer(thirdPartyLayers[layerName].layer);
       persistAppState();
       updateLegend();
     }
@@ -2778,7 +2780,7 @@ const ALL_FA_ICONS = [
       Object.entries(thirdPartyLayers).forEach(([name, config]) => {
         const shouldEnable = enabledLayerNames.has(name);
         const isEnabled = map.hasLayer(config.layer);
-        if (shouldEnable && !canEnableThirdPartyLayer(name)) {
+        if (shouldEnable && !canEnableThirdPartyLayer(config, name)) {
           config.activated = false;
           if (isEnabled) map.removeLayer(config.layer);
           return;
@@ -2788,6 +2790,7 @@ const ALL_FA_ICONS = [
           map.addLayer(config.layer);
           loadThirdPartyLayer(name);
         } else if (!shouldEnable && isEnabled) {
+          clearThirdPartyLayer(config.layer);
           map.removeLayer(config.layer);
         }
       });
@@ -3171,9 +3174,9 @@ const ALL_FA_ICONS = [
     );
   }
 
-  function canEnableThirdPartyLayer(layerName) {
-    if (layerName === 'Landslide Risk Map' && !isWebMercatorMap()) {
-      setStatus('Landslide Risk Map requires an EPSG:3857 map.');
+  function canEnableThirdPartyLayer(layerConfig, layerName) {
+    if (layerConfig && layerConfig.requiresWebMercator && !isWebMercatorMap()) {
+      setStatus(`${layerName} requires an EPSG:3857 map.`);
       return false;
     }
     return true;
@@ -3456,7 +3459,7 @@ const ALL_FA_ICONS = [
     const enabled = Array.isArray(enabledLayerNames) ? new Set(enabledLayerNames) : new Set();
     Object.entries(thirdPartyLayers).forEach(([name, config]) => {
       const shouldEnable = enabled.has(name);
-      if (shouldEnable && !canEnableThirdPartyLayer(name)) {
+      if (shouldEnable && !canEnableThirdPartyLayer(config, name)) {
         config.activated = false;
         if (map.hasLayer(config.layer)) map.removeLayer(config.layer);
         return;
@@ -3466,6 +3469,7 @@ const ALL_FA_ICONS = [
         map.addLayer(config.layer);
         loadThirdPartyLayer(name);
       } else if (!shouldEnable && map.hasLayer(config.layer)) {
+        clearThirdPartyLayer(config.layer);
         map.removeLayer(config.layer);
       }
     });
@@ -6796,7 +6800,7 @@ const ALL_FA_ICONS = [
   savedThirdPartyLayerNames.forEach(function (layerName) {
     const layerConfig = thirdPartyLayers[layerName];
     if (!layerConfig) return;
-    if (!canEnableThirdPartyLayer(layerName)) return;
+    if (!canEnableThirdPartyLayer(layerConfig, layerName)) return;
     layerConfig.activated = true;
     map.addLayer(layerConfig.layer);
     loadThirdPartyLayer(layerName);
