@@ -1888,10 +1888,42 @@ const ALL_FA_ICONS = [
     )
   };
 
+  function createFireIncidentsLayer() {
+    return L.geoJSON(null, {
+      style: {
+        color: '#c0392b',
+        weight: 2,
+        fillColor: '#e67e22',
+        fillOpacity: 0.3
+      },
+      pointToLayer: function (_feature, latlng) {
+        return L.marker(latlng, {
+          icon: L.divIcon({
+            className: '',
+            html: '<div class="incident-marker-icon" style="background:#d35400;"><i class="fa-solid fa-fire"></i></div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+          })
+        });
+      },
+      onEachFeature: function (feature, featureLayer) {
+        const properties = feature.properties || {};
+        const name = fireProperty(properties, ['IncidentName', 'IncidentShortDescription', 'IRWINID', 'UniqueFireIdentifier']) || 'Known fire incident';
+        const status = fireProperty(properties, ['FireCause', 'PercentContainedText', 'DailyPercentContained', 'ContainmentDateTime', 'IncidentTypeCategory']) || 'Reported';
+        const acres = fireProperty(properties, ['IncidentSize', 'DailyAcres', 'GIS_ACRES', 'Acres']);
+        const details = acres ? `<br>Acres: ${escHtml(acres)}` : '';
+        featureLayer.bindPopup(
+          `<div class="incident-popup"><strong>${escHtml(name)}</strong><br>` +
+          `<span class="badge" style="background-color:#d35400;">${escHtml(status)}</span>${details}</div>`
+        );
+      }
+    });
+  }
+
   const thirdPartyLayers = {
     'Known Fire Incidents': {
       id: 'fires',
-      layer: L.layerGroup(),
+      layer: createFireIncidentsLayer(),
       activated: false,
       clearOnDisable: true,
       icon: 'fa-solid fa-fire',
@@ -3121,7 +3153,7 @@ const ALL_FA_ICONS = [
   }
 
   const THIRD_PARTY_ENDPOINTS = {
-    fires: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Fire_Perimeters/FeatureServer/0/query?where=1%3D1&geometry=-119.7%2C34.4%2C-118.6%2C35.3&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=geojson',
+    fires: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?where=1%3D1&geometry=-119.7%2C34.4%2C-118.6%2C35.3&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&outFields=*&outSR=4326&f=geojson',
     adsb: `https://api.airplanes.live/v2/point/${PMC_LAT}/${PMC_LNG}/100`
   };
 
@@ -3207,36 +3239,10 @@ const ALL_FA_ICONS = [
     if (!response.ok) throw new Error(`Fire incidents request failed (${response.status})`);
     const data = await response.json();
     clearThirdPartyLayer(layer);
-
-    L.geoJSON(data, {
-      style: {
-        color: '#c0392b',
-        weight: 2,
-        fillColor: '#e67e22',
-        fillOpacity: 0.3
-      },
-      pointToLayer: function (_feature, latlng) {
-        return L.marker(latlng, {
-          icon: L.divIcon({
-            className: '',
-            html: '<div class="incident-marker-icon" style="background:#d35400;"><i class="fa-solid fa-fire"></i></div>',
-            iconSize: [32, 32],
-            iconAnchor: [16, 16]
-          })
-        });
-      },
-      onEachFeature: function (feature, featureLayer) {
-        const properties = feature.properties || {};
-        const name = fireProperty(properties, ['IncidentName', 'incidentName', 'FIRE_NAME', 'FireName']) || 'Known fire incident';
-        const status = fireProperty(properties, ['FireCause', 'Status', 'STATUS']) || 'Reported';
-        const acres = fireProperty(properties, ['DailyAcres', 'GIS_ACRES', 'Acres']);
-        const details = acres ? `<br>Acres: ${escHtml(acres)}` : '';
-        featureLayer.bindPopup(
-          `<div class="incident-popup"><strong>${escHtml(name)}</strong><br>` +
-          `<span class="badge" style="background-color:#d35400;">${escHtml(status)}</span>${details}</div>`
-        );
-      }
-    }).addTo(layer);
+    if (!data || (data.type !== 'FeatureCollection' && data.type !== 'Feature')) {
+      throw new Error('Fire incidents source did not return valid GeoJSON.');
+    }
+    layer.addData(data);
   }
 
   function aircraftIcon() {
