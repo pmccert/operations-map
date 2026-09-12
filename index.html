@@ -3125,7 +3125,7 @@ const ALL_FA_ICONS = [
           mapCrs.projection === L.Projection.SphericalMercator
         )
       );
-      if (!isWebMercator) return '';
+      if (!isWebMercator) return 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
       const tileSize = this.getTileSize();
       const serviceCrs = L.CRS.EPSG3857;
       const bounds = this._tileCoordsToBounds(coords);
