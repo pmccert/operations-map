@@ -2414,7 +2414,7 @@ const ALL_FA_ICONS = [
       currentBaseLayer.options.minZoom !== undefined
       ? currentBaseLayer.options.minZoom
       : 0;
-    const alertMessages = [];
+    const alertMessages = [`Map zoom level: ${currentZoom}.`];
     if (currentZoom > maxZoom || currentZoom < minZoom) {
       alertMessages.push('The requested zoom level is not available for this base map.');
     }
@@ -3214,8 +3214,9 @@ const ALL_FA_ICONS = [
     layer.getTileUrl = function (coords) {
       const tileSize = this.getTileSize();
       const serviceCrs = L.CRS.EPSG3857;
-      const northWest = serviceCrs.pointToLatLng(coords.scaleBy(tileSize), coords.z);
-      const southEast = serviceCrs.pointToLatLng(coords.add([1, 1]).scaleBy(tileSize), coords.z);
+      const tileZoom = this._getZoomForUrl(coords);
+      const northWest = serviceCrs.pointToLatLng(coords.scaleBy(tileSize), tileZoom);
+      const southEast = serviceCrs.pointToLatLng(coords.add([1, 1]).scaleBy(tileSize), tileZoom);
       const northWestProjected = serviceCrs.project(northWest);
       const southEastProjected = serviceCrs.project(southEast);
       const query = new URLSearchParams({
