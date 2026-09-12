@@ -347,6 +347,79 @@
       font-size: 0.82rem;
       padding: 6px 0;
     }
+    .severity-config {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #d0d7de;
+    }
+    .severity-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      font-weight: bold;
+      color: #333;
+    }
+    .severity-note {
+      color: #666;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      margin: 6px 0 8px;
+    }
+    .severity-gradient {
+      position: relative;
+      height: 29px;
+      margin: 26px 12px 8px;
+      border-radius: 5px;
+      border: 1px solid #c8c8c8;
+    }
+    .severity-category-ramp {
+      height: 100%;
+    }
+    .severity-gradient-label {
+      position: absolute;
+      top: -26px;
+      transform: translateX(-50%);
+      cursor: ew-resize;
+      font-size: 0.72rem;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .severity-gradient-label input {
+      width: 82px;
+      padding: 3px 4px;
+      border: 1px solid #bbb;
+      border-radius: 3px;
+      font-size: 0.72rem;
+      text-align: center;
+    }
+    .severity-drag-handle {
+      display: block;
+      height: 7px;
+      margin: 2px auto 0;
+      cursor: ew-resize;
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.35);
+    }
+    .severity-marker-line {
+      position: absolute;
+      top: 26px;
+      left: 50%;
+      width: 2px;
+      height: 29px;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      pointer-events: none;
+    }
+    .severity-add-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .severity-add-row .text-input {
+      margin-bottom: 0;
+      flex: 1;
+    }
     @media (max-width: 620px) {
       .category-style-item {
         grid-template-columns: 1fr;
@@ -1186,6 +1259,10 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .map-legend .legend-category-item {
+      margin-left: 14px;
+      font-size: 0.78rem;
+    }
     .map-legend .legend-checkbox-label {
       display: inline-flex;
       align-items: center;
@@ -1444,7 +1521,7 @@
   <details class="toolbar-menu">
     <summary class="toolbar-btn toolbar-menu-trigger" title="Open map actions"><i class="fa-solid fa-bars"></i> Map Actions</summary>
     <div class="toolbar-menu-content">
-      <button class="toolbar-btn" id="btn-change-sheet" title="Change / Manage Sheets"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
+      <button type="button" class="toolbar-btn" id="btn-change-sheet" title="Change / Manage Sheets"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
       <button class="toolbar-btn" id="btn-clear-features" title="Remove all custom features from the map"><i class="fa-solid fa-trash-can"></i> Clear Custom Features</button>
       <button class="toolbar-btn" id="btn-custom-features"><i class="fa-solid fa-draw-polygon"></i> Custom Features</button>
       <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
@@ -2779,12 +2856,16 @@ const ALL_FA_ICONS = [
         address: 0,
         status: 1,
         label: 2,
-        category: null
+        category: null,
+        severity: null
       },
       headers: null,
       icon: ICON_OPTIONS[idx],
       color: COLOR_PALETTE[colorIdx],
-      categoryOptions: []
+      categoryOptions: [],
+      visible: true,
+      severityEnabled: false,
+      severityLevels: []
     };
     sheetIdCounter++;
     return sheet;
@@ -2802,7 +2883,8 @@ const ALL_FA_ICONS = [
           address: Number.isInteger(savedSheet.columnMapping.address) ? savedSheet.columnMapping.address : 0,
           status: Number.isInteger(savedSheet.columnMapping.status) ? savedSheet.columnMapping.status : null,
           label: Number.isInteger(savedSheet.columnMapping.label) ? savedSheet.columnMapping.label : null,
-          category: Number.isInteger(savedSheet.columnMapping.category) ? savedSheet.columnMapping.category : null
+          category: Number.isInteger(savedSheet.columnMapping.category) ? savedSheet.columnMapping.category : null,
+          severity: Number.isInteger(savedSheet.columnMapping.severity) ? savedSheet.columnMapping.severity : null
         };
       }
       if (Array.isArray(savedSheet.categoryOptions)) {
@@ -2814,9 +2896,21 @@ const ALL_FA_ICONS = [
               ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
               : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
             color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
+            ,visible: option.visible !== false
           }))
           .filter(option => option.value);
       }
+      if (Array.isArray(savedSheet.severityLevels)) {
+        restored.severityLevels = savedSheet.severityLevels
+          .filter(level => level && typeof level.value === 'string')
+          .map(level => ({
+            value: level.value.trim(),
+            position: Number.isFinite(Number(level.position)) ? Math.max(0, Math.min(1, Number(level.position))) : 0.5
+          }))
+          .filter(level => level.value);
+      }
+      restored.severityEnabled = savedSheet.severityEnabled === true;
+      restored.visible = savedSheet.visible !== false;
       if (savedSheet.headers && Array.isArray(savedSheet.headers)) restored.headers = savedSheet.headers;
       if (savedSheet.icon && typeof savedSheet.icon.fa === 'string') {
         restored.icon = { fa: savedSheet.icon.fa, label: savedSheet.icon.label || formatIconLabel(savedSheet.icon.fa) };
@@ -2844,7 +2938,10 @@ const ALL_FA_ICONS = [
         headers: sheet.headers,
         icon: sheet.icon,
         color: sheet.color,
-        categoryOptions: sheet.categoryOptions
+        categoryOptions: sheet.categoryOptions,
+        severityEnabled: sheet.severityEnabled === true,
+        severityLevels: sheet.severityLevels
+        ,visible: sheet.visible !== false
       })),
       baseLayer: Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap',
       enabledThirdPartyLayers: Object.entries(thirdPartyLayers)
@@ -3500,6 +3597,8 @@ const ALL_FA_ICONS = [
         icon: sheet.icon,
         color: sheet.color,
         categoryOptions: sheet.categoryOptions,
+        severityEnabled: sheet.severityEnabled === true,
+        severityLevels: sheet.severityLevels,
         rows: Array.isArray(sheet.lastRows) ? sheet.lastRows : []
       }))
     };
@@ -3525,7 +3624,10 @@ const ALL_FA_ICONS = [
       label: value.columnMapping.label === null ? null : Number.isInteger(value.columnMapping.label) ? value.columnMapping.label : 2,
       category: value.columnMapping.category === null || value.columnMapping.category === undefined
         ? null
-        : Number.isInteger(value.columnMapping.category) ? value.columnMapping.category : null
+        : Number.isInteger(value.columnMapping.category) ? value.columnMapping.category : null,
+      severity: value.columnMapping.severity === null || value.columnMapping.severity === undefined
+        ? null
+        : Number.isInteger(value.columnMapping.severity) ? value.columnMapping.severity : null
     };
     if (columnMapping.address < 0 || rows.some(row => !Array.isArray(row))) {
       throw new Error(`Invalid row or address column in sheet ${index + 1}.`);
@@ -3548,9 +3650,17 @@ const ALL_FA_ICONS = [
               ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
               : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
             color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
+            ,visible: option.visible !== false
           }))
           .filter(option => option.value)
         : [],
+      severityEnabled: value.severityEnabled === true,
+      severityLevels: Array.isArray(value.severityLevels)
+        ? value.severityLevels.filter(level => level && typeof level.value === 'string')
+          .map(level => ({ value: level.value.trim(), position: Number.isFinite(Number(level.position)) ? Math.max(0, Math.min(1, Number(level.position))) : 0.5 }))
+          .filter(level => level.value)
+        : [],
+      visible: value.visible !== false,
       importedRows: rows,
       lastRows: rows
     };
@@ -3995,10 +4105,23 @@ const ALL_FA_ICONS = [
       const legendSheetColor = sanitizeLegendColor(sheet.color);
       itemsHtml += `
         <div class="legend-item" title="${escHtml(sheet.name)}">
+          <input type="checkbox" class="legend-layer-toggle" data-sheet-id="${escHtml(sheet.id)}" ${sheet.visible !== false ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
           <span class="legend-icon" style="background-color: ${legendSheetColor};"><i class="${sheet.icon.fa}"></i></span>
           <span class="legend-sheet-name">${escHtml(sheet.name)}</span>
         </div>
       `;
+      if (Array.isArray(sheet.categoryOptions)) {
+        sheet.categoryOptions.forEach(category => {
+          const categoryColor = sanitizeLegendColor(category.color);
+          itemsHtml += `
+            <div class="legend-item legend-category-item" title="${escHtml(sheet.name)}: ${escHtml(category.value)}">
+              <input type="checkbox" class="legend-layer-toggle" data-sheet-id="${escHtml(sheet.id)}" data-category-value="${escHtml(category.value)}" ${category.visible !== false ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
+              <span class="legend-icon" style="background-color: ${categoryColor};"><i class="${category.icon.fa}"></i></span>
+              <span class="legend-sheet-name">${escHtml(category.value)}</span>
+            </div>
+          `;
+        });
+      }
     });
     Object.entries(incidentLayerGroups).forEach(([key, group]) => {
       const category = group._categoryValue || 'Uncategorized';
@@ -4234,11 +4357,12 @@ const ALL_FA_ICONS = [
   }
 
   async function fetchSheetRows(sheet) {
-    if (Array.isArray(sheet.importedRows)) {
+    if (!sheet.rawUrl && Array.isArray(sheet.importedRows) && sheet.importedRows.length > 1) {
       const rows = sheet.importedRows;
       delete sheet.importedRows;
       return rows;
     }
+    if (Array.isArray(sheet.importedRows)) delete sheet.importedRows;
 
     const details = parseGoogleSheetDetails(sheet.rawUrl);
     if (details && isGoogleAuthenticated()) {
@@ -4250,7 +4374,7 @@ const ALL_FA_ICONS = [
       }
     }
 
-    const targetUrl = sheet.csvUrl || toCsvUrl(sheet.rawUrl);
+    const targetUrl = toCsvUrl(sheet.rawUrl) || sheet.csvUrl;
     if (!targetUrl) throw new Error('No valid sheet or CSV URL configured.');
     let text = null;
     try {
@@ -4892,11 +5016,17 @@ const ALL_FA_ICONS = [
     setStatus('Custom features removed.');
   }
 
+  function shouldShowIncident(sheet, categoryValue, isOpen, hasGeo) {
+    if (!hasGeo || (!isOpen && !showClosedIncidents) || sheet.visible === false) return false;
+    const category = getCategoryStyle(sheet, categoryValue);
+    return !category || category.visible !== false;
+  }
+
   function updateClosedMarkersVisibility() {
     Object.values(incidentMarkers).forEach(m => {
-      if (!m._isOpen) {
-        syncIncidentMarkerLayer(m, showClosedIncidents);
-      }
+      const sheet = sheets.find(candidate => candidate.id === m._sheetId);
+      const visible = sheet && shouldShowIncident(sheet, m._categoryValue, m._isOpen, true);
+      syncIncidentMarkerLayer(m, visible);
     });
   }
 
@@ -4908,6 +5038,19 @@ const ALL_FA_ICONS = [
       showClosedIncidents = e.target.checked;
       persistAppState();
       updateClosedMarkersVisibility();
+    }
+    if (e.target && e.target.classList.contains('legend-layer-toggle')) {
+      const sheet = sheets.find(candidate => candidate.id === e.target.dataset.sheetId);
+      if (sheet) {
+        if (e.target.dataset.categoryValue !== undefined) {
+          const category = getCategoryStyle(sheet, e.target.dataset.categoryValue);
+          if (category) category.visible = e.target.checked;
+        } else {
+          sheet.visible = e.target.checked;
+        }
+        persistAppState();
+        updateClosedMarkersVisibility();
+      }
     }
     if (e.target && e.target.dataset.thirdPartyLayer) {
       const layerConfig = thirdPartyLayers[e.target.dataset.thirdPartyLayer];
@@ -4942,6 +5085,7 @@ const ALL_FA_ICONS = [
     const statusCol = sheet.columnMapping.status;
     const labelCol  = sheet.columnMapping.label;
     const categoryCol = sheet.columnMapping.category;
+    const severityCol = sheet.columnMapping.severity;
 
     const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
     let sheetOpen = 0;
@@ -4958,6 +5102,8 @@ const ALL_FA_ICONS = [
       const label     = (labelCol !== null && labelCol >= 0 && row[labelCol]) ? row[labelCol].trim() : '';
       const categoryValue = (categoryCol !== null && categoryCol !== undefined && categoryCol >= 0 &&
         row[categoryCol] !== undefined) ? String(row[categoryCol]).trim() : '';
+      const severityValue = (severityCol !== null && severityCol !== undefined && severityCol >= 0 &&
+        row[severityCol] !== undefined) ? String(row[severityCol]).trim() : '';
       const isOpen    = (statusCol !== null && statusCol >= 0) ? statusRaw !== 'closed' : true;
       if (isOpen) {
         sheetOpen++;
@@ -5000,9 +5146,9 @@ const ALL_FA_ICONS = [
         fuzzyStreet: geo ? geo.fuzzyStreet : null,
         editDist:    geo ? geo.editDist    : null,
       };
-      const incidentStyle = getIncidentStyle(sheet, categoryValue);
+      const incidentStyle = getIncidentStyle(sheet, categoryValue, severityValue);
 
-      const shouldShow = geo && (isOpen || showClosedIncidents);
+      const shouldShow = shouldShowIncident(sheet, categoryValue, isOpen, Boolean(geo));
       const incidentLayerGroup = getIncidentLayerGroup(sheet, categoryValue);
 
       if (incidentMarkers[key]) {
@@ -5010,6 +5156,7 @@ const ALL_FA_ICONS = [
         m._isOpen = isOpen;
         m._sheetId = sheet.id;
         m._categoryValue = categoryValue;
+        m._severityValue = severityValue;
         if (m._incidentLayerGroup !== incidentLayerGroup) {
           if (m._incidentLayerGroup) m._incidentLayerGroup.removeLayer(m);
           m._incidentLayerGroup = incidentLayerGroup;
@@ -5030,6 +5177,7 @@ const ALL_FA_ICONS = [
         marker._isOpen = isOpen;
         marker._sheetId = sheet.id;
         marker._categoryValue = categoryValue;
+        marker._severityValue = severityValue;
         marker._incidentLayerGroup = incidentLayerGroup;
         marker._isOutOfRange = isMoreThanOneDegreeFromPmc(lat, lon);
         syncIncidentMarkerLayer(marker, shouldShow);
@@ -5184,7 +5332,8 @@ const ALL_FA_ICONS = [
         address: Number.isInteger(value.columnMapping.address) ? value.columnMapping.address : 0,
         status: Number.isInteger(value.columnMapping.status) ? value.columnMapping.status : 1,
         label: Number.isInteger(value.columnMapping.label) ? value.columnMapping.label : 2,
-        category: Number.isInteger(value.columnMapping.category) ? value.columnMapping.category : null
+        category: Number.isInteger(value.columnMapping.category) ? value.columnMapping.category : null,
+        severity: Number.isInteger(value.columnMapping.severity) ? value.columnMapping.severity : null
       };
     }
     if (Array.isArray(value && value.headers)) {
@@ -5207,8 +5356,16 @@ const ALL_FA_ICONS = [
             ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
             : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
           color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
+          ,visible: option.visible !== false
         }))
         .filter(option => option.value);
+    }
+    restored.severityEnabled = value && value.severityEnabled === true;
+    if (Array.isArray(value && value.severityLevels)) {
+      restored.severityLevels = value.severityLevels
+        .filter(level => level && typeof level.value === 'string')
+        .map(level => ({ value: level.value.trim(), position: Number.isFinite(Number(level.position)) ? Math.max(0, Math.min(1, Number(level.position))) : 0.5 }))
+        .filter(level => level.value);
     }
     restored.csvUrl = toCsvUrl(restored.rawUrl);
     return restored;
@@ -5482,9 +5639,51 @@ const ALL_FA_ICONS = [
     ) || null;
   }
 
-  function getIncidentStyle(sheet, categoryValue) {
+  function mixHexColors(first, second, amount) {
+    const firstColor = normalizeHexColor(first) || '#ffffff';
+    const secondColor = normalizeHexColor(second) || '#000000';
+    const ratio = Math.max(0, Math.min(1, amount));
+    const channel = function (color, offset) {
+      return parseInt(color.slice(offset, offset + 2), 16);
+    };
+    return '#' + [1, 3, 5].map(function (offset) {
+      return Math.round(channel(firstColor, offset) +
+        (channel(secondColor, offset) - channel(firstColor, offset)) * ratio)
+        .toString(16).padStart(2, '0');
+    }).join('');
+  }
+
+  function severityColor(sheet, severityValue, baseColor) {
+    if (!sheet.severityEnabled || !Array.isArray(sheet.severityLevels)) return null;
+    const level = sheet.severityLevels.find(item =>
+      item.value.toLowerCase() === String(severityValue || '').trim().toLowerCase()
+    );
+    if (!level) return null;
+    const position = Number(level.position);
+    const normalizedPosition = Number.isFinite(position) ? Math.max(0, Math.min(1, position)) : 0.5;
+    // Blend a light tint into the selected color in RGB space to keep midtones clear.
+    return mixHexColors('#ffffff', baseColor || sheet.color,
+      0.18 + (0.82 * normalizedPosition));
+  }
+
+  function getIncidentStyle(sheet, categoryValue, severityValue) {
     const categoryStyle = getCategoryStyle(sheet, categoryValue);
-    return categoryStyle || { icon: sheet.icon, color: sheet.color };
+    if (categoryStyle) {
+      return {
+        icon: categoryStyle.icon,
+        color: severityColor(sheet, severityValue, normalizeHexColor(categoryStyle.color) || categoryStyle.color) ||
+          categoryStyle.color
+      };
+    }
+    return { icon: sheet.icon, color: severityColor(sheet, severityValue) || sheet.color };
+  }
+
+  function refreshSheetMarkerStyles(sheet) {
+    Object.values(incidentMarkers).forEach(marker => {
+      if (marker._sheetId !== sheet.id) return;
+      const style = getIncidentStyle(sheet, marker._categoryValue, marker._severityValue);
+      marker.setIcon(buildDivIcon(marker._isOpen, style.icon.fa, style.color));
+    });
   }
 
   function updateCategoryOptions(sheet, values) {
@@ -5496,7 +5695,8 @@ const ALL_FA_ICONS = [
       return existing || {
         value: trimmedValue,
         icon: ICON_OPTIONS[index % ICON_OPTIONS.length],
-        color: COLOR_PALETTE[index % COLOR_PALETTE.length]
+        color: COLOR_PALETTE[index % COLOR_PALETTE.length],
+        visible: true
       };
     });
   }
@@ -5540,6 +5740,7 @@ const ALL_FA_ICONS = [
       buildColorPicker(colorWrap, option.color, function (newColor) {
         option.color = newColor;
         if (typeof onChange === 'function') onChange();
+        updateLegend();
         buildIconPicker(iconWrap, option.icon, updateCategoryIcon, option.color, { disabled });
       }, { disabled });
 
@@ -5549,6 +5750,70 @@ const ALL_FA_ICONS = [
       list.appendChild(item);
     });
     container.appendChild(list);
+  }
+
+  function renderSeverityGradient(container, sheet, onChange, options = {}) {
+    if (!container) return;
+    container.innerHTML = '';
+    if (!sheet.severityEnabled) return;
+    const levels = Array.isArray(sheet.severityLevels) ? sheet.severityLevels : [];
+    const gradient = document.createElement('div');
+    gradient.className = 'severity-gradient';
+    const categories = Array.isArray(sheet.categoryOptions) && sheet.categoryOptions.length > 0
+      ? sheet.categoryOptions
+      : [{ color: sheet.color }];
+    const gradientHeight = Math.max(29, categories.length * 14);
+    gradient.style.height = `${gradientHeight}px`;
+    categories.forEach(category => {
+      const categoryRamp = document.createElement('div');
+      categoryRamp.className = 'severity-category-ramp';
+      categoryRamp.style.height = `${100 / categories.length}%`;
+      const lowColor = mixHexColors('#ffffff', category.color, 0.18);
+      const highColor = normalizeHexColor(category.color) || '#2c7bb6';
+      categoryRamp.style.background = `linear-gradient(to right, ${lowColor}, ${highColor})`;
+      gradient.appendChild(categoryRamp);
+    });
+    levels.forEach(level => {
+      const label = document.createElement('div');
+      label.className = 'severity-gradient-label';
+      label.style.left = `${level.position * 100}%`;
+      const input = document.createElement('input');
+      input.value = level.value;
+      input.disabled = options.disabled === true;
+      input.addEventListener('change', function () {
+        const value = input.value.trim();
+        if (value) level.value = value;
+        if (typeof onChange === 'function') onChange();
+      });
+      const handle = document.createElement('span');
+      handle.className = 'severity-drag-handle';
+      handle.title = 'Drag to adjust severity';
+      const markerLine = document.createElement('span');
+      markerLine.className = 'severity-marker-line';
+      markerLine.style.height = `${gradientHeight}px`;
+      label.appendChild(input);
+      label.appendChild(handle);
+      label.appendChild(markerLine);
+      if (!options.disabled) {
+        handle.addEventListener('pointerdown', function (event) {
+          event.preventDefault();
+          const move = function (moveEvent) {
+            const rect = gradient.getBoundingClientRect();
+            level.position = Math.max(0, Math.min(1, (moveEvent.clientX - rect.left) / rect.width));
+            label.style.left = `${level.position * 100}%`;
+            if (typeof onChange === 'function') onChange();
+          };
+          const stop = function () {
+            document.removeEventListener('pointermove', move);
+            document.removeEventListener('pointerup', stop);
+          };
+          document.addEventListener('pointermove', move);
+          document.addEventListener('pointerup', stop);
+        });
+      }
+      gradient.appendChild(label);
+    });
+    container.appendChild(gradient);
   }
 
   // ── Sheet Modal UI Rendering ─────────────────────────────────────────────────
@@ -5663,6 +5928,7 @@ const ALL_FA_ICONS = [
     const statusSelect = card ? card.querySelector('.col-status-select') : null;
     const labelSelect = card ? card.querySelector('.col-label-select') : null;
     const categorySelect = card ? card.querySelector('.col-category-select') : null;
+    const severitySelect = card ? card.querySelector('.col-severity-select') : null;
 
     const converted = toCsvUrl(sheet.rawUrl);
     if (!converted) {
@@ -5703,19 +5969,25 @@ const ALL_FA_ICONS = [
           const headers = cleanHeaders(rows[0]);
           if (headers.length > 0) {
             const existingCategoryColumn = sheet.columnMapping && sheet.columnMapping.category;
+            const existingSeverityColumn = sheet.columnMapping && sheet.columnMapping.severity;
             sheet.headers = headers;
             sheet.columnMapping = autoDetectColumns(sheet.headers);
             sheet.columnMapping.category = Number.isInteger(existingCategoryColumn)
               ? existingCategoryColumn
               : null;
+            sheet.columnMapping.severity = Number.isInteger(existingSeverityColumn)
+              ? existingSeverityColumn
+              : null;
             if (addrSelect) populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
             if (statusSelect) populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
             if (labelSelect) populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
             if (categorySelect) populateSelect(categorySelect, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
+            if (severitySelect) populateSelect(severitySelect, sheet.headers, sheet.columnMapping.severity, false, '(Select Severity Column)');
             if (statusEl) statusEl.textContent = `Detected ${sheet.headers.length} columns`;
             if (categorySelect && sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
               inspectCategoryOptions(sheet, card);
             }
+            if (severitySelect && sheet.severityEnabled) inspectSeverityOptions(sheet, card);
             return;
           }
         }
@@ -5785,6 +6057,25 @@ const ALL_FA_ICONS = [
     }
   }
 
+  async function inspectSeverityOptions(sheet, cardEl, fallbackRows) {
+    const card = cardEl || document.querySelector(`.sheet-card[data-sheet-id="${sheet.id}"]`);
+    const severityColumn = sheet.columnMapping && sheet.columnMapping.severity;
+    if (!sheet.severityEnabled || severityColumn === null || severityColumn === undefined) return;
+    let rows = fallbackRows || sheet.lastRows || sheet.importedRows;
+    if (!rows) {
+      try { rows = await fetchSheetRows(sheet); } catch (err) {
+        console.warn(`Could not read severity values for "${sheet.name}":`, err);
+      }
+    }
+    const values = getUniqueColumnValues(rows, severityColumn);
+    const existing = new Map((sheet.severityLevels || []).map(level => [level.value.toLowerCase(), level]));
+    sheet.severityLevels = values.map((value, index) => existing.get(value.toLowerCase()) || {
+      value,
+      position: values.length < 2 ? 0.5 : index / (values.length - 1)
+    });
+    renderSeverityGradient(card && card.querySelector('.severity-gradient-container'), sheet, null, { disabled: mapIsReadOnly });
+  }
+
   function renderSheetCard(sheet) {
     const card = document.createElement('div');
     card.className = 'sheet-card';
@@ -5851,6 +6142,25 @@ const ALL_FA_ICONS = [
         <div class="category-style-container"></div>
       </div>
 
+      <div class="severity-config">
+        <label class="severity-toggle">
+          <input type="checkbox" class="severity-enabled-input" />
+          This sheet has a severity column
+        </label>
+        <div class="severity-config-body hidden">
+          <div class="severity-note">
+            Low severity uses the lightest shade of this sheet color; high severity uses the most saturated shade.
+            Drag labels to position intermediate values, or add values that may appear later.
+          </div>
+          <select class="select-input col-severity-select"></select>
+          <div class="severity-gradient-container"></div>
+          <div class="severity-add-row">
+            <input class="text-input severity-add-input" type="text" placeholder="Add severity value" />
+            <button type="button" class="btn-secondary severity-add-btn">Add</button>
+          </div>
+        </div>
+      </div>
+
       <div class="sheet-styling-grid">
         <div>
           <label class="field-label">Icon</label>
@@ -5872,11 +6182,17 @@ const ALL_FA_ICONS = [
     const statusSelect   = card.querySelector('.col-status-select');
     const labelSelect    = card.querySelector('.col-label-select');
     const categorySelect = card.querySelector('.col-category-select');
+    const severitySelect = card.querySelector('.col-severity-select');
+    const severityEnabledInput = card.querySelector('.severity-enabled-input');
+    const severityBody = card.querySelector('.severity-config-body');
+    const severityGradient = card.querySelector('.severity-gradient-container');
+    const severityAddInput = card.querySelector('.severity-add-input');
+    const severityAddBtn = card.querySelector('.severity-add-btn');
     const iconContainer  = card.querySelector('.sheet-icon-picker-container');
     const colorContainer = card.querySelector('.sheet-color-picker-container');
 
     if (mapIsReadOnly) {
-      [nameInput, urlInput, refreshBtn, removeBtn, addrSelect, statusSelect, labelSelect, categorySelect].forEach(el => {
+      [nameInput, urlInput, refreshBtn, removeBtn, addrSelect, statusSelect, labelSelect, categorySelect, severitySelect, severityEnabledInput, severityAddInput, severityAddBtn].forEach(el => {
         if (el) el.disabled = true;
       });
     }
@@ -5930,6 +6246,10 @@ const ALL_FA_ICONS = [
     populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
     populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
     populateSelect(categorySelect, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
+    populateSelect(severitySelect, sheet.headers, sheet.columnMapping.severity, false, '(Select Severity Column)');
+    severityEnabledInput.checked = sheet.severityEnabled === true;
+    severityBody.classList.toggle('hidden', !severityEnabledInput.checked);
+    renderSeverityGradient(severityGradient, sheet, () => refreshSheetMarkerStyles(sheet), { disabled: mapIsReadOnly });
     renderCategoryStyles(card.querySelector('.category-style-container'), sheet, null, { disabled: mapIsReadOnly });
 
     if (sheet.rawUrl && (!sheet.headers || sheet.headers.length === 0)) {
@@ -5952,6 +6272,27 @@ const ALL_FA_ICONS = [
       sheet.columnMapping.category = val >= 0 ? val : null;
       inspectCategoryOptions(sheet, card);
     });
+    severityEnabledInput.addEventListener('change', function () {
+      sheet.severityEnabled = severityEnabledInput.checked;
+      severityBody.classList.toggle('hidden', !sheet.severityEnabled);
+      if (sheet.severityEnabled) inspectSeverityOptions(sheet, card);
+      renderSeverityGradient(severityGradient, sheet, () => refreshSheetMarkerStyles(sheet), { disabled: mapIsReadOnly });
+    });
+    severitySelect.addEventListener('change', function () {
+      const val = parseInt(severitySelect.value, 10);
+      sheet.columnMapping.severity = val >= 0 ? val : null;
+      if (sheet.severityEnabled) inspectSeverityOptions(sheet, card);
+    });
+    severityAddBtn.addEventListener('click', function () {
+      const value = severityAddInput.value.trim();
+      if (!value || (sheet.severityLevels || []).some(level => level.value.toLowerCase() === value.toLowerCase())) return;
+      const nextPosition = sheet.severityLevels.length
+        ? sheet.severityLevels.length / (sheet.severityLevels.length + 1)
+        : 0;
+      sheet.severityLevels.push({ value, position: nextPosition });
+      severityAddInput.value = '';
+      renderSeverityGradient(severityGradient, sheet, () => refreshSheetMarkerStyles(sheet), { disabled: mapIsReadOnly });
+    });
 
     removeBtn.addEventListener('click', function () {
       if (sheets.length <= 1) return;
@@ -5971,10 +6312,14 @@ const ALL_FA_ICONS = [
       sheet.color = newColor;
       updateBadgePreview();
       buildIconPicker(iconContainer, sheet.icon, handleIconSelect, sheet.color, { disabled: mapIsReadOnly });
+      renderSeverityGradient(severityGradient, sheet, () => refreshSheetMarkerStyles(sheet), { disabled: mapIsReadOnly });
     }, { disabled: mapIsReadOnly });
 
     if (sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
       inspectCategoryOptions(sheet, card, sheet.lastRows || sheet.importedRows);
+    }
+    if (sheet.severityEnabled && sheet.columnMapping.severity !== null && sheet.columnMapping.severity !== undefined) {
+      inspectSeverityOptions(sheet, card, sheet.lastRows || sheet.importedRows);
     }
 
     return card;
@@ -6238,7 +6583,10 @@ const ALL_FA_ICONS = [
 
   // ── Toolbar: Manage Sheets ────────────────────────────────────
 
-  document.getElementById('btn-change-sheet').addEventListener('click', openSheetModal);
+  document.getElementById('btn-change-sheet').addEventListener('click', function (event) {
+    event.preventDefault();
+    openSheetModal();
+  });
 
   // ── Custom feature drawing and management ───────────────────────
 
