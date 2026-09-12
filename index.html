@@ -2012,13 +2012,52 @@ const ALL_FA_ICONS = [
   let mapLayersControlAttached = false;
 
   baseLayers['OpenStreetMap'].addTo(map);
-  mapLayersControl = L.control.layers(baseLayers, thirdPartyOverlayLayers, { position: 'topright', collapsed: false });
+  mapLayersControl = L.control.layers({}, thirdPartyOverlayLayers, { position: 'topright', collapsed: false });
   mapLayersControl.addTo(map);
   mapLayersControlAttached = true;
   if (savedAppState && typeof savedAppState.baseLayer === 'string' && baseLayers[savedAppState.baseLayer]) {
     map.removeLayer(baseLayers['OpenStreetMap']);
     currentBaseLayer = baseLayers[savedAppState.baseLayer];
     currentBaseLayer.addTo(map);
+  }
+  const baseLayerContainer = document.createElement('div');
+  baseLayerContainer.className = 'leaflet-control-layers-base';
+  const baseLayerLabel = document.createElement('label');
+  baseLayerLabel.textContent = 'Basemap';
+  baseLayerLabel.style.display = 'block';
+  baseLayerLabel.style.fontWeight = 'bold';
+  baseLayerLabel.style.marginBottom = '4px';
+
+  const baseLayerSelect = document.createElement('select');
+  baseLayerSelect.setAttribute('aria-label', 'Basemap');
+  baseLayerSelect.style.width = '100%';
+  Object.keys(baseLayers).forEach(function (name) {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    option.selected = baseLayers[name] === currentBaseLayer;
+    baseLayerSelect.appendChild(option);
+  });
+  baseLayerSelect.addEventListener('change', function (e) {
+    const nextBaseLayer = baseLayers[e.target.value];
+    if (!nextBaseLayer || nextBaseLayer === currentBaseLayer) return;
+    if (map.hasLayer(currentBaseLayer)) map.removeLayer(currentBaseLayer);
+    currentBaseLayer = nextBaseLayer;
+    currentBaseLayer.addTo(map);
+    map.fire('baselayerchange', { layer: currentBaseLayer, name: e.target.value });
+  });
+
+  baseLayerContainer.append(baseLayerLabel, baseLayerSelect);
+  mapLayersControl.getContainer().prepend(baseLayerContainer);
+  const overlayContainer = mapLayersControl.getContainer().querySelector('.leaflet-control-layers-overlays');
+  if (overlayContainer) {
+    const thirdPartySeparator = document.createElement('div');
+    thirdPartySeparator.className = 'leaflet-control-layers-separator';
+    const thirdPartyLabel = document.createElement('div');
+    thirdPartyLabel.textContent = 'Third-party layers';
+    thirdPartyLabel.style.fontWeight = 'bold';
+    thirdPartyLabel.style.marginBottom = '4px';
+    overlayContainer.before(thirdPartySeparator, thirdPartyLabel);
   }
   if (savedAppState && savedAppState.mapView &&
       Number.isFinite(savedAppState.mapView.lat) &&
@@ -2496,6 +2535,7 @@ const ALL_FA_ICONS = [
   map.on('overlayremove', function (e) {
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
+      thirdPartyLayers[layerName].activated = false;
       if (thirdPartyLayers[layerName].clearOnDisable) {
         clearThirdPartyLayer(thirdPartyLayers[layerName].layer);
       }
@@ -3960,45 +4000,8 @@ const ALL_FA_ICONS = [
       `;
     });
 
-    const thirdPartyItemsHtml = Object.entries(thirdPartyLayers)
-      .filter(([, config]) => config.activated)
-      .map(([name, config]) => {
-        const id = `toggle-third-party-${config.id}`;
-        const labelId = `legend-third-party-label-${config.id}`;
-        const legendItemsHtml = Array.isArray(config.legendItems) && config.legendItems.length > 0
-          ? `
-            <ul class="legend-subitems" aria-labelledby="${labelId}">
-              ${config.legendItems.map(function (item) {
-                const colorMeaning = item && item.colorName ? ` (${item.colorName})` : '';
-                const legendClassColor = sanitizeLegendColor(item && item.color, '#555555');
-                return `
-                  <li class="legend-subitem">
-                    <span class="legend-color-swatch" style="background-color: ${legendClassColor};" aria-hidden="true"></span>
-                    <span>${escHtml(item.label)} susceptibility class${escHtml(colorMeaning)}</span>
-                  </li>
-                `;
-              }).join('')}
-            </ul>
-          `
-          : '';
-        return `
-          <div class="legend-third-party" title="${escHtml(name)}">
-            <div class="legend-item">
-              <label class="legend-checkbox-label" for="${id}">
-                <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(config.layer) ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
-                <span class="legend-icon" style="background-color: ${sanitizeLegendColor(config.color)};"><i class="${config.icon}"></i></span>
-                <span class="legend-sheet-name" id="${labelId}">${escHtml(name)}</span>
-              </label>
-            </div>
-            ${legendItemsHtml}
-          </div>
-        `;
-      })
-      .join('');
-
     div.innerHTML = `
       <div class="legend-title">Legend</div>
-      ${thirdPartyItemsHtml}
       ${itemsHtml}
       <div class="legend-status-section" style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #ddd;">
         <div class="legend-item">
