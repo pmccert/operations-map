@@ -3108,7 +3108,6 @@ const ALL_FA_ICONS = [
       layers: options.layers || '',
       noWrap: options.noWrap !== false,
       opacity: options.opacity ?? 1,
-      spatialReference: options.spatialReference || '3857',
       tileSize: options.tileSize || 256,
       transparent: options.transparent !== false
     });
@@ -3126,11 +3125,11 @@ const ALL_FA_ICONS = [
           southEastProjected.x,
           northWestProjected.y
         ].join(','),
-        bboxSR: this.options.spatialReference,
+        bboxSR: '3857',
         dpi: '96',
         f: 'image',
         format: this.options.format,
-        imageSR: this.options.spatialReference,
+        imageSR: '3857',
         size: `${tileSize.x},${tileSize.y}`,
         transparent: this.options.transparent ? 'true' : 'false'
       });
