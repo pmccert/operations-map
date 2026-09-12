@@ -3154,11 +3154,7 @@ const ALL_FA_ICONS = [
   }
 
   function clearThirdPartyLayer(layer) {
-    if (typeof layer.clearLayers === 'function') {
-      layer.clearLayers();
-    } else if (layer && typeof layer.remove === 'function') {
-      layer.remove();
-    }
+    if (typeof layer.clearLayers === 'function') layer.clearLayers();
   }
 
   function fireProperty(properties, names) {
