@@ -3174,9 +3174,11 @@ const ALL_FA_ICONS = [
     );
   }
 
-  function canEnableThirdPartyLayer(layerConfig, layerName) {
+  function canEnableThirdPartyLayer(layerConfig, layerName, options = {}) {
     if (layerConfig && layerConfig.requiresWebMercator && !isWebMercatorMap()) {
-      setStatus(`${layerName} needs a standard web basemap. Switch basemaps and try again.`);
+      if (options.notify !== false) {
+        setStatus(`${layerName} needs a standard web basemap. Switch basemaps and try again.`);
+      }
       return false;
     }
     return true;
@@ -6801,7 +6803,7 @@ const ALL_FA_ICONS = [
   savedThirdPartyLayerNames.forEach(function (layerName) {
     const layerConfig = thirdPartyLayers[layerName];
     if (!layerConfig) return;
-    if (!canEnableThirdPartyLayer(layerConfig, layerName)) {
+    if (!canEnableThirdPartyLayer(layerConfig, layerName, { notify: false })) {
       layerConfig.activated = false;
       clearedIncompatibleSavedThirdPartyLayer = true;
       return;
