@@ -3120,7 +3120,7 @@ const ALL_FA_ICONS = [
     const layer = L.tileLayer('', {
       attribution: options.attribution || '',
       format: options.format || 'png32',
-      layers: options.layers || '',
+      layers: options.layers,
       noWrap: options.noWrap !== false,
       opacity: options.opacity ?? 1,
       tileSize: options.tileSize || 256,
@@ -3148,7 +3148,7 @@ const ALL_FA_ICONS = [
         size: `${tileSize.x},${tileSize.y}`,
         transparent: this.options.transparent ? 'true' : 'false'
       });
-      if (this.options.layers) query.set('layers', this.options.layers);
+      if (this.options.layers !== undefined) query.set('layers', this.options.layers);
       return `${sanitizedServiceUrl}/export?${query.toString()}`;
     };
 
