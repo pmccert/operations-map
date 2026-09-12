@@ -1893,6 +1893,7 @@ const ALL_FA_ICONS = [
       id: 'fires',
       layer: L.layerGroup(),
       activated: false,
+      clearOnDisable: true,
       icon: 'fa-solid fa-fire',
       color: '#d35400'
     },
@@ -1900,6 +1901,7 @@ const ALL_FA_ICONS = [
       id: 'adsb',
       layer: L.layerGroup(),
       activated: false,
+      clearOnDisable: true,
       icon: 'fa-solid fa-plane',
       color: '#2980b9'
     },
@@ -2413,7 +2415,9 @@ const ALL_FA_ICONS = [
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
       thirdPartyLayers[layerName].activated = false;
-      clearThirdPartyLayer(thirdPartyLayers[layerName].layer);
+      if (thirdPartyLayers[layerName].clearOnDisable) {
+        clearThirdPartyLayer(thirdPartyLayers[layerName].layer);
+      }
       persistAppState();
       updateLegend();
     }
@@ -2782,7 +2786,10 @@ const ALL_FA_ICONS = [
         const isEnabled = map.hasLayer(config.layer);
         if (shouldEnable && !canEnableThirdPartyLayer(config, name)) {
           config.activated = false;
-          if (isEnabled) map.removeLayer(config.layer);
+          if (isEnabled) {
+            if (config.clearOnDisable) clearThirdPartyLayer(config.layer);
+            map.removeLayer(config.layer);
+          }
           return;
         }
         config.activated = shouldEnable;
@@ -3464,7 +3471,10 @@ const ALL_FA_ICONS = [
       const shouldEnable = enabled.has(name);
       if (shouldEnable && !canEnableThirdPartyLayer(config, name)) {
         config.activated = false;
-        if (map.hasLayer(config.layer)) map.removeLayer(config.layer);
+        if (map.hasLayer(config.layer)) {
+          if (config.clearOnDisable) clearThirdPartyLayer(config.layer);
+          map.removeLayer(config.layer);
+        }
         return;
       }
       config.activated = shouldEnable;
