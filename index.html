@@ -2446,7 +2446,6 @@ const ALL_FA_ICONS = [
   map.on('overlayremove', function (e) {
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
-      thirdPartyLayers[layerName].activated = false;
       if (thirdPartyLayers[layerName].clearOnDisable) {
         clearThirdPartyLayer(thirdPartyLayers[layerName].layer);
       }
