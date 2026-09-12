@@ -3113,10 +3113,10 @@ const ALL_FA_ICONS = [
 
     layer.getTileUrl = function (coords) {
       const tileSize = this.getTileSize();
-      const northWest = this._map.unproject(coords.scaleBy(tileSize), coords.z);
-      const southEast = this._map.unproject(coords.add([1, 1]).scaleBy(tileSize), coords.z);
-      const northWestProjected = L.CRS.EPSG3857.project(northWest);
-      const southEastProjected = L.CRS.EPSG3857.project(southEast);
+      const projectedCrs = L.CRS.EPSG3857;
+      const scale = projectedCrs.scale(coords.z);
+      const northWestProjected = projectedCrs.transformation.untransform(coords.scaleBy(tileSize), scale);
+      const southEastProjected = projectedCrs.transformation.untransform(coords.add([1, 1]).scaleBy(tileSize), scale);
       const query = new URLSearchParams({
         bbox: [
           northWestProjected.x,
