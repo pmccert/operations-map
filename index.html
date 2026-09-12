@@ -3215,8 +3215,13 @@ const ALL_FA_ICONS = [
       const tileSize = this.getTileSize();
       const serviceCrs = L.CRS.EPSG3857;
       const tileZoom = this._getZoomForUrl(coords);
-      const northWest = serviceCrs.pointToLatLng(coords.scaleBy(tileSize), tileZoom);
-      const southEast = serviceCrs.pointToLatLng(coords.add([1, 1]).scaleBy(tileSize), tileZoom);
+      const nativeTileScale = 2 ** (coords.z - tileZoom);
+      const nativeCoords = coords.divideBy(nativeTileScale);
+      const northWest = serviceCrs.pointToLatLng(nativeCoords.scaleBy(tileSize), tileZoom);
+      const southEast = serviceCrs.pointToLatLng(
+        nativeCoords.add([1, 1]).scaleBy(tileSize),
+        tileZoom
+      );
       const northWestProjected = serviceCrs.project(northWest);
       const southEastProjected = serviceCrs.project(southEast);
       const query = new URLSearchParams({
