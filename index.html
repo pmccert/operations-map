@@ -1857,7 +1857,7 @@ const ALL_FA_ICONS = [
 
   // ── Map setup ────────────────────────────────────────────────────────────────
 
-  const map = L.map('map', { maxZoom: 20 }).setView([PMC_LAT, PMC_LNG], 13);
+  const map = L.map('map', { maxZoom: 24 }).setView([PMC_LAT, PMC_LNG], 13);
 
   const baseLayers = {
     'OpenStreetMap': L.tileLayer(
@@ -1972,8 +1972,8 @@ const ALL_FA_ICONS = [
       layer: createWebMercatorArcGisExportLayer('https://gis.conservation.ca.gov/server/rest/services/CGS/MS58_LandslideSusceptibility_Classes/MapServer', {
         attribution: 'Landslide data © California Geological Survey',
         layers: 'show:0',
-        maxZoom: 20,
-        maxNativeZoom: 16,
+        maxZoom: 24,
+        maxNativeZoom: 14,
         opacity: 0.55
       }),
       activated: false,
