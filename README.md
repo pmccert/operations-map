@@ -67,9 +67,10 @@ publicly accessible Google Sheet.
   * Esri World Imagery
   * Esri Clarity
 * **Third-party map layers** — use the top-right layers menu to load known fire
-  incidents from the National Interagency Fire Center and nearby ADS-B aircraft.
-  Enabled third-party layers also appear in the legend, where they can be
-  hidden without affecting the incident sheets.
+  incidents from the National Interagency Fire Center, nearby ADS-B aircraft,
+  and the California Geological Survey landslide risk map. Enabled third-party
+  layers also appear in the legend, where they can be hidden without affecting
+  the incident sheets.
 
 ## Setup
 
@@ -161,9 +162,9 @@ setup dialog or via the toolbar:
       a countdown to the next Drive refresh. Subsequent Drive refreshes keep
       the current local basemap override and map center, but still apply source
       updates to layers and geometries.
-15. Open the top-right layers menu and select **Known Fire Incidents** or
-    **ADS-B Aircraft** to load those live third-party overlays. Use their
-    legend checkboxes to hide an enabled overlay.
+15. Open the top-right layers menu and select **Known Fire Incidents**,
+    **ADS-B Aircraft**, or **Landslide Risk Map** to load those third-party
+    overlays. Use their legend checkboxes to hide an enabled overlay.
 
 ## Disaster preset schema
 

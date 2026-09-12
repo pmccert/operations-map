@@ -1900,6 +1900,16 @@ const ALL_FA_ICONS = [
       activated: false,
       icon: 'fa-solid fa-plane',
       color: '#2980b9'
+    },
+    'Landslide Risk Map': {
+      layer: createArcGisExportLayer('https://gis.conservation.ca.gov/server/rest/services/CGS/MS58_LandslideSusceptibility_Classes/MapServer', {
+        attribution: 'Landslide data © California Geological Survey',
+        layers: 'show:0',
+        opacity: 0.55
+      }),
+      activated: false,
+      icon: 'fa-solid fa-mountain',
+      color: '#8e5a2b'
     }
   };
   const thirdPartyOverlayLayers = Object.fromEntries(
@@ -3090,8 +3100,47 @@ const ALL_FA_ICONS = [
     adsb: `https://api.airplanes.live/v2/point/${PMC_LAT}/${PMC_LNG}/100`
   };
 
+  function createArcGisExportLayer(serviceUrl, options = {}) {
+    const sanitizedServiceUrl = String(serviceUrl).replace(/\/+$/, '');
+    const layer = L.tileLayer('', {
+      attribution: options.attribution || '',
+      format: options.format || 'png32',
+      layers: options.layers || '',
+      opacity: options.opacity ?? 1,
+      tileSize: options.tileSize || 256,
+      transparent: options.transparent !== false
+    });
+
+    layer.getTileUrl = function (coords) {
+      const tileSize = this.getTileSize();
+      const northWest = this._map.unproject(coords.scaleBy(tileSize), coords.z);
+      const southEast = this._map.unproject(coords.add([1, 1]).scaleBy(tileSize), coords.z);
+      const northWestProjected = L.CRS.EPSG3857.project(northWest);
+      const southEastProjected = L.CRS.EPSG3857.project(southEast);
+      const query = new URLSearchParams({
+        bbox: [
+          northWestProjected.x,
+          southEastProjected.y,
+          southEastProjected.x,
+          northWestProjected.y
+        ].join(','),
+        bboxSR: '102100',
+        dpi: '96',
+        f: 'image',
+        format: this.options.format,
+        imageSR: '102100',
+        size: `${tileSize.x},${tileSize.y}`,
+        transparent: this.options.transparent ? 'true' : 'false'
+      });
+      if (this.options.layers) query.set('layers', this.options.layers);
+      return `${sanitizedServiceUrl}/export?${query.toString()}`;
+    };
+
+    return layer;
+  }
+
   function clearThirdPartyLayer(layer) {
-    layer.clearLayers();
+    if (typeof layer.clearLayers === 'function') layer.clearLayers();
   }
 
   function fireProperty(properties, names) {
@@ -3178,6 +3227,8 @@ const ALL_FA_ICONS = [
         await loadFireIncidents();
       } else if (layerName === 'ADS-B Aircraft') {
         await loadAdsbAircraft();
+      } else if (layerName === 'Landslide Risk Map') {
+        thirdPartyLayers[layerName].layer.redraw();
       }
       setStatus(`${layerName} loaded.`);
     } catch (err) {
@@ -3760,8 +3811,7 @@ const ALL_FA_ICONS = [
     const thirdPartyItemsHtml = Object.entries(thirdPartyLayers)
       .filter(([, config]) => config.activated)
       .map(([name, config]) => {
-        const isFireLayer = name === 'Known Fire Incidents';
-        const id = `toggle-third-party-${isFireLayer ? 'fires' : 'adsb'}`;
+        const id = `toggle-third-party-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
         return `
           <div class="legend-item legend-third-party" title="${escHtml(name)}">
             <label class="legend-checkbox-label" for="${id}">
