@@ -109,6 +109,9 @@ The application operates without a dedicated backend server, resolving incident 
   * The map shall provide selectable overlay layers for known fire incidents
     (National Interagency Fire Center data), nearby ADS-B aircraft, and the
     California Geological Survey landslide risk map.
+  * ArcGIS-backed spatial tile overlays shall preserve visibility when users zoom
+    beyond a layer's native tile resolution by displaying the highest available
+    native tiles at higher map zoom levels.
   * Third-party overlays shall load on demand when selected from the layer menu,
     appear as entries in the legend while enabled, and be hideable from that
     legend without changing configured Google Sheet incidents.
@@ -153,6 +156,8 @@ The application operates without a dedicated backend server, resolving incident 
 * **FR-6.1: Interactive Multi-Sheet Map Legend**
   * A persistent legend control shall be positioned in the top-right corner of the map.
   * The legend shall display an entry for every configured sheet showing its custom icon, badge color, and sheet name.
+  * The legend shall include color-class entries for enabled third-party overlays
+    that render multiple risk/susceptibility classes (such as the landslide risk layer).
   * The legend shall automatically update whenever sheets are added, modified, or removed.
 
 * **FR-6.2: Show / Hide Closed Incidents Toggle**

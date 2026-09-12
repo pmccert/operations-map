@@ -1198,12 +1198,42 @@
       margin-right: 2px;
     }
     .map-legend .legend-third-party {
+      margin-top: 5px;
       padding-bottom: 5px;
       border-bottom: 1px solid #ddd;
     }
     .map-legend .legend-third-party:last-child {
       border-bottom: none;
       padding-bottom: 0;
+    }
+    .map-legend .legend-subitems {
+      margin: 4px 0 0 28px;
+      display: grid;
+      gap: 3px;
+      padding: 0;
+      list-style: none;
+    }
+    .map-legend .legend-subitem {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444;
+      line-height: 1.2;
+    }
+    .map-legend .legend-color-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7px;
+      font-weight: 700;
+      color: rgba(0, 0, 0, 0.7);
+      letter-spacing: -0.2px;
     }
   </style>
 </head>
@@ -1942,11 +1972,20 @@ const ALL_FA_ICONS = [
       layer: createWebMercatorArcGisExportLayer('https://gis.conservation.ca.gov/server/rest/services/CGS/MS58_LandslideSusceptibility_Classes/MapServer', {
         attribution: 'Landslide data © California Geological Survey',
         layers: 'show:0',
+        maxZoom: 20,
+        maxNativeZoom: 16,
         opacity: 0.55
       }),
       activated: false,
       icon: 'fa-solid fa-mountain',
       color: '#8e5a2b',
+      legendItems: [
+        { label: 'Very Low', color: '#1a9850', colorName: 'green' },
+        { label: 'Low', color: '#91cf60', colorName: 'light green' },
+        { label: 'Moderate', color: '#fee08b', colorName: 'yellow' },
+        { label: 'High', color: '#fc8d59', colorName: 'orange' },
+        { label: 'Very High', color: '#d73027', colorName: 'red' }
+      ],
       requiresWebMercator: true
     }
   };
@@ -3162,6 +3201,8 @@ const ALL_FA_ICONS = [
       attribution: options.attribution || '',
       format: options.format || 'png32',
       layers: options.layers,
+      maxZoom: Number.isFinite(options.maxZoom) ? options.maxZoom : 20,
+      maxNativeZoom: Number.isFinite(options.maxNativeZoom) ? options.maxNativeZoom : undefined,
       noWrap: options.noWrap !== false,
       opacity: options.opacity ?? 1,
       tileSize: options.tileSize || 256,
@@ -3861,9 +3902,10 @@ const ALL_FA_ICONS = [
 
     let itemsHtml = '';
     sheets.forEach(sheet => {
+      const legendSheetColor = sanitizeLegendColor(sheet.color);
       itemsHtml += `
         <div class="legend-item" title="${escHtml(sheet.name)}">
-          <span class="legend-icon" style="background-color: ${sheet.color};"><i class="${sheet.icon.fa}"></i></span>
+          <span class="legend-icon" style="background-color: ${legendSheetColor};"><i class="${sheet.icon.fa}"></i></span>
           <span class="legend-sheet-name">${escHtml(sheet.name)}</span>
         </div>
       `;
@@ -3873,13 +3915,33 @@ const ALL_FA_ICONS = [
       .filter(([, config]) => config.activated)
       .map(([name, config]) => {
         const id = `toggle-third-party-${config.id}`;
+        const labelId = `legend-third-party-label-${config.id}`;
+        const legendItemsHtml = Array.isArray(config.legendItems) && config.legendItems.length > 0
+          ? `
+            <ul class="legend-subitems" aria-labelledby="${labelId}">
+              ${config.legendItems.map(function (item) {
+                const colorMeaning = item && item.colorName ? ` (${item.colorName})` : '';
+                const legendClassColor = sanitizeLegendColor(item && item.color, '#555555');
+                return `
+                  <li class="legend-subitem">
+                    <span class="legend-color-swatch" style="background-color: ${legendClassColor};" aria-hidden="true"></span>
+                    <span>${escHtml(item.label)} susceptibility class${escHtml(colorMeaning)}</span>
+                  </li>
+                `;
+              }).join('')}
+            </ul>
+          `
+          : '';
         return `
-          <div class="legend-item legend-third-party" title="${escHtml(name)}">
-            <label class="legend-checkbox-label" for="${id}">
-              <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(config.layer) ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
-              <span class="legend-icon" style="background-color: ${config.color};"><i class="${config.icon}"></i></span>
-              <span class="legend-sheet-name">${escHtml(name)}</span>
-            </label>
+          <div class="legend-third-party" title="${escHtml(name)}">
+            <div class="legend-item">
+              <label class="legend-checkbox-label" for="${id}">
+                <input type="checkbox" id="${id}" data-third-party-layer="${escHtml(name)}" ${map.hasLayer(config.layer) ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
+                <span class="legend-icon" style="background-color: ${sanitizeLegendColor(config.color)};"><i class="${config.icon}"></i></span>
+                <span class="legend-sheet-name" id="${labelId}">${escHtml(name)}</span>
+              </label>
+            </div>
+            ${legendItemsHtml}
           </div>
         `;
       })
@@ -4605,6 +4667,13 @@ const ALL_FA_ICONS = [
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  function sanitizeLegendColor(color, fallback = '#7f8c8d') {
+    const normalized = String(color || '').trim();
+    return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(normalized)
+      ? normalized
+      : fallback;
   }
 
   function renderCustomFeature(feature) {
