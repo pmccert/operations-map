@@ -3227,8 +3227,6 @@ const ALL_FA_ICONS = [
         await loadFireIncidents();
       } else if (layerName === 'ADS-B Aircraft') {
         await loadAdsbAircraft();
-      } else if (layerName === 'Landslide Risk Map') {
-        thirdPartyLayers[layerName].layer.redraw();
       }
       setStatus(`${layerName} loaded.`);
     } catch (err) {
