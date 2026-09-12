@@ -3178,7 +3178,7 @@ const ALL_FA_ICONS = [
   function canEnableThirdPartyLayer(layerConfig, layerName, options = {}) {
     if (layerConfig && layerConfig.requiresWebMercator && !isWebMercatorMap()) {
       if (options.notify !== false) {
-        setStatus(`${layerName} needs a standard web basemap. Switch basemaps and try again.`);
+        setStatus(`${layerName} needs a Web Mercator basemap. Switch to OpenStreetMap, Esri, or another web basemap and try again.`);
       }
       return false;
     }
