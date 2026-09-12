@@ -3202,7 +3202,9 @@ const ALL_FA_ICONS = [
       format: options.format || 'png32',
       layers: options.layers,
       maxZoom: Number.isFinite(options.maxZoom) ? options.maxZoom : 20,
-      maxNativeZoom: Number.isFinite(options.maxNativeZoom) ? options.maxNativeZoom : undefined,
+      maxNativeZoom: Number.isFinite(options.maxNativeZoom)
+        ? options.maxNativeZoom
+        : (Number.isFinite(options.maxZoom) ? options.maxZoom : 20),
       noWrap: options.noWrap !== false,
       opacity: options.opacity ?? 1,
       tileSize: options.tileSize || 256,
