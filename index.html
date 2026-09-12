@@ -2394,6 +2394,13 @@ const ALL_FA_ICONS = [
   map.on('overlayadd', function (e) {
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
+      if (!canEnableThirdPartyLayer(layerName)) {
+        thirdPartyLayers[layerName].activated = false;
+        map.removeLayer(e.layer);
+        persistAppState();
+        updateLegend();
+        return;
+      }
       thirdPartyLayers[layerName].activated = true;
       persistAppState();
       updateLegend();
@@ -2771,6 +2778,11 @@ const ALL_FA_ICONS = [
       Object.entries(thirdPartyLayers).forEach(([name, config]) => {
         const shouldEnable = enabledLayerNames.has(name);
         const isEnabled = map.hasLayer(config.layer);
+        if (shouldEnable && !canEnableThirdPartyLayer(name)) {
+          config.activated = false;
+          if (isEnabled) map.removeLayer(config.layer);
+          return;
+        }
         config.activated = shouldEnable;
         if (shouldEnable && !isEnabled) {
           map.addLayer(config.layer);
@@ -3116,16 +3128,6 @@ const ALL_FA_ICONS = [
     });
 
     layer.getTileUrl = function (coords) {
-      const mapCrs = this._map && this._map.options ? this._map.options.crs : null;
-      const isWebMercator = Boolean(
-        mapCrs &&
-        (
-          mapCrs === L.CRS.EPSG3857 ||
-          mapCrs.code === 'EPSG:3857' ||
-          mapCrs.projection === L.Projection.SphericalMercator
-        )
-      );
-      if (!isWebMercator) return 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
       const tileSize = this.getTileSize();
       const serviceCrs = L.CRS.EPSG3857;
       const bounds = this._tileCoordsToBounds(coords);
@@ -3155,6 +3157,26 @@ const ALL_FA_ICONS = [
 
   function clearThirdPartyLayer(layer) {
     if (typeof layer.clearLayers === 'function') layer.clearLayers();
+  }
+
+  function isWebMercatorMap() {
+    const crs = map && map.options ? map.options.crs : null;
+    return Boolean(
+      crs &&
+      (
+        crs === L.CRS.EPSG3857 ||
+        crs.code === 'EPSG:3857' ||
+        crs.projection === L.Projection.SphericalMercator
+      )
+    );
+  }
+
+  function canEnableThirdPartyLayer(layerName) {
+    if (layerName === 'Landslide Risk Map' && !isWebMercatorMap()) {
+      setStatus('Landslide Risk Map requires an EPSG:3857 map.');
+      return false;
+    }
+    return true;
   }
 
   function fireProperty(properties, names) {
@@ -3434,6 +3456,11 @@ const ALL_FA_ICONS = [
     const enabled = Array.isArray(enabledLayerNames) ? new Set(enabledLayerNames) : new Set();
     Object.entries(thirdPartyLayers).forEach(([name, config]) => {
       const shouldEnable = enabled.has(name);
+      if (shouldEnable && !canEnableThirdPartyLayer(name)) {
+        config.activated = false;
+        if (map.hasLayer(config.layer)) map.removeLayer(config.layer);
+        return;
+      }
       config.activated = shouldEnable;
       if (shouldEnable && !map.hasLayer(config.layer)) {
         map.addLayer(config.layer);
@@ -6769,6 +6796,7 @@ const ALL_FA_ICONS = [
   savedThirdPartyLayerNames.forEach(function (layerName) {
     const layerConfig = thirdPartyLayers[layerName];
     if (!layerConfig) return;
+    if (!canEnableThirdPartyLayer(layerName)) return;
     layerConfig.activated = true;
     map.addLayer(layerConfig.layer);
     loadThirdPartyLayer(layerName);
