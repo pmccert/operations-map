@@ -3133,9 +3133,10 @@ const ALL_FA_ICONS = [
     layer.getTileUrl = function (coords) {
       const tileSize = this.getTileSize();
       const serviceCrs = L.CRS.EPSG3857;
-      const bounds = this._tileCoordsToBounds(coords);
-      const northWestProjected = serviceCrs.project(bounds.getNorthWest());
-      const southEastProjected = serviceCrs.project(bounds.getSouthEast());
+      const northWest = serviceCrs.pointToLatLng(coords.scaleBy(tileSize), coords.z);
+      const southEast = serviceCrs.pointToLatLng(coords.add([1, 1]).scaleBy(tileSize), coords.z);
+      const northWestProjected = serviceCrs.project(northWest);
+      const southEastProjected = serviceCrs.project(southEast);
       const query = new URLSearchParams({
         bbox: [
           northWestProjected.x,
