@@ -1890,18 +1890,21 @@ const ALL_FA_ICONS = [
 
   const thirdPartyLayers = {
     'Known Fire Incidents': {
+      id: 'fires',
       layer: L.layerGroup(),
       activated: false,
       icon: 'fa-solid fa-fire',
       color: '#d35400'
     },
     'ADS-B Aircraft': {
+      id: 'adsb',
       layer: L.layerGroup(),
       activated: false,
       icon: 'fa-solid fa-plane',
       color: '#2980b9'
     },
     'Landslide Risk Map': {
+      id: 'landslide-risk',
       layer: createWebMercatorArcGisExportLayer('https://gis.conservation.ca.gov/server/rest/services/CGS/MS58_LandslideSusceptibility_Classes/MapServer', {
         attribution: 'Landslide data © California Geological Survey',
         layers: 'show:0',
@@ -3113,9 +3116,7 @@ const ALL_FA_ICONS = [
     });
 
     layer.getTileUrl = function (coords) {
-      if (!this._map || this._map.options.crs !== L.CRS.EPSG3857) {
-        throw new Error('ArcGIS export layers require an EPSG:3857 map CRS.');
-      }
+      if (!this._map || this._map.options.crs !== L.CRS.EPSG3857) return '';
       const tileSize = this.getTileSize();
       const serviceCrs = L.CRS.EPSG3857;
       const bounds = this._tileCoordsToBounds(coords);
@@ -3144,7 +3145,11 @@ const ALL_FA_ICONS = [
   }
 
   function clearThirdPartyLayer(layer) {
-    if (typeof layer.clearLayers === 'function') layer.clearLayers();
+    if (typeof layer.clearLayers === 'function') {
+      layer.clearLayers();
+    } else if (layer && typeof layer.remove === 'function') {
+      layer.remove();
+    }
   }
 
   function fireProperty(properties, names) {
@@ -3813,7 +3818,7 @@ const ALL_FA_ICONS = [
     const thirdPartyItemsHtml = Object.entries(thirdPartyLayers)
       .filter(([, config]) => config.activated)
       .map(([name, config]) => {
-        const id = `toggle-third-party-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+        const id = `toggle-third-party-${config.id}`;
         return `
           <div class="legend-item legend-third-party" title="${escHtml(name)}">
             <label class="legend-checkbox-label" for="${id}">
