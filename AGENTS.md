@@ -28,6 +28,8 @@ requirements explicitly change.
 
 - Extend existing state, rendering, persistence, and polling flows before
   creating parallel ones.
+- When adding a map layer, include its enabled state in the saved runtime state
+  so it is restored after a page reload.
 - Keep pure transformations separate from DOM and network effects where
   practical; this makes behavior easier to test and reason about.
 - Give each concept one source of truth. Avoid duplicated preset definitions,

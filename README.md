@@ -148,6 +148,8 @@ setup dialog or via the toolbar:
 13. Use **Save Map File** to export the current configuration and loaded data. Use
     **Load Map File** in another browser to restore it; the imported snapshot is
     displayed first and then normal sheet refresh resumes.
+    The current map settings are also remembered in this browser across page
+    reloads.
 14. To collaborate through Google Drive:
     * Click **Create Shared Map** to create a map-state JSON file in your Drive, or
       **Open Shared Map** to open an existing Drive file by file ID/URL.
