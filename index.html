@@ -1430,6 +1430,13 @@
       margin-left: 14px;
       font-size: 0.78rem;
     }
+    .map-legend .legend-category-mappings {
+      margin: 2px 0 0 56px;
+    }
+    .map-legend .legend-category-item .legend-sheet-name {
+      flex: 1;
+      min-width: 0;
+    }
     .map-legend .legend-checkbox-label {
       display: inline-flex;
       align-items: center;
@@ -1489,9 +1496,21 @@
       background: #fff;
       color: #555;
       cursor: pointer;
-      font-size: 0.68rem;
-      padding: 2px 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 2px;
       white-space: nowrap;
+    }
+    .map-legend .legend-palette-icon {
+      font-size: 0.82rem;
+    }
+    .map-legend .legend-palette-icon-outline {
+      color: transparent;
+      -webkit-text-fill-color: transparent;
+      -webkit-text-stroke: 1px #555;
     }
     .map-legend .legend-ramp-toggle:hover {
       background: #f1f1f1;
@@ -5252,6 +5271,7 @@ const ALL_FA_ICONS = [
   legendControl.addTo(map);
 
   const hiddenThirdPartyRamps = new Set();
+  const hiddenCategoryMappings = new Set();
 
   /**
    * Renders the map legend from the current incident and third-party layer state.
@@ -5284,15 +5304,40 @@ const ALL_FA_ICONS = [
         </div>
       `;
       if (sheet.categoryEnabled === true && Array.isArray(sheet.categoryOptions)) {
-        sheet.categoryOptions.forEach(category => {
+        sheet.categoryOptions.forEach((category, categoryIndex) => {
           const categoryColor = sanitizeLegendColor(category.color);
+          const hasMappings = Array.isArray(category.colorMappings) && category.colorMappings.length > 0;
+          const mappingKey = `${sheet.id}__${category.value.toLowerCase()}`;
+          const mappingRampId = `legend-category-ramp-${sheet.id}-${categoryIndex}`;
+          const rampIsHidden = hiddenCategoryMappings.has(mappingKey);
+          const mappingToggleHtml = hasMappings
+            ? `
+              <button type="button" class="legend-ramp-toggle" data-ramp-id="${escHtml(mappingRampId)}" data-category-ramp-key="${escHtml(mappingKey)}" title="${rampIsHidden ? 'Show colors' : 'Hide colors'}" aria-label="${rampIsHidden ? 'Show colors' : 'Hide colors'}" aria-controls="${escHtml(mappingRampId)}" aria-expanded="${!rampIsHidden}">
+                <i class="fa-solid fa-palette legend-palette-icon${rampIsHidden ? ' legend-palette-icon-outline' : ''}" aria-hidden="true"></i>
+              </button>
+            `
+            : '';
           itemsHtml += `
             <div class="legend-item legend-category-item" title="${escHtml(sheet.name)}: ${escHtml(category.value)}">
               <input type="checkbox" class="legend-layer-toggle" data-sheet-id="${escHtml(sheet.id)}" data-category-value="${escHtml(category.value)}" ${category.visible !== false ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
               <span class="legend-icon" style="background-color: ${categoryColor};"><i class="${category.icon.fa}"></i></span>
               <span class="legend-sheet-name">${escHtml(category.value)}</span>
+              ${mappingToggleHtml}
             </div>
           `;
+          if (hasMappings) {
+            const mappingItemsHtml = category.colorMappings.map(mapping => `
+              <li class="legend-subitem">
+                <span class="legend-color-swatch" style="background-color: ${sanitizeLegendColor(mapping.color)};"></span>
+                <span>${escHtml(mapping.value)}</span>
+              </li>
+            `).join('');
+            itemsHtml += `
+              <ul id="${escHtml(mappingRampId)}" class="legend-subitems legend-category-mappings${rampIsHidden ? ' legend-ramp-hidden' : ''}" aria-label="${escHtml(category.value)} mapped colors">
+                ${mappingItemsHtml}
+              </ul>
+            `;
+          }
         });
       }
     });
@@ -5313,8 +5358,8 @@ const ALL_FA_ICONS = [
             <input type="checkbox" class="legend-layer-toggle" data-third-party-layer="${escHtml(layerName)}" checked ${mapIsReadOnly ? 'disabled' : ''} />
             <span class="legend-icon" style="background-color: ${sanitizeLegendColor(config.color)};"><i class="${escHtml(config.icon)}"></i></span>
             <span class="legend-sheet-name">${escHtml(layerName)}</span>
-            <button type="button" class="legend-ramp-toggle" data-ramp-id="${escHtml(config.id)}" aria-controls="${rampId}" aria-expanded="${!rampIsHidden}">
-              ${rampIsHidden ? 'Show colors' : 'Hide colors'}
+            <button type="button" class="legend-ramp-toggle" data-ramp-id="${escHtml(config.id)}" title="${rampIsHidden ? 'Show colors' : 'Hide colors'}" aria-label="${rampIsHidden ? 'Show colors' : 'Hide colors'}" aria-controls="${rampId}" aria-expanded="${!rampIsHidden}">
+              <i class="fa-solid fa-palette legend-palette-icon${rampIsHidden ? ' legend-palette-icon-outline' : ''}" aria-hidden="true"></i>
             </button>
           </div>
           <ul id="${rampId}" class="legend-subitems${rampIsHidden ? ' legend-ramp-hidden' : ''}">
@@ -6558,6 +6603,51 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * Ensure every category value present in loaded rows has a style entry.
+   *
+   * @param {object} sheet Sheet whose category configuration should be extended.
+   * @param {Array<Array<*>>} rows Header row followed by sheet data rows.
+   * @returns {boolean} Whether at least one category style entry was added.
+   * @pre Category styling is enabled and the sheet has a valid category column.
+   * @post Existing category styles are preserved and observed values receive
+   *       deterministic default icon/color styles when not already configured.
+   * @sideEffects Updates `sheet.categoryOptions`.
+   */
+  function ensureCategoryOptionsFromRows(sheet, rows) {
+    if (!sheet || sheet.categoryEnabled !== true ||
+        !Number.isInteger(sheet.columnMapping && sheet.columnMapping.category)) {
+      return false;
+    }
+    const observedValues = getUniqueColumnValues(rows, sheet.columnMapping.category);
+    if (observedValues.length === 0) return false;
+
+    const categoryOptions = Array.isArray(sheet.categoryOptions)
+      ? sheet.categoryOptions
+      : [];
+    const knownValues = new Set(categoryOptions.map(option => String(option.value || '').toLowerCase()));
+    let added = false;
+    observedValues.forEach(value => {
+      const normalizedValue = value.toLowerCase();
+      if (knownValues.has(normalizedValue)) return;
+      const optionIndex = categoryOptions.length;
+      categoryOptions.push({
+        value,
+        icon: ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
+        color: COLOR_PALETTE[optionIndex % COLOR_PALETTE.length],
+        visible: true,
+        colorMappingColumn: null,
+        colorMappings: [],
+        colorMappingScheme: 'monochromatic',
+        colorMappingBaseColor: COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
+      });
+      knownValues.add(normalizedValue);
+      added = true;
+    });
+    sheet.categoryOptions = categoryOptions;
+    return added;
+  }
+
   document.addEventListener('change', function (e) {
     if (mapIsReadOnly && (e.target?.id === 'toggle-closed-incidents' || e.target?.dataset?.thirdPartyLayer)) {
       return;
@@ -6607,10 +6697,19 @@ const ALL_FA_ICONS = [
     if (!toggle) return;
     const rampId = toggle.dataset.rampId;
     const ramp = document.getElementById(`legend-ramp-${rampId}`);
-    if (!ramp) return;
-    const isHidden = ramp.classList.toggle('legend-ramp-hidden');
-    hiddenThirdPartyRamps[isHidden ? 'add' : 'delete'](rampId);
-    toggle.textContent = isHidden ? 'Show colors' : 'Hide colors';
+    const targetRamp = ramp || document.getElementById(rampId);
+    if (!targetRamp) return;
+    const isHidden = targetRamp.classList.toggle('legend-ramp-hidden');
+    const categoryRampKey = toggle.dataset.categoryRampKey;
+    if (categoryRampKey) {
+      hiddenCategoryMappings[isHidden ? 'add' : 'delete'](categoryRampKey);
+    } else {
+      hiddenThirdPartyRamps[isHidden ? 'add' : 'delete'](rampId);
+    }
+    const actionLabel = isHidden ? 'Show colors' : 'Hide colors';
+    toggle.innerHTML = `<i class="fa-solid fa-palette legend-palette-icon${isHidden ? ' legend-palette-icon-outline' : ''}" aria-hidden="true"></i>`;
+    toggle.title = actionLabel;
+    toggle.setAttribute('aria-label', actionLabel);
     toggle.setAttribute('aria-expanded', String(!isHidden));
   });
 
@@ -6628,6 +6727,7 @@ const ALL_FA_ICONS = [
     if (rows.length > 0 && (!sheet.headers || sheet.headers.length !== rows[0].length)) {
       sheet.headers = cleanHeaders(rows[0]);
     }
+    ensureCategoryOptionsFromRows(sheet, rows);
 
     const addrCol   = sheet.columnMapping.address ?? 0;
     const statusCol = sheet.columnMapping.status;
@@ -6751,6 +6851,7 @@ const ALL_FA_ICONS = [
       }
     }
 
+    updateLegend();
     updateMapAlerts();
     return {
       open: sheetOpen,
@@ -8268,6 +8369,7 @@ const ALL_FA_ICONS = [
       sheet.categoryOptions = [];
       renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
       if (statusEl) statusEl.textContent = '';
+      updateLegend();
       return;
     }
 
@@ -8301,6 +8403,7 @@ const ALL_FA_ICONS = [
 
     updateCategoryOptions(sheet, values);
     renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
+    updateLegend();
     if (statusEl) {
       statusEl.textContent = values.length > 0
         ? `${values.length} option${values.length === 1 ? '' : 's'} found`

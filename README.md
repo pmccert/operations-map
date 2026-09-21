@@ -57,8 +57,10 @@ publicly accessible Google Sheet.
   closed status values are rendered faded in that sheet's chosen closed colour
   (grey by default); open incidents display in the sheet's chosen colour. An interactive
   legend on the map displays entries for every configured sheet with its icon and
-  color, shows each sheet's configured closed color, and includes a checkbox to
-  show or hide closed incidents.
+  color, includes category entries found in the loaded rows with their assigned
+  colors and any configured per-category value color mappings. Mapping colors can
+  be collapsed or expanded independently. The legend shows each sheet's configured
+  closed color and includes a checkbox to show or hide closed incidents.
 * **Customizable icon & color per sheet** — choose from preset Font Awesome vector icons
   (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin, star) or browse/search the full Font Awesome icon library in the icon picker dialog, and pick from a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Manage Sheets**.
   Closed incidents keep the sheet's selected icon, with an independently configurable
