@@ -1835,7 +1835,8 @@
     </div>
     <div class="commit-info-details">
       <div>Commit: <a href="https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/11b0c42" target="_blank" rel="noopener noreferrer">11b0c42</a></div>
-      <div>Timestamp: <span id="commit-date">2026-09-04 21:20:49 -0700</span></div>
+      <div>Commit timestamp: <time id="commit-date">injected during deployment</time></div>
+      <div>Built: <time id="build-date">injected during deployment</time> (<span id="build-age">calculating age...</span>)</div>
       <div>Website: <a href="https://pmccert.com" target="_blank" rel="noopener noreferrer">pmccert.com</a></div>
     </div>
     <button type="button" id="commit-info-done" class="btn-secondary">Close</button>
@@ -2514,6 +2515,8 @@ const ALL_FA_ICONS = [
   const commitInfoDialog = commitInfoModal ? commitInfoModal.querySelector('.modal-box') : null;
   const commitInfoCloseBtn = document.getElementById('commit-info-close');
   const commitInfoDoneBtn = document.getElementById('commit-info-done');
+  const buildDate = document.getElementById('build-date');
+  const buildAge = document.getElementById('build-age');
   const sharedMapPublicModal = document.getElementById('shared-map-public-modal');
   const sharedMapPublicDialog = document.getElementById('shared-map-public-dialog');
   const sharedMapPublicCloseBtn = document.getElementById('shared-map-public-close');
@@ -2530,6 +2533,38 @@ const ALL_FA_ICONS = [
   const closeCommitInfoModal = function () {
     closeManagedModal(commitInfoModal);
   };
+
+  /**
+   * format build age.
+   *
+   * @pre buildDate contains a parseable timestamp and buildAge is a rendered element.
+   * @post Displays the elapsed build age using minutes, hours, or days, never seconds.
+   * @sideEffects Updates the build age text in the credits dialog.
+   * @throws {Error} Does not throw; invalid timestamps are reported in the dialog.
+   */
+  function formatBuildAge() {
+    if (!buildDate || !buildAge) return;
+    const builtAt = Date.parse(buildDate.textContent);
+    if (!Number.isFinite(builtAt)) {
+      buildAge.textContent = 'unavailable';
+      return;
+    }
+    const elapsedMinutes = Math.max(0, Math.floor((Date.now() - builtAt) / 60000));
+    if (elapsedMinutes < 60) {
+      buildAge.textContent = `${elapsedMinutes} minute${elapsedMinutes === 1 ? '' : 's'} ago`;
+      return;
+    }
+    const elapsedHours = Math.floor(elapsedMinutes / 60);
+    if (elapsedHours < 24) {
+      buildAge.textContent = `${elapsedHours} hour${elapsedHours === 1 ? '' : 's'} ago`;
+      return;
+    }
+    const elapsedDays = Math.floor(elapsedHours / 24);
+    buildAge.textContent = `${elapsedDays} day${elapsedDays === 1 ? '' : 's'} ago`;
+  }
+
+  formatBuildAge();
+  window.setInterval(formatBuildAge, 60000);
 
   /**
    * is modal visible.
