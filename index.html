@@ -1299,7 +1299,6 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     }
     .incident-marker-icon.closed {
-      background-color: #7f8c8d !important;
       opacity: 0.55;
       box-shadow: 0 1px 3px rgba(0,0,0,0.25);
     }
@@ -3408,6 +3407,28 @@ const ALL_FA_ICONS = [
 
   let sheetIdCounter = 1;
   /**
+   * normalize closed status values.
+   *
+   * @param {string[]|string|undefined} value Status values configured as closed, or a comma/newline-separated string.
+   * @returns {string[]} Unique, trimmed, lower-case status values; legacy or blank configurations default to `closed`.
+   * @sideEffects None.
+   */
+  function normalizeClosedStatusValues(value) {
+    const values = Array.isArray(value)
+      ? value
+      : typeof value === 'string'
+        ? value.split(/[,\n]/)
+        : ['closed'];
+    const normalized = Array.from(new Set(
+      values
+        .filter(status => typeof status === 'string')
+        .map(status => status.trim().toLowerCase())
+        .filter(Boolean)
+    ));
+    return normalized.length > 0 ? normalized : ['closed'];
+  }
+
+  /**
    * create sheet.
    *
    * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
@@ -3431,6 +3452,8 @@ const ALL_FA_ICONS = [
         category: null,
         severity: null
       },
+      closedStatusValues: ['closed'],
+      closedColor: '#7F8C8D',
       headers: null,
       icon: ICON_OPTIONS[idx],
       color: COLOR_PALETTE[colorIdx],
@@ -3460,6 +3483,8 @@ const ALL_FA_ICONS = [
           severity: Number.isInteger(savedSheet.columnMapping.severity) ? savedSheet.columnMapping.severity : null
         };
       }
+      restored.closedStatusValues = normalizeClosedStatusValues(savedSheet.closedStatusValues);
+      restored.closedColor = normalizeHexColor(savedSheet.closedColor) || '#7F8C8D';
       restored.categoryEnabled = typeof savedSheet.categoryEnabled === 'boolean'
         ? savedSheet.categoryEnabled
         : Number.isInteger(restored.columnMapping.category);
@@ -3526,6 +3551,8 @@ const ALL_FA_ICONS = [
         name: sheet.name,
         rawUrl: sheet.rawUrl,
         columnMapping: sheet.columnMapping,
+        closedStatusValues: sheet.closedStatusValues,
+        closedColor: sheet.closedColor,
         headers: sheet.headers,
         icon: sheet.icon,
         color: sheet.color,
@@ -4485,6 +4512,8 @@ const ALL_FA_ICONS = [
         rawUrl: sheet.rawUrl,
         csvUrl: sheet.csvUrl,
         columnMapping: sheet.columnMapping,
+        closedStatusValues: sheet.closedStatusValues,
+        closedColor: sheet.closedColor,
         headers: sheet.headers,
         icon: sheet.icon,
         color: sheet.color,
@@ -4571,6 +4600,8 @@ const ALL_FA_ICONS = [
       rawUrl: value.rawUrl,
       csvUrl: typeof value.csvUrl === 'string' ? value.csvUrl : toCsvUrl(value.rawUrl),
       columnMapping,
+      closedStatusValues: normalizeClosedStatusValues(value.closedStatusValues),
+      closedColor: normalizeHexColor(value.closedColor) || '#7F8C8D',
       headers: Array.isArray(value.headers) ? value.headers : null,
       icon: value.icon && typeof value.icon.fa === 'string' ? value.icon : ICON_OPTIONS[0],
       color: typeof value.color === 'string' ? value.color : COLOR_PALETTE[index % COLOR_PALETTE.length],
@@ -5161,6 +5192,16 @@ const ALL_FA_ICONS = [
     if (!div) return;
 
     let itemsHtml = '';
+    const closedLegendItemsHtml = sheets.length > 0
+      ? sheets.map(sheet => {
+        const closedColor = sanitizeLegendColor(sheet.closedColor);
+        return `
+          <span class="legend-icon legend-icon-closed" style="background-color: ${closedColor};" title="${escHtml(sheet.name)} closed">
+            <i class="${escHtml(sheet.icon.fa)}"></i>
+          </span>
+        `;
+      }).join('')
+      : '<span class="legend-icon legend-icon-closed"><i class="fa-solid fa-ban"></i></span>';
     sheets.forEach(sheet => {
       const legendSheetColor = sanitizeLegendColor(sheet.color);
       itemsHtml += `
@@ -5218,7 +5259,7 @@ const ALL_FA_ICONS = [
         <div class="legend-item">
           <label class="legend-checkbox-label" for="toggle-closed-incidents" title="Show or hide closed incidents">
             <input type="checkbox" id="toggle-closed-incidents" ${showClosedIncidents ? 'checked' : ''} ${mapIsReadOnly ? 'disabled' : ''} />
-            <span class="legend-icon legend-icon-closed"><i class="fa-solid fa-ban"></i></span>
+            ${closedLegendItemsHtml}
             <span>Closed</span>
           </label>
         </div>
@@ -6161,9 +6202,11 @@ const ALL_FA_ICONS = [
    * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
    * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
    */
-  function buildDivIcon(isOpen, iconFa, color) {
+  function buildDivIcon(isOpen, iconFa, color, closedColor = '#7F8C8D') {
     const closedClass = isOpen ? '' : ' closed';
-    const bgStyle = isOpen ? `background-color: ${color};` : 'background-color: #7f8c8d;';
+    const bgStyle = isOpen
+      ? `background-color: ${color};`
+      : `background-color: ${normalizeHexColor(closedColor) || '#7F8C8D'};`;
     return L.divIcon({
       className: '',
       html: `<div class="incident-marker-icon${closedClass}" style="${bgStyle}"><i class="${iconFa}"></i></div>`,
@@ -6333,7 +6376,7 @@ const ALL_FA_ICONS = [
    */
   function popupHtml(incident, sheet) {
     const statusLabel = incident.isOpen ? 'Open' : 'Closed';
-    const badgeBg = incident.isOpen ? sheet.color : '#7f8c8d';
+    const badgeBg = incident.isOpen ? sheet.color : sheet.closedColor;
     const fieldsHtml = incident.fields.map(field =>
       `<tr><th scope="row">${escHtml(field.name)}</th><td>${escHtml(field.value)}</td></tr>`
     ).join('');
@@ -6531,12 +6574,18 @@ const ALL_FA_ICONS = [
       if (currentKeys) currentKeys.add(key);
 
       const address   = (row[addrCol] || '').trim();
-      const statusRaw = (statusCol !== null && statusCol >= 0 && row[statusCol]) ? row[statusCol].toLowerCase().trim() : '';
+      const statusRaw = (statusCol !== null && statusCol >= 0 &&
+        row[statusCol] !== undefined && row[statusCol] !== null)
+        ? String(row[statusCol]).toLowerCase().trim()
+        : '';
       const label     = (labelCol !== null && labelCol >= 0 && row[labelCol]) ? row[labelCol].trim() : '';
       const categoryValue = (categoryCol !== null && categoryCol !== undefined && categoryCol >= 0 &&
         row[categoryCol] !== undefined) ? String(row[categoryCol]).trim() : '';
       const severityValue = (severityCol !== null && severityCol !== undefined && severityCol >= 0 &&
         row[severityCol] !== undefined) ? String(row[severityCol]).trim() : '';
+      const isOpen    = (statusCol !== null && statusCol >= 0)
+        ? !sheet.closedStatusValues.includes(statusRaw)
+        : true;
       const categoryStyle = getCategoryStyle(sheet, categoryValue);
       const colorMappingColumn = categoryStyle && Number.isInteger(categoryStyle.colorMappingColumn)
         ? categoryStyle.colorMappingColumn
@@ -6544,7 +6593,6 @@ const ALL_FA_ICONS = [
       const colorMappingValue = colorMappingColumn !== null && row[colorMappingColumn] !== undefined
         ? String(row[colorMappingColumn]).trim()
         : '';
-      const isOpen    = (statusCol !== null && statusCol >= 0) ? statusRaw !== 'closed' : true;
       if (isOpen) {
         sheetOpen++;
       } else {
@@ -6599,6 +6647,7 @@ const ALL_FA_ICONS = [
         m._colorMappingValue = colorMappingValue;
         m._severityValue = severityValue;
         m._row = row;
+        m._incident = incident;
         if (m._incidentLayerGroup !== incidentLayerGroup) {
           if (m._incidentLayerGroup) m._incidentLayerGroup.removeLayer(m);
           m._incidentLayerGroup = incidentLayerGroup;
@@ -6610,11 +6659,11 @@ const ALL_FA_ICONS = [
         } else {
           syncIncidentMarkerLayer(m, false);
         }
-        m.setIcon(buildDivIcon(isOpen, incidentStyle.icon.fa, incidentStyle.color));
+        m.setIcon(buildDivIcon(isOpen, incidentStyle.icon.fa, incidentStyle.color, sheet.closedColor));
         m.setPopupContent(popupHtml(incident, sheet));
       } else if (geo) {
         const marker = L.marker([lat, lon], {
-          icon: buildDivIcon(isOpen, incidentStyle.icon.fa, incidentStyle.color)
+          icon: buildDivIcon(isOpen, incidentStyle.icon.fa, incidentStyle.color, sheet.closedColor)
         }).bindPopup(popupHtml(incident, sheet));
         marker._isOpen = isOpen;
         marker._sheetId = sheet.id;
@@ -6622,6 +6671,7 @@ const ALL_FA_ICONS = [
         marker._colorMappingValue = colorMappingValue;
         marker._severityValue = severityValue;
         marker._row = row;
+        marker._incident = incident;
         marker._incidentLayerGroup = incidentLayerGroup;
         marker._isOutOfRange = isMoreThanOneDegreeFromPmc(lat, lon);
         syncIncidentMarkerLayer(marker, shouldShow);
@@ -6641,17 +6691,19 @@ const ALL_FA_ICONS = [
   /**
    * fetch and plot sheet.
    *
+   * @param {string} sheetId Sheet identifier to refresh.
+   * @param {Array<Array<*>>} [rowsOverride] Optional already-loaded rows to replot without a network request.
    * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
    * @post Returns validated external data or completes the requested synchronization/UI operation.
    * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
    * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
    */
-  async function fetchAndPlotSheet(sheetId) {
+  async function fetchAndPlotSheet(sheetId, rowsOverride) {
     const sheet = sheets.find(s => s.id === sheetId);
     if (!sheet) return;
     try {
       setStatus(`Refreshing "${sheet.name}"…`);
-      const rows = await fetchSheetRows(sheet);
+      const rows = Array.isArray(rowsOverride) ? rowsOverride : await fetchSheetRows(sheet);
       sheet.lastRows = rows;
       const sheetKeys = new Set();
       const stats = await plotSheetRows(sheet, rows, sheetKeys);
@@ -6828,6 +6880,8 @@ const ALL_FA_ICONS = [
         severity: Number.isInteger(value.columnMapping.severity) ? value.columnMapping.severity : null
       };
     }
+    restored.closedStatusValues = normalizeClosedStatusValues(value && value.closedStatusValues);
+    restored.closedColor = normalizeHexColor(value && value.closedColor) || '#7F8C8D';
     restored.categoryEnabled = typeof (value && value.categoryEnabled) === 'boolean'
       ? value.categoryEnabled
       : Number.isInteger(restored.columnMapping.category);
@@ -7273,7 +7327,8 @@ const ALL_FA_ICONS = [
         ? String(marker._row[mappingColumn]).trim()
         : marker._colorMappingValue;
       const style = getIncidentStyle(sheet, marker._categoryValue, mappingValue, marker._severityValue);
-      marker.setIcon(buildDivIcon(marker._isOpen, style.icon.fa, style.color));
+      marker.setIcon(buildDivIcon(marker._isOpen, style.icon.fa, style.color, sheet.closedColor));
+      if (marker._incident) marker.setPopupContent(popupHtml(marker._incident, sheet));
     });
   }
 
@@ -7500,26 +7555,31 @@ const ALL_FA_ICONS = [
   function updateStyleModalPreview(target) {
     if (!target || (!target.option && !target.sheet)) return;
     const source = target.option || target.sheet;
+    const isClosedColor = target.kind === 'closed';
     const label = target.kind === 'category'
       ? `Category: ${source.value || 'Unnamed'}`
-      : source.name || 'Sheet';
+      : isClosedColor
+        ? `${source.name || 'Sheet'} — Closed`
+        : source.name || 'Sheet';
+    const color = isClosedColor ? source.closedColor : source.color;
     if (sheetStyleTitle) sheetStyleTitle.textContent = `Customize "${label}"`;
     if (sheetStyleDescription) {
       sheetStyleDescription.textContent = target.kind === 'category'
         ? 'Choose the icon and color used for this category’s incidents and map legend.'
-        : 'Choose the icon and color used for this sheet’s incidents and map legend.';
+        : isClosedColor
+          ? 'Choose the color used for this sheet’s closed incident markers. The icon is shared with open incidents.'
+          : 'Choose the icon and color used for this sheet’s incidents and map legend.';
     }
     if (sheetStylePreviewName) sheetStylePreviewName.textContent = label;
     if (sheetStylePreviewBadge) {
-      sheetStylePreviewBadge.style.backgroundColor = source.color;
+      sheetStylePreviewBadge.style.backgroundColor = color;
       sheetStylePreviewBadge.innerHTML = `<i class="${escHtml(source.icon.fa)}"></i>`;
     }
     if (target.badge) {
-      target.badge.style.backgroundColor = source.color;
+      target.badge.style.backgroundColor = color;
       target.badge.innerHTML = `<i class="${escHtml(source.icon.fa)}"></i>`;
     }
   }
-
   /**
    * Renders the reusable icon and color controls for an appearance target.
    *
@@ -7531,9 +7591,13 @@ const ALL_FA_ICONS = [
     if (!sheetStyleIconPicker || !sheetStyleColorPicker || !target) return;
     const source = target.option || target.sheet;
     if (!source) return;
+    const isClosedColor = target.kind === 'closed';
+    const iconSection = sheetStyleIconPicker.parentElement;
+    if (iconSection) iconSection.classList.toggle('hidden', isClosedColor);
     updateStyleModalPreview(target);
 
     function handleIconSelect(newIcon) {
+      if (isClosedColor) return;
       source.icon = newIcon;
       updateStyleModalPreview(target);
       if (target.sheet) refreshSheetMarkerStyles(target.sheet);
@@ -7542,9 +7606,17 @@ const ALL_FA_ICONS = [
       buildIconPicker(sheetStyleIconPicker, source.icon, handleIconSelect, source.color);
     }
 
-    buildIconPicker(sheetStyleIconPicker, source.icon, handleIconSelect, source.color);
-    buildColorPicker(sheetStyleColorPicker, source.color, function (newColor) {
-      source.color = newColor;
+    if (isClosedColor) {
+      sheetStyleIconPicker.innerHTML = '';
+    } else {
+      buildIconPicker(sheetStyleIconPicker, source.icon, handleIconSelect, source.color);
+    }
+    buildColorPicker(sheetStyleColorPicker, isClosedColor ? source.closedColor : source.color, function (newColor) {
+      if (isClosedColor) {
+        source.closedColor = newColor;
+      } else {
+        source.color = newColor;
+      }
       updateStyleModalPreview(target);
       if (target.sheet) refreshSheetMarkerStyles(target.sheet);
       updateLegend();
@@ -7557,7 +7629,9 @@ const ALL_FA_ICONS = [
         );
       }
       if (typeof target.onChange === 'function') target.onChange();
-      buildIconPicker(sheetStyleIconPicker, source.icon, handleIconSelect, source.color);
+      if (!isClosedColor) {
+        buildIconPicker(sheetStyleIconPicker, source.icon, handleIconSelect, source.color);
+      }
     });
   }
 
@@ -8078,6 +8152,9 @@ const ALL_FA_ICONS = [
           <button type="button" class="sheet-badge-preview" style="background-color: ${sheet.color};" title="Customize sheet icon and color" aria-label="Customize ${escHtml(sheet.name)} icon and color">
             <i class="${sheet.icon.fa}"></i>
           </button>
+          <button type="button" class="sheet-badge-preview closed-color-preview" style="background-color: ${sheet.closedColor}; opacity: 0.55;" title="Customize closed incident color" aria-label="Customize ${escHtml(sheet.name)} closed incident color">
+            <i class="${sheet.icon.fa}"></i>
+          </button>
           <input type="text" class="text-input sheet-name-input" value="${escHtml(sheet.name)}" placeholder="Sheet name" />
         </div>
         <div class="sheet-card-actions">
@@ -8117,6 +8194,19 @@ const ALL_FA_ICONS = [
           <select class="select-input col-label-select"></select>
         </div>
       </div>
+      <div style="margin-bottom: 12px;">
+        <label class="sub-field-label">Closed status values</label>
+        <input
+          class="text-input closed-status-values-input"
+          type="text"
+          value="${escHtml(sheet.closedStatusValues.join(', '))}"
+          placeholder="closed, complete, resolved"
+          autocomplete="off"
+        />
+        <div class="category-options-note">
+          Comma-separated, case-insensitive values. Blank restores the default value <code>closed</code>.
+        </div>
+      </div>
       <div class="category-options-section">
         <label class="severity-toggle">
           <input type="checkbox" class="category-enabled-input" />
@@ -8140,6 +8230,7 @@ const ALL_FA_ICONS = [
     `;
 
     const badgePreview   = card.querySelector('.sheet-badge-preview');
+    const closedColorPreview = card.querySelector('.closed-color-preview');
     const nameInput      = card.querySelector('.sheet-name-input');
     const urlInput       = card.querySelector('.sheet-url-input');
     const refreshBtn     = card.querySelector('.btn-refresh-sheet');
@@ -8147,12 +8238,13 @@ const ALL_FA_ICONS = [
     const addrSelect     = card.querySelector('.col-address-select');
     const statusSelect   = card.querySelector('.col-status-select');
     const labelSelect    = card.querySelector('.col-label-select');
+    const closedStatusValuesInput = card.querySelector('.closed-status-values-input');
     const categorySelect = card.querySelector('.col-category-select');
     const categoryEnabledInput = card.querySelector('.category-enabled-input');
     const categoryBody = card.querySelector('.category-options-body');
 
     if (mapIsReadOnly) {
-      [nameInput, urlInput, refreshBtn, removeBtn, addrSelect, statusSelect, labelSelect, categorySelect, categoryEnabledInput].forEach(el => {
+      [nameInput, urlInput, refreshBtn, removeBtn, addrSelect, statusSelect, labelSelect, closedStatusValuesInput, categorySelect, categoryEnabledInput, closedColorPreview].forEach(el => {
         if (el) el.disabled = true;
       });
     }
@@ -8216,6 +8308,14 @@ const ALL_FA_ICONS = [
       const val = parseInt(statusSelect.value, 10);
       sheet.columnMapping.status = val >= 0 ? val : null;
     });
+    closedStatusValuesInput.addEventListener('change', function () {
+      sheet.closedStatusValues = normalizeClosedStatusValues(closedStatusValuesInput.value);
+      closedStatusValuesInput.value = sheet.closedStatusValues.join(', ');
+      persistAppState();
+      if (hasLoadedMap && Array.isArray(sheet.lastRows)) {
+        fetchAndPlotSheet(sheet.id, sheet.lastRows);
+      }
+    });
     labelSelect.addEventListener('change', function () {
       const val = parseInt(labelSelect.value, 10);
       sheet.columnMapping.label = val >= 0 ? val : null;
@@ -8245,6 +8345,11 @@ const ALL_FA_ICONS = [
     badgePreview.disabled = mapIsReadOnly;
     badgePreview.addEventListener('click', function () {
       if (!mapIsReadOnly) openStyleModal({ kind: 'sheet', sheet, badge: badgePreview }, badgePreview);
+    });
+    closedColorPreview.addEventListener('click', function () {
+      if (!mapIsReadOnly) {
+        openStyleModal({ kind: 'closed', sheet, badge: closedColorPreview }, closedColorPreview);
+      }
     });
 
     if (sheet.categoryEnabled === true &&

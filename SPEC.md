@@ -128,12 +128,14 @@ The application operates without a dedicated backend server, resolving incident 
 
 * **FR-4.2: Open vs. Closed Status Evaluation**
   * Incident status shall be determined from the mapped Status column (case-insensitive) of each sheet.
-  * A value of `closed` designates a **Closed** incident.
+  * Each sheet shall allow one or more configured closed status values; any
+    case-insensitive match designates a **Closed** incident. The default value is
+    `closed` for backward compatibility.
   * Any other value (or if the Status column is unmapped/none) designates an **Open** incident.
 
 * **FR-4.3: Visual Distinction by Status & Sheet Styling**
   * **Open Incidents:** Rendered with a solid circular badge using the sheet's configured color, full opacity, the sheet's chosen white vector icon, and prominent drop shadow.
-  * **Closed Incidents:** Rendered with a grey circular badge (`#7f8c8d`), reduced opacity (`0.55`), the sheet's chosen white vector icon, and reduced drop shadow.
+  * **Closed Incidents:** Rendered with a circular badge using the sheet's independently configured closed color (default `#7f8c8d`), reduced opacity (`0.55`), the sheet's chosen white vector icon, and reduced drop shadow. The closed color may be changed without changing the icon.
 
 ---
 
@@ -158,6 +160,8 @@ The application operates without a dedicated backend server, resolving incident 
 * **FR-6.1: Interactive Multi-Sheet Map Legend**
   * A persistent legend control shall be positioned in the top-right corner of the map.
   * The legend shall display an entry for every configured sheet showing its custom icon, badge color, and sheet name.
+  * The legend shall show each configured sheet's closed incident icon using that
+    sheet's closed color.
   * The legend shall include color-class entries for enabled third-party overlays
     that render multiple risk/susceptibility classes (such as the landslide risk layer).
   * The legend shall automatically update whenever sheets are added, modified, or removed.
@@ -312,6 +316,8 @@ The application operates without a dedicated backend server, resolving incident 
               "label": 2,
               "category": null
             },
+            "closedStatusValues": ["closed"],
+            "closedColor": "#7F8C8D",
             "headers": ["Address", "Status", "Label"],
             "icon": {
               "fa": "fa-solid fa-house-crack",
@@ -332,6 +338,12 @@ The application operates without a dedicated backend server, resolving incident 
 * `preset.sheets` may be empty to support a blank-map startup.
 * `preset.geocoder`, `preset.baseLayer`, `preset.enabledThirdPartyLayers`, and `preset.mapView` are optional; omitted values fall back to normal application defaults.
 * `preset.sheets[].rawUrl` is optional so a preset can define sheet styling before a Google Sheet URL is attached.
+* `preset.sheets[].closedStatusValues` is an optional array of case-insensitive
+  status values that designate closed incidents; omitted values default to
+  `["closed"]`.
+* `preset.sheets[].closedColor` is an optional hex color for closed incident
+  markers; omitted values default to `"#7F8C8D"`. Closed incidents always use
+  the sheet's configured icon.
 * `assets/disaster-modes.json` shall be the single source of truth for disaster presets; the application shall not duplicate preset definitions in code.
 
 ---

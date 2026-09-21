@@ -51,11 +51,16 @@ publicly accessible Google Sheet.
 * **Auto-refresh every 30 seconds** — all configured sheets are polled and re-read;
   markers are added, updated, or removed to match the current sheet contents.
 * **Every row is a distinct incident** — each data row is plotted as its own marker.
-* **Open / Closed status & Legend** — incidents marked `closed` are rendered
-  faded and greyscale by default; open incidents display in the sheet's chosen colour. An interactive
-  legend on the map displays entries for every configured sheet with its icon and color, along with a checkbox to show or hide closed incidents.
+* **Open / Closed status & Legend** — incidents matching a sheet's configured
+  closed status values are rendered faded in that sheet's chosen closed colour
+  (grey by default); open incidents display in the sheet's chosen colour. An interactive
+  legend on the map displays entries for every configured sheet with its icon and
+  color, shows each sheet's configured closed color, and includes a checkbox to
+  show or hide closed incidents.
 * **Customizable icon & color per sheet** — choose from preset Font Awesome vector icons
   (emergency, fire, medical, vehicle, hazard, search, wildlife, rescue, pin, star) or browse/search the full Font Awesome icon library in the icon picker dialog, and pick from a rich color palette (or custom color picker) for each sheet in the startup dialog or via **Manage Sheets**.
+  Closed incidents keep the sheet's selected icon, with an independently configurable
+  closed-marker color.
 * **Custom map features** — draw points, lines, and polygons on the map with a custom
   color, FontAwesome icon, and label. An optional description is stored locally in
   the browser for reference but is not displayed on the map.
@@ -108,8 +113,10 @@ setup dialog or via the toolbar:
 | 56 Mil Potrero Highway          | closed            | Medical assist                 |
 
 * **Address Column** (required) — full street address, e.g. `1234 Nesthorn Drive`.
-* **Status Column** (optional) — `open` or `closed` (case-insensitive). Any value
-  other than `closed` is treated as open. Can be set to none (always open).
+* **Status Column** (optional) — select the column containing each row's status.
+  Configure one or more comma-separated **Closed status values** in the sheet
+  configuration; matching is case-insensitive and defaults to `closed`. Any
+  other value is treated as open. The status column can be set to none (always open).
 * **Label Column** (optional) — free-text description shown in the marker popup.
 
 ### 3. Load the map
@@ -212,6 +219,8 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
              "label": 2,
              "category": null
            },
+           "closedStatusValues": ["closed"],
+           "closedColor": "#7F8C8D",
            "categoryEnabled": false,
            "headers": ["Address", "Status", "Label"],
            "icon": { "fa": "fa-solid fa-house-crack", "label": "Earthquake" },
@@ -231,6 +240,10 @@ Notes:
 * `icon.fa` must be a valid Font Awesome class string.
 * `preset.sheets` may be an empty array for a true blank-map startup.
 * `rawUrl` is optional, so presets can provide sheet styling before a Google Sheet is attached.
+* `closedStatusValues` is an optional array of case-insensitive status values that mark
+  rows as closed; omitted values default to `["closed"]`.
+* `closedColor` is an optional hex color for closed incident markers; omitted values
+  default to `"#7F8C8D"`. Closed incidents always use the sheet's configured icon.
 * `geocoder`, `baseLayer`, `enabledThirdPartyLayers`, and `mapView` are optional preset runtime fields used when a mode is selected. If omitted, the app keeps its current map/geocoder values.
 * This file is required for the disaster picker and setup flow; if it cannot be loaded, map setup stays blocked until a valid file is restored.
 
