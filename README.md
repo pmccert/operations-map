@@ -71,13 +71,13 @@ publicly accessible Google Sheet.
   * Esri World Imagery
   * Esri Clarity
 * **Third-party map layers** — use the top-right layers menu to load known fire
-  incidents from the National Interagency Fire Center, nearby ADS-B aircraft,
-  the California Geological Survey landslide risk map, and the 100-year flood
-  zone. Enabled third-party layers also appear in the legend, where they can
-  be hidden without affecting the incident sheets. Landslide and flood layers
-  include color-class legends that can be collapsed to save space, and
-  ArcGIS-backed layers keep the highest available native resolution visible at
-  deeper zoom levels.
+  incidents from the National Interagency Fire Center, the California
+  Geological Survey landslide risk map, and the 100-year flood zone. Enabled
+  third-party layers also appear in the legend, where they can be hidden
+  without affecting the incident sheets. Landslide and flood layers include
+  color-class legends that can be collapsed to save space, and ArcGIS-backed
+  layers keep the highest available native resolution visible at deeper zoom
+  levels.
 
 ## Setup
 
@@ -174,10 +174,10 @@ setup dialog or via the toolbar:
       the current local basemap override and map center, but still apply source
       updates to layers and geometries.
 15. Open the top-right layers menu and select **Known Fire Incidents**,
-    **ADS-B Aircraft**, **Landslide Risk Map**, or **100 Year Flood Zone** to
-    load those third-party overlays. Use their legend checkboxes to hide an
-    enabled overlay, or use **Hide colors** / **Show colors** to collapse or
-    expand a layer's color ramp.
+    **Landslide Risk Map**, or **100 Year Flood Zone** to load those
+    third-party overlays. Use their legend checkboxes to hide an enabled
+    overlay, or use **Hide colors** / **Show colors** to collapse or expand a
+    layer's color ramp.
 
 ## Disaster preset schema
 
