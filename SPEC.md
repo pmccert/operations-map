@@ -107,8 +107,8 @@ The application operates without a dedicated backend server, resolving incident 
 
 * **FR-3.4: Third-Party Map Layers**
   * The map shall provide selectable overlay layers for known fire incidents
-    (National Interagency Fire Center data), nearby ADS-B aircraft, and the
-    California Geological Survey landslide risk map.
+    (National Interagency Fire Center data) and the California Geological Survey
+    landslide risk map.
   * The California Geological Survey landslide risk map shall support map zoom
     up to level 20 while over-zooming its native tiles from level 16.
   * ArcGIS-backed spatial tile overlays shall preserve visibility when users zoom

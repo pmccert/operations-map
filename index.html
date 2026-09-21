@@ -2244,14 +2244,6 @@ const ALL_FA_ICONS = [
       icon: 'fa-solid fa-fire',
       color: '#d35400'
     },
-    'ADS-B Aircraft': {
-      id: 'adsb',
-      layer: L.layerGroup(),
-      activated: false,
-      clearOnDisable: true,
-      icon: 'fa-solid fa-plane',
-      color: '#2980b9'
-    },
     'Landslide Risk Map': {
       id: 'landslide-risk',
       layer: createWebMercatorArcGisExportLayer('https://gis.conservation.ca.gov/server/rest/services/CGS/MS58_LandslideSusceptibility_Classes/MapServer', {
@@ -4077,7 +4069,6 @@ const ALL_FA_ICONS = [
 
   const THIRD_PARTY_ENDPOINTS = {
     fires: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?where=1%3D1&geometry=-119.7%2C34.4%2C-118.6%2C35.3&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&outFields=*&outSR=4326&f=geojson',
-    adsb: `https://api.airplanes.live/v2/point/${PMC_LAT}/${PMC_LNG}/100`,
     awarenessZone: 'https://dpsgeo.carto.com/api/v2/sql?api_key=N2szY6xjxnwJuPTc7zcV5Q&format=geojson&q=SELECT%20*%20FROM%20kc26_az%20WHERE%20haz_az%20=%20%27Yes%27'
   };
 
@@ -4258,44 +4249,6 @@ const ALL_FA_ICONS = [
     layer.addData(data);
   }
 
-  function aircraftIcon() {
-    return L.divIcon({
-      className: '',
-      html: '<div class="incident-marker-icon" style="background:#2980b9;"><i class="fa-solid fa-plane"></i></div>',
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
-    });
-  }
-
-  /**
-   * load adsb aircraft.
-   *
-   * @pre Storage or external data may be unavailable; the fallback path remains valid.
-   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
-   * @sideEffects May read or write browser storage, update status, and log diagnostics.
-   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
-   */
-  async function loadAdsbAircraft() {
-    const layer = thirdPartyLayers['ADS-B Aircraft'].layer;
-    const response = await fetch(THIRD_PARTY_ENDPOINTS.adsb, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`ADS-B request failed (${response.status})`);
-    const data = await response.json();
-    clearThirdPartyLayer(layer);
-
-    (Array.isArray(data.ac) ? data.ac : []).forEach(function (aircraft) {
-      if (!Number.isFinite(aircraft.lat) || !Number.isFinite(aircraft.lon)) return;
-      const callsign = String(aircraft.flight || aircraft.hex || 'Unknown aircraft').trim();
-      const altitude = Number.isFinite(aircraft.alt_baro) ? `${aircraft.alt_baro} ft` : 'Unknown';
-      const marker = L.marker([aircraft.lat, aircraft.lon], { icon: aircraftIcon() });
-      marker.bindPopup(
-        `<div class="incident-popup"><strong>${escHtml(callsign)}</strong><br>` +
-        `Altitude: ${escHtml(altitude)}<br>` +
-        `Coordinates: ${aircraft.lat.toFixed(5)}, ${aircraft.lon.toFixed(5)}</div>`
-      );
-      marker.addTo(layer);
-    });
-  }
-
   /**
    * load awareness zone.
    *
@@ -4329,8 +4282,6 @@ const ALL_FA_ICONS = [
       setStatus(`Loading ${layerName}…`);
       if (layerName === 'Known Fire Incidents') {
         await loadFireIncidents();
-      } else if (layerName === 'ADS-B Aircraft') {
-        await loadAdsbAircraft();
       } else if (layerName === '100 Year Flood Zone') {
         await loadAwarenessZone();
       }
