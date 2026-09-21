@@ -88,6 +88,9 @@ jobs:
           content = re.sub(r'<a\s+([^>]*?)href=\"https://github\.com/phargogh/pmccert-map-data-from-google-sheet/commit/[^\"]*\"([^>]*)>[^<]*</a>',
                            fr'<a \1href=\"https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/{h}\"\2>{h}</a>',
                            content)
+          content = re.sub(r'(<meta\s+name=\"app-version\"\s+content=\")[^\"]*(\")',
+                           fr'\g<1>{h}\g<2>',
+                           content)
           content = re.sub(r'(<(?:span|time)\s+id=\"commit-date\">)[^<]*(</(?:span|time)>)',
                            fr'\g<1>{t}\g<2>',
                            content)

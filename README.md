@@ -8,6 +8,8 @@ publicly accessible Google Sheet.
 
 * **Static hosting** — serve `index.html` from any static file host (GitHub Pages,
   Netlify, etc.) or a local HTTP server.
+* **Deployment update notice** — periodically checks for a newer deployed
+  `index.html` and displays a reload prompt when one is available.
 * **Multiple Google Sheets support** — add and plot multiple sheets simultaneously.
   Each sheet can have its own name, Google Sheets URL, column mapping, icon, and badge color.
 * **Startup disaster modes** — begin with a **Blank Map** or choose a predefined
