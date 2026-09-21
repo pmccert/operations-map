@@ -1649,24 +1649,68 @@
   const SHEETS_READONLY_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly';
   const OAUTH_SCOPES = `${SHEETS_READONLY_SCOPE} ${DRIVE_SCOPE} ${DRIVE_READONLY_SCOPE}`;
   const urlParams = new URLSearchParams(window.location.search);
-  const initialSharedMapFileId = urlParams.get('mapFileId');
+  const initialSharedMapFileId = extractDriveFileId(urlParams.get('mapFileId'));
   const openedFromSharedMapUrl = Boolean(initialSharedMapFileId);
   const forcedViewerMode = urlParams.get('mode') === 'view';
 
+  /**
+   * Report a browser-storage failure without making persistence a hard
+   * requirement for the static application.
+   *
+   * @pre `operation` identifies the storage operation and `error` is the
+   *      caught failure when available.
+   * @post A diagnostic is written with enough context to distinguish the
+   *       failed operation; callers may continue using in-memory state.
+   * @sideEffects Writes a warning to the developer console.
+   * @throws {Error} Never throws; diagnostic reporting must not mask the
+   *                 original storage failure.
+   */
+  function reportStorageDiagnostic(operation, error) {
+    const detail = error instanceof Error ? error.message : String(error || 'unknown error');
+    console.warn(`[storage] ${operation} failed; continuing without persistence. ${detail}`);
+  }
+
+  /**
+   * read app state.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   function readAppState() {
     try {
       const raw = localStorage.getItem(APP_STATE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) {
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        reportStorageDiagnostic('read application state (invalid payload)');
+        return null;
+      }
+      return parsed;
+    } catch (err) {
+      reportStorageDiagnostic('read application state', err);
       return null;
     }
   }
 
+  /**
+   * write app state.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   function writeAppState(state) {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      reportStorageDiagnostic('write application state (invalid payload)');
+      return;
+    }
     try {
       localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
-    } catch (_) {
-      // Storage may be unavailable or full.
+    } catch (err) {
+      reportStorageDiagnostic('write application state', err);
     }
   }
 
@@ -1696,6 +1740,14 @@
     { fa: 'fa-solid fa-star',                 label: 'Star' },
   ];
 
+  /**
+   * format icon label.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function formatIconLabel(iconNameOrClass) {
     if (!iconNameOrClass) return '';
     const name = iconNameOrClass
@@ -1707,6 +1759,14 @@
       .join(' ');
   }
 
+  /**
+   * clone json.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function cloneJson(value) {
     return JSON.parse(JSON.stringify(value));
   }
@@ -1919,6 +1979,14 @@ const ALL_FA_ICONS = [
     ]
   };
 
+  /**
+   * get complete fa icons list.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function getCompleteFaIconsList() {
     const iconSet = new Set(ALL_FA_ICONS);
     try {
@@ -1934,12 +2002,13 @@ const ALL_FA_ICONS = [
               }
             }
           }
-        } catch (_) {
-          // Cross-origin CSS access error - ignore
+        } catch (err) {
+          // Cross-origin stylesheets may deny cssRules access.
+          console.debug('Could not inspect a stylesheet for Font Awesome icons:', err);
         }
       }
-    } catch (_) {
-      // Stylesheet scan error - ignore
+    } catch (err) {
+      console.debug('Could not scan stylesheets for Font Awesome icons:', err);
     }
     return Array.from(iconSet).sort();
   }
@@ -1961,8 +2030,35 @@ const ALL_FA_ICONS = [
 
   const map = L.map('map', { maxZoom: 24 }).setView([PMC_LAT, PMC_LNG], 13);
 
+  /**
+   * Create a tile layer that over-zooms the provider's highest-resolution
+   * native tiles instead of requesting unavailable tile levels.
+   *
+   * @pre `url` is a Leaflet tile URL template.
+   * @pre `options.maxNativeZoom` is finite and non-negative.
+   * @pre `options.maxZoom` is greater than `options.maxNativeZoom`.
+   * @post Returns a Leaflet tile layer configured for over-zooming.
+   * @sideEffects Creates a Leaflet tile-layer instance without adding it to the map.
+   * @throws {Error} If the zoom bounds do not satisfy the contract.
+   */
+  function createOverzoomedTileLayer(url, options) {
+    if (typeof url !== 'string' || !url.trim() || !options || typeof options !== 'object') {
+      throw new Error('A tile URL and options object are required.');
+    }
+    const layerOptions = { ...options };
+    const nativeZoom = layerOptions.maxNativeZoom;
+    const displayZoom = layerOptions.maxZoom;
+    if (!Number.isFinite(nativeZoom) || nativeZoom < 0) {
+      throw new Error('A finite, non-negative maxNativeZoom is required.');
+    }
+    if (!Number.isFinite(displayZoom) || displayZoom <= nativeZoom) {
+      throw new Error('maxZoom must be greater than maxNativeZoom.');
+    }
+    return L.tileLayer(url, layerOptions);
+  }
+
   const baseLayers = {
-    'OpenStreetMap': L.tileLayer(
+    'OpenStreetMap': createOverzoomedTileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -1970,7 +2066,7 @@ const ALL_FA_ICONS = [
         maxNativeZoom: 19
       }
     ),
-    'OpenTopoMap (hillshade)': L.tileLayer(
+    'OpenTopoMap (hillshade)': createOverzoomedTileLayer(
       'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
       {
         attribution: '© <a href="https://opentopomap.org">OpenTopoMap</a> contributors',
@@ -1978,7 +2074,7 @@ const ALL_FA_ICONS = [
         maxNativeZoom: 17
       }
     ),
-    'USGS Topo': L.tileLayer(
+    'USGS Topo': createOverzoomedTileLayer(
       'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
       {
         attribution: 'USGS The National Map',
@@ -1986,7 +2082,7 @@ const ALL_FA_ICONS = [
         maxNativeZoom: 16
       }
     ),
-    'USGS Imagery': L.tileLayer(
+    'USGS Imagery': createOverzoomedTileLayer(
       'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
       {
         attribution: 'USGS The National Map',
@@ -1994,7 +2090,7 @@ const ALL_FA_ICONS = [
         maxNativeZoom: 16
       }
     ),
-    'USGS Imagery Topo': L.tileLayer(
+    'USGS Imagery Topo': createOverzoomedTileLayer(
       'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}',
       {
         attribution: 'USGS The National Map',
@@ -2002,7 +2098,7 @@ const ALL_FA_ICONS = [
         maxNativeZoom: 16
       }
     ),
-    'Esri World Imagery': L.tileLayer(
+    'Esri World Imagery': createOverzoomedTileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       {
         attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
@@ -2010,7 +2106,7 @@ const ALL_FA_ICONS = [
         maxNativeZoom: 19
       }
     ),
-    'Esri Clarity': L.tileLayer(
+    'Esri Clarity': createOverzoomedTileLayer(
       'https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       {
         attribution: 'Tiles © Esri — Source: Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
@@ -2020,6 +2116,14 @@ const ALL_FA_ICONS = [
     )
   };
 
+  /**
+   * create fire incidents layer.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function createFireIncidentsLayer() {
     return L.geoJSON(null, {
       style: {
@@ -2193,15 +2297,39 @@ const ALL_FA_ICONS = [
     closeManagedModal(commitInfoModal);
   };
 
+  /**
+   * is modal visible.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function isModalVisible(modalOverlay) {
     return Boolean(modalOverlay && !modalOverlay.classList.contains('hidden'));
   }
 
+  /**
+   * top visible modal overlay.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function topVisibleModalOverlay() {
     const visibleModals = document.querySelectorAll('.modal-overlay:not(.hidden)');
     return visibleModals.length ? visibleModals[visibleModals.length - 1] : null;
   }
 
+  /**
+   * top visible managed modal overlay.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function topVisibleManagedModalOverlay() {
     const visibleManagedModals = Array.from(
       document.querySelectorAll('.modal-overlay:not(.hidden)')
@@ -2209,6 +2337,14 @@ const ALL_FA_ICONS = [
     return visibleManagedModals.length ? visibleManagedModals[visibleManagedModals.length - 1] : null;
   }
 
+  /**
+   * is usable focus target.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function isUsableFocusTarget(element) {
     if (!(element instanceof HTMLElement)) return false;
     if (element.getClientRects().length === 0) return false;
@@ -2218,6 +2354,14 @@ const ALL_FA_ICONS = [
     return true;
   }
 
+  /**
+   * list focusable modal elements.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function listFocusableModalElements(modalOverlay) {
     if (!modalOverlay) return [];
     const nodes = modalOverlay.querySelectorAll(
@@ -2232,6 +2376,14 @@ const ALL_FA_ICONS = [
     );
   }
 
+  /**
+   * set modal background inert.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function setModalBackgroundInert(modalOverlay) {
     if (!modalOverlay) return;
     if (managedModalOpenCount > 0) return;
@@ -2253,6 +2405,14 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * restore modal background inert.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function restoreModalBackgroundInert(modalOverlay) {
     if (!modalOverlay) return;
     if (managedModalOpenCount > 0) return;
@@ -2266,6 +2426,14 @@ const ALL_FA_ICONS = [
     managedModalBackgroundState = null;
   }
 
+  /**
+   * mark managed modal inactive.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function markManagedModalInactive(modalOverlay) {
     if (!modalOverlay) return;
     if (!managedModalOverlayA11yState.has(modalOverlay)) {
@@ -2278,6 +2446,14 @@ const ALL_FA_ICONS = [
     modalOverlay.inert = true;
   }
 
+  /**
+   * restore managed modal active.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function restoreManagedModalActive(modalOverlay) {
     if (!modalOverlay) return;
     const saved = managedModalOverlayA11yState.get(modalOverlay);
@@ -2292,6 +2468,14 @@ const ALL_FA_ICONS = [
     modalOverlay.inert = false;
   }
 
+  /**
+   * sync managed modal interactivity.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function syncManagedModalInteractivity() {
     const visibleManagedModals = Array.from(
       document.querySelectorAll('.modal-overlay:not(.hidden)')
@@ -2306,6 +2490,14 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * fallback focus managed modal.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function fallbackFocusManagedModal(modalOverlay) {
     if (!modalOverlay) return;
     const fallbackFocusable = listFocusableModalElements(modalOverlay)[0];
@@ -2319,6 +2511,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * focus app fallback control.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function focusAppFallbackControl() {
     const fallbackCandidates = [
       'btn-google-auth-status',
@@ -2334,6 +2534,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * open managed modal.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function openManagedModal(modalOverlay, options) {
     if (!modalOverlay) return;
     if (isModalVisible(modalOverlay)) return;
@@ -2353,6 +2561,14 @@ const ALL_FA_ICONS = [
     focusTarget.focus();
   }
 
+  /**
+   * close managed modal.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function closeManagedModal(modalOverlay) {
     if (!modalOverlay) return;
     if (!isModalVisible(modalOverlay)) return;
@@ -2381,6 +2597,14 @@ const ALL_FA_ICONS = [
     modalFocusReturnByOverlay.delete(modalOverlay);
   }
 
+  /**
+   * handle managed modal keyboard.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function handleManagedModalKeyboard(event, modalOverlay, closeHandler) {
     if (!isModalVisible(modalOverlay)) return false;
     const topModal = topVisibleModalOverlay();
@@ -2416,6 +2640,14 @@ const ALL_FA_ICONS = [
     }
     pendingSharedMapPublicChoicePromise = null;
   };
+  /**
+   * prompt shared map public choice.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function promptSharedMapPublicChoice() {
     if (!sharedMapPublicModal || !sharedMapPublicNoBtn || !sharedMapPublicYesBtn) {
       return Promise.resolve(false);
@@ -2491,20 +2723,52 @@ const ALL_FA_ICONS = [
     return Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap';
   }
 
+  /**
+   * format alert timestamp.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function formatAlertTimestamp(value) {
     const date = value instanceof Date ? value : new Date(value);
     return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
   }
 
+  /**
+   * format countdown.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function formatCountdown(ms) {
     const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
     return `${totalSeconds}s`;
   }
 
+  /**
+   * normalize drive version.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function normalizeDriveVersion(value) {
     return value === undefined || value === null || value === '' ? null : String(value);
   }
 
+  /**
+   * update shared map alert timer.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateSharedMapAlertTimer() {
     if (!sharedMapState) return;
     if (!sharedMapState.nextRefreshAt) {
@@ -2529,6 +2793,14 @@ const ALL_FA_ICONS = [
     }, 1000);
   }
 
+  /**
+   * build shared map alert message.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function buildSharedMapAlertMessage() {
     if (!sharedMapState) return '';
     if (!sharedMapState.lastLoadedAt && !sharedMapState.baseLayerNotice && !sharedMapState.nextRefreshAt) return '';
@@ -2545,6 +2817,14 @@ const ALL_FA_ICONS = [
     return alertParts.join(' ');
   }
 
+  /**
+   * is more than one degree from pmc.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function isMoreThanOneDegreeFromPmc(lat, lon) {
     const toRadians = degrees => degrees * Math.PI / 180;
     const latDelta = toRadians(lat - PMC_LAT);
@@ -2556,6 +2836,14 @@ const ALL_FA_ICONS = [
     return distanceRadians > toRadians(1);
   }
 
+  /**
+   * update map alerts.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateMapAlerts() {
     if (!zoomAlert) return;
     const currentZoom = map.getZoom();
@@ -2690,23 +2978,43 @@ const ALL_FA_ICONS = [
     pendingReason: ''
   };
 
+  /**
+   * load custom features.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   function loadCustomFeatures() {
     try {
       const saved = localStorage.getItem('pmc_custom_features');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) customFeatures = parsed;
+        if (Array.isArray(parsed)) {
+          customFeatures = normalizeImportedCustomFeatures(parsed);
+        } else {
+          reportStorageDiagnostic('read custom features (invalid payload)');
+        }
       }
     } catch (err) {
-      console.warn('Could not load custom map features:', err);
+      reportStorageDiagnostic('read custom features', err);
     }
   }
 
+  /**
+   * save custom features.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   function saveCustomFeatures() {
     try {
       localStorage.setItem('pmc_custom_features', JSON.stringify(customFeatures));
     } catch (err) {
-      console.warn('Could not save custom map features:', err);
+      reportStorageDiagnostic('write custom features', err);
     }
     syncSharedMapAfterLocalChange('custom-features');
   }
@@ -2724,16 +3032,32 @@ const ALL_FA_ICONS = [
   let tokenClient = null;
   let googleIdentityServicesReadyPromise = null;
 
+  /**
+   * clear legacy oauth storage.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   function clearLegacyOAuthStorage() {
     try {
       localStorage.removeItem('pmc_google_access_token');
       localStorage.removeItem('pmc_google_token_expiry');
-    } catch (_) {
-      // Storage unavailable or blocked
+    } catch (err) {
+      reportStorageDiagnostic('clear legacy OAuth state', err);
     }
     updateOAuthUI();
   }
 
+  /**
+   * update oauth ui.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateOAuthUI() {
     const isAuthed = isGoogleAuthenticated();
     const statusText = document.getElementById('oauth-status-text');
@@ -2764,6 +3088,14 @@ const ALL_FA_ICONS = [
     return Boolean(googleAccessToken && Date.now() < googleTokenExpiry);
   }
 
+  /**
+   * wait for google identity services.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function waitForGoogleIdentityServices() {
     if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
       return Promise.resolve();
@@ -2797,6 +3129,14 @@ const ALL_FA_ICONS = [
     return googleIdentityServicesReadyPromise;
   }
 
+  /**
+   * init token client.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function initTokenClient(callback, onError) {
     if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
       return null;
@@ -2825,6 +3165,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * request google sign in.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   function requestGoogleSignIn(callback, onError) {
     waitForGoogleIdentityServices()
       .then(function () {
@@ -2841,6 +3189,14 @@ const ALL_FA_ICONS = [
       });
   }
 
+  /**
+   * ensure google auth.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function ensureGoogleAuth() {
     if (isGoogleAuthenticated()) return Promise.resolve();
     return new Promise((resolve, reject) => {
@@ -2850,12 +3206,20 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * sign out google.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function signOutGoogle() {
     if (googleAccessToken && typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
       try {
         google.accounts.oauth2.revoke(googleAccessToken, () => {});
-      } catch (_) {
-        // Ignore revocation error
+      } catch (err) {
+        console.warn('Google OAuth token revocation failed:', err);
       }
     }
     googleAccessToken = null;
@@ -2868,6 +3232,14 @@ const ALL_FA_ICONS = [
   }
 
   let sheetIdCounter = 1;
+  /**
+   * create sheet.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function createSheet(name, rawUrl) {
     const defaultUrl = rawUrl || '';
     const idx = (sheetIdCounter - 1) % ICON_OPTIONS.length;
@@ -2952,6 +3324,14 @@ const ALL_FA_ICONS = [
     sheetIdCounter = Math.max(sheetIdCounter, maxSavedId + 1);
   }
 
+  /**
+   * persist app state.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function persistAppState() {
     writeAppState({
       disasterModeId: selectedDisasterModeId,
@@ -2989,6 +3369,14 @@ const ALL_FA_ICONS = [
     return disasterModes.modes.find(mode => mode.id === selectedDisasterModeId) || null;
   }
 
+  /**
+   * build runtime config from preset.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function buildRuntimeConfigFromPreset(preset) {
     const runtimeConfig = {};
     if (preset && typeof preset.baseLayer === 'string') {
@@ -3037,6 +3425,14 @@ const ALL_FA_ICONS = [
     return runtimeConfig;
   }
 
+  /**
+   * apply disaster runtime config.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function applyDisasterRuntimeConfig(runtimeConfig) {
     const nextConfig = runtimeConfig && typeof runtimeConfig === 'object' ? runtimeConfig : {};
     if (typeof nextConfig.baseLayer === 'string' && baseLayers[nextConfig.baseLayer] && currentBaseLayer !== baseLayers[nextConfig.baseLayer]) {
@@ -3087,17 +3483,43 @@ const ALL_FA_ICONS = [
     return `${window.location.origin}${window.location.pathname}`;
   }
 
+  /**
+   * build shared map url.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function buildSharedMapUrl(fileId, forceView) {
+    fileId = requireDriveFileId(fileId);
     const params = new URLSearchParams();
     params.set('mapFileId', fileId);
     if (forceView) params.set('mode', 'view');
     return `${sharedMapBaseUrl()}?${params.toString()}`;
   }
 
+  /**
+   * build drive file url.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function buildDriveFileUrl(fileId) {
+    fileId = requireDriveFileId(fileId);
     return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
   }
 
+  /**
+   * extract drive file id.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function extractDriveFileId(input) {
     const value = String(input || '').trim();
     if (!value) return '';
@@ -3108,6 +3530,30 @@ const ALL_FA_ICONS = [
     return /^[a-zA-Z0-9_-]{20,}$/.test(value) ? value : '';
   }
 
+  /**
+   * Normalize and require a Google Drive file identifier at the API boundary.
+   *
+   * @pre `input` is a Drive ID or sharing URL supplied by the URL, UI, or
+   *      shared-map workflow.
+   * @post Returns a validated Drive ID containing only the accepted identifier
+   *       characters.
+   * @sideEffects None.
+   * @throws {Error} If `input` is missing or does not contain a valid ID.
+   */
+  function requireDriveFileId(input) {
+    const fileId = extractDriveFileId(input);
+    if (!fileId) throw new Error('A valid Google Drive file ID is required.');
+    return fileId;
+  }
+
+  /**
+   * update shared map status label.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateSharedMapStatusLabel() {
     const statusTextEl = document.getElementById('shared-map-status-text');
     if (!statusTextEl) return;
@@ -3124,6 +3570,14 @@ const ALL_FA_ICONS = [
     statusTextEl.textContent = `Shared map: ${roleText} (${versionText}) — ${nameText}`;
   }
 
+  /**
+   * update match source map button.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateMatchSourceMapButton() {
     const matchButton = document.getElementById('btn-match-source-map');
     if (!matchButton) return;
@@ -3137,6 +3591,14 @@ const ALL_FA_ICONS = [
     matchButton.disabled = !isEnabled;
   }
 
+  /**
+   * update read only ui.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateReadOnlyUI() {
     const disableIds = [
       'btn-add-sheet',
@@ -3176,6 +3638,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * set read only mode.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function setReadOnlyMode(readOnly, reason) {
     const changed = mapIsReadOnly !== Boolean(readOnly);
     mapIsReadOnly = Boolean(readOnly);
@@ -3195,12 +3665,28 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * create shared map auth error.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function createSharedMapAuthError(message) {
     const err = new Error(message);
     err.code = 'shared-map-auth';
     return err;
   }
 
+  /**
+   * handle shared map auth failure.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function handleSharedMapAuthFailure(message) {
     const statusMessage = message || 'Google sign-in expired. Sign in again to sync this shared map from Google Drive.';
     googleAccessToken = null;
@@ -3219,7 +3705,16 @@ const ALL_FA_ICONS = [
     };
   }
 
+  /**
+   * drive fetch metadata.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function driveFetchMetadata(fileId) {
+    fileId = requireDriveFileId(fileId);
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const fields = [
       'id',
@@ -3237,10 +3732,23 @@ const ALL_FA_ICONS = [
     );
     if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive metadata request failed (${resp.status}).`);
-    return resp.json();
+    const metadata = await resp.json();
+    if (!metadata || typeof metadata !== 'object' || typeof metadata.id !== 'string') {
+      throw new Error('Google Drive metadata response was invalid.');
+    }
+    return metadata;
   }
 
+  /**
+   * drive fetch json.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function driveFetchJson(fileId) {
+    fileId = requireDriveFileId(fileId);
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
@@ -3251,10 +3759,26 @@ const ALL_FA_ICONS = [
     );
     if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive file download failed (${resp.status}).`);
-    return resp.json();
+    const payload = await resp.json();
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('Google Drive shared-map response was invalid.');
+    }
+    return payload;
   }
 
+  /**
+   * drive create json file.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function driveCreateJsonFile(filename, payload) {
+    if (typeof filename !== 'string' || !filename.trim() ||
+        !payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('A non-empty filename and map payload are required.');
+    }
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const boundary = `pmcCertBoundary${Date.now().toString(16)}`;
     const body =
@@ -3278,10 +3802,26 @@ const ALL_FA_ICONS = [
     );
     if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive file create failed (${resp.status}).`);
-    return resp.json();
+    const metadata = await resp.json();
+    if (!metadata || typeof metadata !== 'object' || typeof metadata.id !== 'string') {
+      throw new Error('Google Drive create response was invalid.');
+    }
+    return metadata;
   }
 
+  /**
+   * drive update json file.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function driveUpdateJsonFile(fileId, payload) {
+    fileId = requireDriveFileId(fileId);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('A map payload is required.');
+    }
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const resp = await fetch(
       `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,name,modifiedTime,version`,
@@ -3296,10 +3836,23 @@ const ALL_FA_ICONS = [
     );
     if (resp.status === 401) throw handleSharedMapAuthFailure();
     if (!resp.ok) throw new Error(`Google Drive file update failed (${resp.status}).`);
-    return resp.json();
+    const metadata = await resp.json();
+    if (!metadata || typeof metadata !== 'object' || typeof metadata.id !== 'string') {
+      throw new Error('Google Drive update response was invalid.');
+    }
+    return metadata;
   }
 
+  /**
+   * drive get public permission.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function driveGetPublicPermission(fileId) {
+    fileId = requireDriveFileId(fileId);
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     let pageToken = '';
     do {
@@ -3323,7 +3876,19 @@ const ALL_FA_ICONS = [
     return null;
   }
 
+  /**
+   * drive set permission role.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function driveSetPermissionRole(fileId, permissionId, role) {
+    fileId = requireDriveFileId(fileId);
+    if (typeof permissionId !== 'string' || !permissionId.trim()) {
+      throw new Error('A Google Drive permission ID is required.');
+    }
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}?supportsAllDrives=true`,
@@ -3340,6 +3905,14 @@ const ALL_FA_ICONS = [
     if (!resp.ok) throw new Error(`Google Drive permission role update failed (${resp.status}).`);
   }
 
+  /**
+   * shared map public permission action.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function sharedMapPublicPermissionAction(publicPermission) {
     if (!publicPermission) return 'create';
     if (publicPermission.role === 'reader') return 'none';
@@ -3347,7 +3920,16 @@ const ALL_FA_ICONS = [
     return 'non_downgradable';
   }
 
+  /**
+   * drive make file public.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function driveMakeFilePublic(fileId, options) {
+    fileId = requireDriveFileId(fileId);
     if (!isGoogleAuthenticated()) throw handleSharedMapAuthFailure();
     const allowDowngradePublicPermission = Boolean(options && options.allowDowngradePublicPermission);
     const publicPermission = await driveGetPublicPermission(fileId);
@@ -3397,6 +3979,14 @@ const ALL_FA_ICONS = [
     awarenessZone: 'https://dpsgeo.carto.com/api/v2/sql?api_key=N2szY6xjxnwJuPTc7zcV5Q&format=geojson&q=SELECT%20*%20FROM%20kc26_az%20WHERE%20haz_az%20=%20%27Yes%27'
   };
 
+  /**
+   * create awareness zone layer.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function createAwarenessZoneLayer() {
     return L.geoJSON(null, {
       attribution: '100 Year Flood Zone data © <a href="https://mitigatehazards.com/Kern2026CountyRAMP/" target="_blank" rel="noopener">Kern County RAMP</a>',
@@ -3412,16 +4002,40 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * Create an ArcGIS export layer that requests native-resolution imagery
+   * while Leaflet over-zooms the returned image.
+   *
+   * @pre `serviceUrl` identifies an ArcGIS MapServer endpoint.
+   * @pre `options.maxNativeZoom` and `options.maxZoom` are finite, and the
+   *      display zoom is greater than the native zoom.
+   * @post Returns a Leaflet tile layer with bounded Web Mercator export
+   *       requests.
+   * @sideEffects Creates a Leaflet tile-layer instance and installs its tile URL
+   *       generator; the layer is not added to the map.
+   * @throws {Error} If the configured zoom bounds are invalid.
+   */
   function createWebMercatorArcGisExportLayer(serviceUrl, options = {}) {
+    if (typeof serviceUrl !== 'string' || !serviceUrl.trim()) {
+      throw new Error('An ArcGIS MapServer URL is required.');
+    }
+     if (!options || typeof options !== 'object' || Array.isArray(options)) {
+       throw new Error('ArcGIS export layer options must be an object.');
+     }
     const sanitizedServiceUrl = String(serviceUrl).replace(/\/+$/, '');
+    const maxZoom = Number.isFinite(options.maxZoom) ? options.maxZoom : 20;
+    const maxNativeZoom = Number.isFinite(options.maxNativeZoom)
+      ? options.maxNativeZoom
+      : maxZoom;
+    if (!Number.isFinite(maxNativeZoom) || maxNativeZoom < 0 || maxZoom <= maxNativeZoom) {
+      throw new Error('ArcGIS export layers require maxZoom greater than maxNativeZoom.');
+    }
     const layer = L.tileLayer('', {
       attribution: options.attribution || '',
       format: options.format || 'png32',
       layers: options.layers,
-      maxZoom: Number.isFinite(options.maxZoom) ? options.maxZoom : 20,
-      maxNativeZoom: Number.isFinite(options.maxNativeZoom)
-        ? options.maxNativeZoom
-        : (Number.isFinite(options.maxZoom) ? options.maxZoom : 20),
+      maxZoom,
+      maxNativeZoom,
       noWrap: options.noWrap !== false,
       opacity: options.opacity ?? 1,
       tileSize: options.tileSize || 256,
@@ -3467,6 +4081,14 @@ const ALL_FA_ICONS = [
     if (typeof layer.clearLayers === 'function') layer.clearLayers();
   }
 
+  /**
+   * is web mercator map.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function isWebMercatorMap() {
     const crs = map && map.options ? map.options.crs : null;
     return Boolean(
@@ -3479,6 +4101,14 @@ const ALL_FA_ICONS = [
     );
   }
 
+  /**
+   * can enable third party layer.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function canEnableThirdPartyLayer(layerConfig, layerName, options = {}) {
     if (layerConfig && layerConfig.requiresWebMercator && !isWebMercatorMap()) {
       if (options.notify !== false) {
@@ -3489,6 +4119,14 @@ const ALL_FA_ICONS = [
     return true;
   }
 
+  /**
+   * fire property.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function fireProperty(properties, names) {
     for (const name of names) {
       if (properties && properties[name] !== undefined && properties[name] !== null && String(properties[name]).trim()) {
@@ -3498,6 +4136,14 @@ const ALL_FA_ICONS = [
     return '';
   }
 
+  /**
+   * load fire incidents.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   async function loadFireIncidents() {
     const layer = thirdPartyLayers['Known Fire Incidents'].layer;
     const response = await fetch(THIRD_PARTY_ENDPOINTS.fires, { cache: 'no-store' });
@@ -3519,6 +4165,14 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * load adsb aircraft.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   async function loadAdsbAircraft() {
     const layer = thirdPartyLayers['ADS-B Aircraft'].layer;
     const response = await fetch(THIRD_PARTY_ENDPOINTS.adsb, { cache: 'no-store' });
@@ -3540,6 +4194,14 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * load awareness zone.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   async function loadAwarenessZone() {
     const layer = thirdPartyLayers['100 Year Flood Zone'].layer;
     const response = await fetch(THIRD_PARTY_ENDPOINTS.awarenessZone, { cache: 'no-store' });
@@ -3552,6 +4214,14 @@ const ALL_FA_ICONS = [
     layer.addData(data);
   }
 
+  /**
+   * load third party layer.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   async function loadThirdPartyLayer(layerName) {
     try {
       setStatus(`Loading ${layerName}…`);
@@ -3569,6 +4239,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * copy text to clipboard.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function copyTextToClipboard(text) {
     if (navigator.clipboard && window.isSecureContext) {
       return navigator.clipboard.writeText(text);
@@ -3592,6 +4270,14 @@ const ALL_FA_ICONS = [
   }
 
   /* eslint-disable no-use-before-define */
+  /**
+   * download text file.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function downloadTextFile(filename, text) {
     const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -3604,6 +4290,14 @@ const ALL_FA_ICONS = [
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  /**
+   * map snapshot.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function mapSnapshot() {
     const baseLayerName = Object.keys(baseLayers).find(name => baseLayers[name] === currentBaseLayer) || 'OpenStreetMap';
     const enabledThirdPartyLayers = Object.entries(thirdPartyLayers)
@@ -3658,9 +4352,11 @@ const ALL_FA_ICONS = [
 
   /**
    * Saves the current map snapshot to a user-selected JSON file.
+   *
    * @pre The map has been initialized and its current state is exportable.
    * @post The snapshot is written to the selected file, or downloaded using
-   *   the browser's default download behavior when a save picker is unavailable.
+   *       the browser's default download behavior when a save picker is unavailable.
+   * @sideEffects Performs file I/O and updates the status bar.
    * @throws Reports unexpected file-system failures through the status UI.
    */
   async function exportMapSnapshot() {
@@ -3694,6 +4390,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * validate imported sheet.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function validateImportedSheet(value, index) {
     if (!value || typeof value !== 'object' || typeof value.name !== 'string' ||
         typeof value.rawUrl !== 'string' || !value.columnMapping) {
@@ -3748,6 +4452,14 @@ const ALL_FA_ICONS = [
     };
   }
 
+  /**
+   * normalize imported custom features.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function normalizeImportedCustomFeatures(value) {
     if (!Array.isArray(value)) return [];
     return value
@@ -3762,12 +4474,16 @@ const ALL_FA_ICONS = [
           Array.isArray(coordinates) &&
           coordinates.length === 2 &&
           Number.isFinite(coordinates[0]) &&
-          Number.isFinite(coordinates[1]);
+          Number.isFinite(coordinates[1]) &&
+          coordinates[0] >= -90 && coordinates[0] <= 90 &&
+          coordinates[1] >= -180 && coordinates[1] <= 180;
         const validShape = type !== 'point' &&
           Array.isArray(coordinates) &&
           coordinates.length > 1 &&
           coordinates.every(coord => Array.isArray(coord) && coord.length === 2 &&
-            Number.isFinite(coord[0]) && Number.isFinite(coord[1]));
+            Number.isFinite(coord[0]) && Number.isFinite(coord[1]) &&
+            coord[0] >= -90 && coord[0] <= 90 &&
+            coord[1] >= -180 && coord[1] <= 180);
         if (!validPoint && !validShape) return null;
         const color = normalizeHexColor(feature.color) || '#2C7BB6';
         const icon = feature.icon && typeof feature.icon.fa === 'string'
@@ -3787,6 +4503,14 @@ const ALL_FA_ICONS = [
       .filter(Boolean);
   }
 
+  /**
+   * apply shared layer state.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function applySharedLayerState(baseLayerName, enabledLayerNames, options = {}) {
     const shouldApplyBaseLayer = options.applyBaseLayer !== false;
     if (shouldApplyBaseLayer && typeof baseLayerName === 'string' && baseLayers[baseLayerName] && currentBaseLayer !== baseLayers[baseLayerName]) {
@@ -3816,6 +4540,14 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * apply map snapshot.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   async function applyMapSnapshot(parsed, options = {}) {
     if (!parsed || parsed.format !== 'pmc-cert-map' || !Array.isArray(parsed.sheets)) {
       throw new Error('This is not a valid PMC CERT map file.');
@@ -3930,11 +4662,27 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * import map snapshot.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function importMapSnapshot(file) {
     const parsed = JSON.parse(await file.text());
     await applyMapSnapshot(parsed);
   }
 
+  /**
+   * stop shared map polling.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function stopSharedMapPolling() {
     sharedMapState.pollingActive = false;
     sharedMapState.pollInFlight = false;
@@ -3951,6 +4699,14 @@ const ALL_FA_ICONS = [
     updateMapAlerts();
   }
 
+  /**
+   * refresh shared map metadata.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function refreshSharedMapMetadata() {
     if (!sharedMapState.fileId) return null;
     const metadata = await driveFetchMetadata(sharedMapState.fileId);
@@ -3968,6 +4724,14 @@ const ALL_FA_ICONS = [
     return metadata;
   }
 
+  /**
+   * pull shared map from drive.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function pullSharedMapFromDrive(options = {}) {
     if (!sharedMapState.fileId) return;
     const metadata = await refreshSharedMapMetadata();
@@ -3993,6 +4757,14 @@ const ALL_FA_ICONS = [
     updateMapAlerts();
   }
 
+  /**
+   * flush shared map write.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   async function flushSharedMapWrite() {
     if (!sharedMapState.fileId || !sharedMapState.canEdit || mapIsReadOnly) return;
     if (!sharedMapState.dirty || sharedMapState.writeInFlight || remoteApplyInProgress) return;
@@ -4029,6 +4801,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * queue shared map write.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function queueSharedMapWrite(reason) {
     if (!sharedMapState.fileId || !sharedMapState.canEdit || mapIsReadOnly || remoteApplyInProgress) return;
     sharedMapState.dirty = true;
@@ -4037,15 +4817,39 @@ const ALL_FA_ICONS = [
     sharedMapState.writeTimer = setTimeout(flushSharedMapWrite, 1200);
   }
 
+  /**
+   * sync shared map after local change.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function syncSharedMapAfterLocalChange(reason) {
     queueSharedMapWrite(reason);
   }
 
+  /**
+   * persist shared map link in url.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function persistSharedMapLinkInUrl() {
     if (!sharedMapState.fileId) return;
     window.history.replaceState({}, '', buildSharedMapUrl(sharedMapState.fileId, forcedViewerMode));
   }
 
+  /**
+   * start shared map polling.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function startSharedMapPolling() {
     if (!sharedMapState.fileId) return;
     sharedMapState.pollingActive = true;
@@ -4104,7 +4908,16 @@ const ALL_FA_ICONS = [
     scheduleNextSharedMapPoll();
   }
 
+  /**
+   * connect shared map file.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function connectSharedMapFile(fileId, options = {}) {
+    fileId = requireDriveFileId(fileId);
     stopSharedMapPolling();
     sharedMapState.fileId = fileId;
     sharedMapState.fileName = '';
@@ -4183,7 +4996,8 @@ const ALL_FA_ICONS = [
   /**
    * Renders the map legend from the current incident and third-party layer state.
    * @post Active third-party layers with legend items expose their complete color ramp.
-   * @sideeffect Replaces the legend control contents and preserves ramp collapse state.
+   * @sideEffects Replaces the legend control contents and preserves ramp collapse state.
+   * @throws {Error} Reports invalid layer data through the rendered legend and diagnostics.
    */
   function updateLegend() {
     const div = document.getElementById('map-legend-box');
@@ -4259,6 +5073,14 @@ const ALL_FA_ICONS = [
 
   // ── Column helpers ───────────────────────────────────────────────────────────
 
+  /**
+   * col letter.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function colLetter(index) {
     let str = '';
     let num = index;
@@ -4269,6 +5091,14 @@ const ALL_FA_ICONS = [
     return str;
   }
 
+  /**
+   * auto detect columns.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function autoDetectColumns(headers) {
     let addrIdx = -1;
     let statusIdx = -1;
@@ -4294,6 +5124,14 @@ const ALL_FA_ICONS = [
     };
   }
 
+  /**
+   * populate select.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function populateSelect(selectEl, headers, currentVal, isRequired, noneLabel) {
     if (!selectEl) return;
     selectEl.innerHTML = '';
@@ -4325,6 +5163,14 @@ const ALL_FA_ICONS = [
 
   // ── Google Sheets API & CSV URL helper ──────────────────────────────────────────
 
+  /**
+   * parse google sheet details.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function parseGoogleSheetDetails(raw) {
     if (!raw) return null;
     raw = raw.trim();
@@ -4338,6 +5184,14 @@ const ALL_FA_ICONS = [
     return null;
   }
 
+  /**
+   * fetch google sheet metadata.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function fetchGoogleSheetMetadata(spreadsheetId, accessToken, fields) {
     const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=${encodeURIComponent(fields)}`;
     const metaResp = await fetch(metaUrl, {
@@ -4347,9 +5201,21 @@ const ALL_FA_ICONS = [
       }
     });
     if (!metaResp.ok) throw new Error(`Google Sheets metadata failed with HTTP ${metaResp.status}`);
-    return metaResp.json();
+    const metadata = await metaResp.json();
+    if (!metadata || typeof metadata !== 'object' || !Array.isArray(metadata.sheets)) {
+      throw new Error('Google Sheets metadata response was invalid.');
+    }
+    return metadata;
   }
 
+  /**
+   * get google sheet title.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function getGoogleSheetTitle(meta, gid) {
     let sheetTitle = null;
     if (meta.sheets && meta.sheets.length > 0) {
@@ -4367,6 +5233,14 @@ const ALL_FA_ICONS = [
     return sheetTitle;
   }
 
+  /**
+   * fetch google sheet rows.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function fetchGoogleSheetRows(spreadsheetId, gid, accessToken) {
     const meta = await fetchGoogleSheetMetadata(
       spreadsheetId,
@@ -4385,9 +5259,20 @@ const ALL_FA_ICONS = [
     });
     if (!valuesResp.ok) throw new Error(`Google Sheets values failed with HTTP ${valuesResp.status}`);
     const data = await valuesResp.json();
+    if (!data || typeof data !== 'object' || (data.values !== undefined && !Array.isArray(data.values))) {
+      throw new Error('Google Sheets values response was invalid.');
+    }
     return data.values || [];
   }
 
+  /**
+   * fetch google sheet column options.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function fetchGoogleSheetColumnOptions(spreadsheetId, gid, columnIndex, accessToken) {
     const metadata = await fetchGoogleSheetMetadata(
       spreadsheetId,
@@ -4408,6 +5293,9 @@ const ALL_FA_ICONS = [
     if (!response.ok) throw new Error(`Google Sheets validation lookup failed with HTTP ${response.status}`);
 
     const data = await response.json();
+    if (!data || typeof data !== 'object' || (data.sheets !== undefined && !Array.isArray(data.sheets))) {
+      throw new Error('Google Sheets validation response was invalid.');
+    }
     const rows = data.sheets && data.sheets[0] && data.sheets[0].data &&
       data.sheets[0].data[0] && data.sheets[0].data[0].rowData
       ? data.sheets[0].data[0].rowData
@@ -4445,6 +5333,11 @@ const ALL_FA_ICONS = [
         continue;
       }
       const rangeData = await valuesResponse.json();
+      if (!rangeData || typeof rangeData !== 'object' ||
+          (rangeData.values !== undefined && !Array.isArray(rangeData.values))) {
+        console.warn('Google Sheets dropdown range response was invalid.');
+        continue;
+      }
       (rangeData.values || []).forEach(row => {
         (Array.isArray(row) ? row : [row]).forEach(value => {
           if (value !== undefined && value !== null && String(value).trim()) {
@@ -4456,6 +5349,14 @@ const ALL_FA_ICONS = [
     return Array.from(options);
   }
 
+  /**
+   * fetch sheet rows.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function fetchSheetRows(sheet) {
     if (!sheet.rawUrl && Array.isArray(sheet.importedRows) && sheet.importedRows.length > 1) {
       const rows = sheet.importedRows;
@@ -4482,8 +5383,8 @@ const ALL_FA_ICONS = [
       if (resp.ok) {
         text = await resp.text();
       }
-    } catch (_) {
-      // Primary CSV fetch error
+    } catch (err) {
+      console.warn(`Primary CSV fetch failed for "${sheet.name}":`, err);
     }
     if (!text) {
       const altUrl = getAlternateCsvUrl(sheet.rawUrl);
@@ -4494,8 +5395,8 @@ const ALL_FA_ICONS = [
             text = await resp.text();
             sheet.csvUrl = altUrl;
           }
-        } catch (_) {
-          // Alternate CSV fetch error
+        } catch (err) {
+          console.warn(`Alternate CSV fetch failed for "${sheet.name}":`, err);
         }
       }
     }
@@ -4503,6 +5404,14 @@ const ALL_FA_ICONS = [
     return parseCsv(text);
   }
 
+  /**
+   * to csv url.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function toCsvUrl(raw) {
     if (!raw) return null;
     raw = raw.trim();
@@ -4538,6 +5447,14 @@ const ALL_FA_ICONS = [
     return null;
   }
 
+  /**
+   * get alternate csv url.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function getAlternateCsvUrl(raw) {
     if (!raw) return null;
     raw = raw.trim();
@@ -4551,6 +5468,14 @@ const ALL_FA_ICONS = [
     return null;
   }
 
+  /**
+   * clean headers.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function cleanHeaders(row) {
     if (!row || !Array.isArray(row)) return [];
     let lastIdx = row.length - 1;
@@ -4563,6 +5488,14 @@ const ALL_FA_ICONS = [
 
   // ── CSV parsing ───────────────────────────────────────────────────────────────
 
+  /**
+   * parse csv.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function parseCsv(text) {
     if (!text) return [];
     text = text.replace(/^\uFEFF/, '');
@@ -4623,12 +5556,28 @@ const ALL_FA_ICONS = [
     'w':     'west',
   };
 
+  /**
+   * normalise street.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function normaliseStreet(name) {
     let s = name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
     s = s.split(' ').map(tok => STREET_ABBREVS[tok] || tok).join(' ');
     return s;
   }
 
+  /**
+   * levenshtein.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function levenshtein(a, b) {
     if (a === b) return 0;
     if (a.length === 0) return b.length;
@@ -4645,6 +5594,14 @@ const ALL_FA_ICONS = [
     return dp[a.length][b.length];
   }
 
+  /**
+   * build geocoder index.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function buildGeocoderIndex(addressesObj) {
     const idx = new Map();
     for (const [address, coords] of Object.entries(addressesObj)) {
@@ -4657,6 +5614,14 @@ const ALL_FA_ICONS = [
     return idx;
   }
 
+  /**
+   * parse address.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function parseAddress(address) {
     const m = address.trim().match(/^(\d+(?:[a-zA-Z]?)?)\s+(.+)$/);
     if (!m) return null;
@@ -4666,6 +5631,14 @@ const ALL_FA_ICONS = [
     return { number, street };
   }
 
+  /**
+   * parse coordinate pair.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function parseCoordinatePair(value) {
     if (typeof value !== 'string') return null;
     const match = value.trim().match(
@@ -4695,6 +5668,14 @@ const ALL_FA_ICONS = [
   const OPEN_LOCATION_CODE_GRID_LAT_RESOLUTION = 0.000025;
   const OPEN_LOCATION_CODE_GRID_LON_RESOLUTION = 0.000025;
 
+  /**
+   * encode open location code prefix.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function encodeOpenLocationCodePrefix(lat, lon, length) {
     let latitude = Math.min(90 - Number.EPSILON, Math.max(-90, lat)) + 90;
     let longitude = ((lon + 180) % 360 + 360) % 360;
@@ -4711,6 +5692,14 @@ const ALL_FA_ICONS = [
     return code;
   }
 
+  /**
+   * decode open location code.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function decodeOpenLocationCode(value) {
     if (typeof value !== 'string') return null;
     const compact = value.trim().toUpperCase().replace(/\s+/g, '');
@@ -4772,6 +5761,14 @@ const ALL_FA_ICONS = [
     };
   }
 
+  /**
+   * geocode.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function geocode(address) {
     if (!geocoderIndex) return null;
 
@@ -4818,27 +5815,68 @@ const ALL_FA_ICONS = [
   let googleGeocoder = null;
   let googleGeocodeCache = null;
 
+  /**
+   * load google geocode cache.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   function loadGoogleGeocodeCache() {
     if (googleGeocodeCache) return googleGeocodeCache;
     try {
       const stored = localStorage.getItem('pmc_google_geocode_cache');
-      googleGeocodeCache = stored ? JSON.parse(stored) : {};
-    } catch (_) {
+      const parsed = stored ? JSON.parse(stored) : {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        reportStorageDiagnostic('read geocode cache (invalid payload)');
+        googleGeocodeCache = {};
+      } else {
+        const validEntries = Object.entries(parsed).filter(([address, result]) =>
+          typeof address === 'string' &&
+          (result === null ||
+            (result && typeof result === 'object' &&
+              Number.isFinite(result.lat) &&
+              Number.isFinite(result.lon)))
+        );
+        if (validEntries.length !== Object.keys(parsed).length) {
+          reportStorageDiagnostic('read geocode cache (discarded invalid entries)');
+        }
+        googleGeocodeCache = Object.fromEntries(validEntries);
+      }
+    } catch (err) {
+      reportStorageDiagnostic('read geocode cache', err);
       googleGeocodeCache = {};
     }
     return googleGeocodeCache;
   }
 
+  /**
+   * save google geocode cache.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   function saveGoogleGeocodeCache() {
     try {
       if (googleGeocodeCache) {
         localStorage.setItem('pmc_google_geocode_cache', JSON.stringify(googleGeocodeCache));
       }
-    } catch (_) {
-      // Ignore storage quota or disabled errors
+    } catch (err) {
+      reportStorageDiagnostic('write geocode cache', err);
     }
   }
 
+  /**
+   * is google geocoding configured.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function isGoogleGeocodingConfigured() {
     return Boolean(
       typeof GOOGLE_GEOCODING_API_KEY === 'string' &&
@@ -4847,6 +5885,14 @@ const ALL_FA_ICONS = [
     );
   }
 
+  /**
+   * load google maps api.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   function loadGoogleMapsApi() {
     if (googleMapsLoaded && googleGeocoder) return Promise.resolve(googleGeocoder);
     if (googleMapsLoadingPromise) return googleMapsLoadingPromise;
@@ -4882,6 +5928,14 @@ const ALL_FA_ICONS = [
     return googleMapsLoadingPromise;
   }
 
+  /**
+   * google geocode.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function googleGeocode(address) {
     if (!address || typeof address !== 'string' || !address.trim()) return null;
     const rawAddr = address.trim();
@@ -4942,6 +5996,14 @@ const ALL_FA_ICONS = [
 
   // ── Incident marker helpers ───────────────────────────────────────────────────
 
+  /**
+   * build div icon.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function buildDivIcon(isOpen, iconFa, color) {
     const closedClass = isOpen ? '' : ' closed';
     const bgStyle = isOpen ? `background-color: ${color};` : 'background-color: #7f8c8d;';
@@ -4954,11 +6016,27 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * incident layer group key.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function incidentLayerGroupKey(sheet, categoryValue) {
     const category = String(categoryValue || '').trim();
     return `${sheet.id}__${category.toLowerCase() || '__uncategorized'}`;
   }
 
+  /**
+   * get incident layer group.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function getIncidentLayerGroup(sheet, categoryValue) {
     const key = incidentLayerGroupKey(sheet, categoryValue);
     if (incidentLayerGroups[key]) return incidentLayerGroups[key];
@@ -4971,6 +6049,14 @@ const ALL_FA_ICONS = [
     return group;
   }
 
+  /**
+   * sync incident marker layer.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function syncIncidentMarkerLayer(marker, shouldShow) {
     const group = marker._incidentLayerGroup;
     if (!group) return;
@@ -4981,6 +6067,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * esc html.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function escHtml(str) {
     return String(str)
       .replace(/&/g, '&amp;')
@@ -4989,6 +6083,14 @@ const ALL_FA_ICONS = [
       .replace(/"/g, '&quot;');
   }
 
+  /**
+   * sanitize legend color.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function sanitizeLegendColor(color, fallback = '#7f8c8d') {
     const normalized = String(color || '').trim();
     return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(normalized)
@@ -4996,6 +6098,14 @@ const ALL_FA_ICONS = [
       : fallback;
   }
 
+  /**
+   * render custom feature.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function renderCustomFeature(feature) {
     const icon = feature.icon || { fa: 'fa-solid fa-location-dot', label: 'Pin' };
     const isClosedPoint = feature.type === 'point' && feature.closed === true;
@@ -5042,12 +6152,28 @@ const ALL_FA_ICONS = [
     customFeatureLayers[feature.id] = layer;
   }
 
+  /**
+   * render all custom features.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function renderAllCustomFeatures() {
     Object.values(customFeatureLayers).forEach(layer => map.removeLayer(layer));
     customFeatureLayers = {};
     customFeatures.forEach(renderCustomFeature);
   }
 
+  /**
+   * popup html.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function popupHtml(incident, sheet) {
     const statusLabel = incident.isOpen ? 'Open' : 'Closed';
     const badgeBg = incident.isOpen ? sheet.color : '#7f8c8d';
@@ -5092,6 +6218,14 @@ const ALL_FA_ICONS = [
       </div>`;
   }
 
+  /**
+   * clear markers.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function clearMarkers() {
     Object.values(incidentMarkers).forEach(m => {
       if (m._incidentLayerGroup) m._incidentLayerGroup.removeLayer(m);
@@ -5101,6 +6235,14 @@ const ALL_FA_ICONS = [
     updateMapAlerts();
   }
 
+  /**
+   * clear custom features.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function clearCustomFeatures() {
     if (mapIsReadOnly) {
       setStatus('Custom feature edits are disabled in view-only mode.');
@@ -5114,12 +6256,28 @@ const ALL_FA_ICONS = [
     setStatus('Custom features removed.');
   }
 
+  /**
+   * should show incident.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function shouldShowIncident(sheet, categoryValue, isOpen, hasGeo) {
     if (!hasGeo || (!isOpen && !showClosedIncidents) || sheet.visible === false) return false;
     const category = getCategoryStyle(sheet, categoryValue);
     return !category || category.visible !== false;
   }
 
+  /**
+   * update closed markers visibility.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateClosedMarkersVisibility() {
     Object.values(incidentMarkers).forEach(m => {
       const sheet = sheets.find(candidate => candidate.id === m._sheetId);
@@ -5186,6 +6344,14 @@ const ALL_FA_ICONS = [
 
   // ── Polling / plotting ────────────────────────────────────────────────────────
 
+  /**
+   * plot sheet rows.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   async function plotSheetRows(sheet, rows, currentKeys) {
     if (rows.length > 0 && (!sheet.headers || sheet.headers.length !== rows[0].length)) {
       sheet.headers = cleanHeaders(rows[0]);
@@ -5304,6 +6470,14 @@ const ALL_FA_ICONS = [
     };
   }
 
+  /**
+   * fetch and plot sheet.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function fetchAndPlotSheet(sheetId) {
     const sheet = sheets.find(s => s.id === sheetId);
     if (!sheet) return;
@@ -5338,6 +6512,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * fetch and plot.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function fetchAndPlot() {
     const validSheets = sheets.filter(s => s.rawUrl || s.csvUrl);
     if (validSheets.length === 0) return;
@@ -5394,6 +6576,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * start polling.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function startPolling() {
     clearMarkers();
     fetchAndPlot();
@@ -5403,6 +6593,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * update poll interval.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updatePollInterval(ms) {
     pollIntervalMs = normalizePollIntervalMs(ms);
     if (pollTimer !== null) {
@@ -5416,6 +6614,14 @@ const ALL_FA_ICONS = [
 
   // ── Color & Icon Picker Builders ─────────────────────────────────────────────
 
+  /**
+   * normalize hex color.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function normalizeHexColor(val) {
     if (!val || typeof val !== 'string') return null;
     let s = val.trim();
@@ -5429,6 +6635,14 @@ const ALL_FA_ICONS = [
     return null;
   }
 
+  /**
+   * normalize preset sheet.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function normalizePresetSheet(value, index) {
     const restored = createSheet(
       value && typeof value.name === 'string' && value.name.trim()
@@ -5481,6 +6695,14 @@ const ALL_FA_ICONS = [
     return restored;
   }
 
+  /**
+   * normalize disaster modes data.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function normalizeDisasterModesData(value) {
     const modes = Array.isArray(value && value.modes) ? value.modes : [];
     const normalizedModes = modes
@@ -5541,6 +6763,14 @@ const ALL_FA_ICONS = [
     };
   }
 
+  /**
+   * build color picker.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function buildColorPicker(container, currentColor, onSelect, options = {}) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
@@ -5678,6 +6908,14 @@ const ALL_FA_ICONS = [
     container.appendChild(wrapper);
   }
 
+  /**
+   * build icon picker.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function buildIconPicker(container, currentIcon, onSelect, sheetColor, options = {}) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
@@ -5741,6 +6979,14 @@ const ALL_FA_ICONS = [
     container.appendChild(linkWrap);
   }
 
+  /**
+   * get category style.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function getCategoryStyle(sheet, categoryValue) {
     const normalizedValue = String(categoryValue || '').trim().toLowerCase();
     if (!normalizedValue || !Array.isArray(sheet.categoryOptions)) return null;
@@ -5749,6 +6995,14 @@ const ALL_FA_ICONS = [
     ) || null;
   }
 
+  /**
+   * mix hex colors.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function mixHexColors(first, second, amount) {
     const firstColor = normalizeHexColor(first) || '#ffffff';
     const secondColor = normalizeHexColor(second) || '#000000';
@@ -5763,6 +7017,14 @@ const ALL_FA_ICONS = [
     }).join('');
   }
 
+  /**
+   * severity color.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function severityColor(sheet, severityValue, baseColor) {
     if (!sheet.severityEnabled || !Array.isArray(sheet.severityLevels)) return null;
     const level = sheet.severityLevels.find(item =>
@@ -5776,6 +7038,14 @@ const ALL_FA_ICONS = [
       0.18 + (0.82 * normalizedPosition));
   }
 
+  /**
+   * get incident style.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function getIncidentStyle(sheet, categoryValue, severityValue) {
     const categoryStyle = getCategoryStyle(sheet, categoryValue);
     if (categoryStyle) {
@@ -5788,6 +7058,14 @@ const ALL_FA_ICONS = [
     return { icon: sheet.icon, color: severityColor(sheet, severityValue) || sheet.color };
   }
 
+  /**
+   * refresh sheet marker styles.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   function refreshSheetMarkerStyles(sheet) {
     Object.values(incidentMarkers).forEach(marker => {
       if (marker._sheetId !== sheet.id) return;
@@ -5796,6 +7074,14 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * update category options.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateCategoryOptions(sheet, values) {
     const previous = Array.isArray(sheet.categoryOptions) ? sheet.categoryOptions : [];
     const previousByValue = new Map(previous.map(option => [option.value.toLowerCase(), option]));
@@ -5811,6 +7097,14 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * render category styles.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function renderCategoryStyles(container, sheet, onChange, options = {}) {
     if (!container) return;
     container.innerHTML = '';
@@ -5862,6 +7156,14 @@ const ALL_FA_ICONS = [
     container.appendChild(list);
   }
 
+  /**
+   * render severity gradient.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function renderSeverityGradient(container, sheet, onChange, options = {}) {
     if (!container) return;
     container.innerHTML = '';
@@ -5947,6 +7249,14 @@ const ALL_FA_ICONS = [
   let localAddressesData = null;
   let savedSheetsSnapshot = null;
 
+  /**
+   * update geocoder ui.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateGeocoderUi() {
     if (hasLocalAddresses && !isOverridden) {
       geocoderFieldGroup.classList.add('hidden');
@@ -5963,6 +7273,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * render disaster mode picker.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function renderDisasterModePicker() {
     if (!disasterModePicker) return;
     disasterModePicker.innerHTML = '';
@@ -6001,6 +7319,14 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * apply disaster mode selection.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function applyDisasterModeSelection(modeId) {
     const mode = disasterModes.modes.find(candidate => candidate.id === modeId);
     if (!mode) return;
@@ -6017,6 +7343,14 @@ const ALL_FA_ICONS = [
     clearError();
   }
 
+  /**
+   * load disaster modes.
+   *
+   * @pre Storage or external data may be unavailable; the fallback path remains valid.
+   * @post Returns validated state or completes the operation while preserving graceful fallback behavior.
+   * @sideEffects May read or write browser storage, update status, and log diagnostics.
+   * @throws {Error} Throws/rejects only for invalid required data or unrecoverable I/O; recoverable failures are diagnosed.
+   */
   async function loadDisasterModes() {
     const response = await fetch(DISASTER_MODES_URL, { cache: 'no-store' });
     if (!response.ok) {
@@ -6034,6 +7368,14 @@ const ALL_FA_ICONS = [
     renderDisasterModePicker();
   }
 
+  /**
+   * try detect headers for sheet.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function tryDetectHeadersForSheet(sheet, cardEl) {
     const card = cardEl || document.querySelector(`.sheet-card[data-sheet-id="${sheet.id}"]`);
     const statusEl = card ? card.querySelector('.column-detect-status') : null;
@@ -6057,8 +7399,8 @@ const ALL_FA_ICONS = [
         if (resp.ok) {
           text = await resp.text();
         }
-      } catch (_) {
-        // Fallback to alternate endpoint if initial fetch fails
+      } catch (err) {
+        console.warn(`Primary CSV header detection failed for "${sheet.name}":`, err);
       }
 
       if (!text) {
@@ -6070,8 +7412,8 @@ const ALL_FA_ICONS = [
               text = await resp.text();
               sheet.csvUrl = altUrl;
             }
-          } catch (_) {
-            // alternate failed
+          } catch (err) {
+            console.warn(`Alternate CSV header detection failed for "${sheet.name}":`, err);
           }
         }
       }
@@ -6106,11 +7448,20 @@ const ALL_FA_ICONS = [
         }
       }
       if (statusEl) statusEl.textContent = '';
-    } catch (_) {
+    } catch (err) {
+      console.warn(`Could not detect columns for "${sheet.name}":`, err);
       if (statusEl) statusEl.textContent = '';
     }
   }
 
+  /**
+   * get unique column values.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function getUniqueColumnValues(rows, columnIndex) {
     const values = new Set();
     if (!Array.isArray(rows) || columnIndex === null || columnIndex === undefined) return [];
@@ -6121,6 +7472,14 @@ const ALL_FA_ICONS = [
     return Array.from(values);
   }
 
+  /**
+   * inspect category options.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function inspectCategoryOptions(sheet, cardEl, fallbackRows) {
     const card = cardEl || document.querySelector(`.sheet-card[data-sheet-id="${sheet.id}"]`);
     const statusEl = card ? card.querySelector('.category-detect-status') : null;
@@ -6170,6 +7529,14 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * inspect severity options.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function inspectSeverityOptions(sheet, cardEl, fallbackRows) {
     const card = cardEl || document.querySelector(`.sheet-card[data-sheet-id="${sheet.id}"]`);
     const severityColumn = sheet.columnMapping && sheet.columnMapping.severity;
@@ -6189,6 +7556,14 @@ const ALL_FA_ICONS = [
     renderSeverityGradient(card && card.querySelector('.severity-gradient-container'), sheet, null, { disabled: mapIsReadOnly });
   }
 
+  /**
+   * render sheet card.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function renderSheetCard(sheet) {
     const card = document.createElement('div');
     card.className = 'sheet-card';
@@ -6438,6 +7813,14 @@ const ALL_FA_ICONS = [
     return card;
   }
 
+  /**
+   * render sheets modal.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function renderSheetsModal() {
     sheetsContainer.innerHTML = '';
     sheets.forEach(sheet => {
@@ -6462,16 +7845,31 @@ const ALL_FA_ICONS = [
     renderSheetsModal();
   });
 
+  /**
+   * check local addresses.
+   *
+   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
+   * @post Returns validated external data or completes the requested synchronization/UI operation.
+   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   */
   async function checkLocalAddresses() {
     try {
       const resp = await fetch('addresses.json', { cache: 'no-store' });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-        localAddressesData = data;
-        hasLocalAddresses = true;
+      if (!data || typeof data !== 'object' || Array.isArray(data) ||
+          Object.entries(data).some(([address, coords]) =>
+            typeof address !== 'string' ||
+            !coords ||
+            !Number.isFinite(coords.lat) ||
+            !Number.isFinite(coords.lon))) {
+        throw new Error('addresses.json did not contain a valid address lookup object.');
       }
-    } catch (_) {
+      localAddressesData = data;
+      hasLocalAddresses = true;
+    } catch (err) {
+      console.warn('Could not load local address data:', err);
       localAddressesData = null;
       hasLocalAddresses = false;
     }
@@ -6499,6 +7897,14 @@ const ALL_FA_ICONS = [
   function showError(msg) { errorMsgEl.textContent = msg; }
   function clearError()   { errorMsgEl.textContent = ''; }
 
+  /**
+   * handle submit.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   async function handleSubmit(options = {}) {
     const allowReadOnly = options.allowReadOnly === true;
     if (mapIsReadOnly && !allowReadOnly) {
@@ -6599,6 +8005,14 @@ const ALL_FA_ICONS = [
     startPolling();
   }
 
+  /**
+   * open sheet modal.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function openSheetModal() {
     savedSheetsSnapshot = JSON.parse(JSON.stringify(sheets));
     savedModalStateSnapshot = {
@@ -6622,6 +8036,14 @@ const ALL_FA_ICONS = [
     sheetModal.classList.remove('hidden');
   }
 
+  /**
+   * cancel sheet modal.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function cancelSheetModal() {
     if (savedSheetsSnapshot) {
       sheets = JSON.parse(JSON.stringify(savedSheetsSnapshot));
@@ -6718,6 +8140,14 @@ const ALL_FA_ICONS = [
   let editingCustomFeatureId = null;
   let newCustomFeatureId = null;
 
+  /**
+   * update custom feature editor read only state.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateCustomFeatureEditorReadOnlyState() {
     const labelInput = document.getElementById('custom-feature-label');
     const descriptionInput = document.getElementById('custom-feature-description');
@@ -6730,6 +8160,14 @@ const ALL_FA_ICONS = [
     }, customFeatureColor.value, { disabled: mapIsReadOnly });
   }
 
+  /**
+   * render custom feature list.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function renderCustomFeatureList() {
     if (!customFeatureList) return;
     customFeatureList.innerHTML = '';
@@ -6765,6 +8203,14 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * reset custom feature form.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function resetCustomFeatureForm() {
     editingCustomFeatureId = null;
     newCustomFeatureId = null;
@@ -6780,6 +8226,14 @@ const ALL_FA_ICONS = [
     updateCustomFeatureEditorReadOnlyState();
   }
 
+  /**
+   * discard new custom feature.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function discardNewCustomFeature() {
     if (!newCustomFeatureId) return;
     customFeatures = customFeatures.filter(feature => feature.id !== newCustomFeatureId);
@@ -6788,6 +8242,14 @@ const ALL_FA_ICONS = [
     newCustomFeatureId = null;
   }
 
+  /**
+   * open custom feature editor.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function openCustomFeatureEditor(featureId, draftLayer) {
     if (mapIsReadOnly) {
       setStatus('Custom feature editing is disabled in view-only mode.');
@@ -6822,12 +8284,28 @@ const ALL_FA_ICONS = [
     document.getElementById('custom-feature-label').focus();
   }
 
+  /**
+   * open custom feature modal.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function openCustomFeatureModal() {
     renderCustomFeatureList();
     resetCustomFeatureForm();
     customFeatureModal.classList.remove('hidden');
   }
 
+  /**
+   * close custom feature modal.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function closeCustomFeatureModal() {
     discardNewCustomFeature();
     resetCustomFeatureForm();
@@ -6942,6 +8420,14 @@ const ALL_FA_ICONS = [
   let faFilteredList          = [];
   let allAvailableFaIcons     = [];
 
+  /**
+   * normalize fa class.
+   *
+   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
+   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
+   * @sideEffects Normally has no side effects beyond allocation of the returned value.
+   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   */
   function normalizeFaClass(input, currentStyle) {
     if (!input) return `${currentStyle || 'fa-solid'} fa-bell-concierge`;
     const trimmed = input.trim();
@@ -6961,12 +8447,28 @@ const ALL_FA_ICONS = [
     return trimmed;
   }
 
+  /**
+   * update selection preview.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function updateSelectionPreview(iconClass, label) {
     if (faPreviewIcon) faPreviewIcon.className = iconClass;
     if (faSelectedName) faSelectedName.textContent = label || formatIconLabel(iconClass);
     if (faSelectedClass) faSelectedClass.textContent = iconClass;
   }
 
+  /**
+   * select icon tile.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function selectIconTile(name, fullClass, tileEl) {
     faIconGrid.querySelectorAll('.fa-icon-tile.active').forEach(t => t.classList.remove('active'));
     if (tileEl) tileEl.classList.add('active');
@@ -6977,6 +8479,14 @@ const ALL_FA_ICONS = [
     updateSelectionPreview(fullClass, label);
   }
 
+  /**
+   * get filtered fa icons.
+   *
+   * @pre Arguments satisfy the documented shape and current application invariants hold.
+   * @post Returns the requested value or completes its state transition without weakening those invariants.
+   * @sideEffects May update application state or user-visible UI when required by the operation.
+   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   */
   function getFilteredFaIcons() {
     if (allAvailableFaIcons.length === 0) {
       allAvailableFaIcons = getCompleteFaIconsList();
@@ -6993,6 +8503,14 @@ const ALL_FA_ICONS = [
     return list;
   }
 
+  /**
+   * render icon grid.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function renderIconGrid(resetScroll) {
     faFilteredList = getFilteredFaIcons();
 
@@ -7051,6 +8569,14 @@ const ALL_FA_ICONS = [
     faRenderedCount += nextBatch.length;
   }
 
+  /**
+   * confirm icon selection.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function confirmIconSelection() {
     if (!faPickerCurrentSelected || !faPickerCurrentSelected.fa) return;
     faPickerModal.classList.add('hidden');
@@ -7059,11 +8585,27 @@ const ALL_FA_ICONS = [
     }
   }
 
+  /**
+   * close font awesome picker.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function closeFontAwesomePicker() {
     faPickerModal.classList.add('hidden');
     faPickerCallback = null;
   }
 
+  /**
+   * open font awesome picker dialog.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   function openFontAwesomePickerDialog(currentIcon, badgeColor, onSelect) {
     faPickerCallback = onSelect;
     const iconFa = currentIcon && currentIcon.fa ? currentIcon.fa : 'fa-solid fa-bell-concierge';
@@ -7415,6 +8957,14 @@ const ALL_FA_ICONS = [
   }
 
   const btnOAuthAuth = document.getElementById('btn-oauth-auth');
+  /**
+   * handle google sign in success.
+   *
+   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
+   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
+   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   */
   async function handleGoogleSignInSuccess() {
     try {
       if (sharedMapState.fileId) {
