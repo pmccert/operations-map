@@ -3010,6 +3010,33 @@ const ALL_FA_ICONS = [
     return runtimeConfig;
   }
 
+  /**
+   * Builds the persisted runtime settings that should survive a page reload.
+   * @param {object|null} state Previously saved application state.
+   * @returns {object} Valid basemap, overlay, and viewport settings from state.
+   */
+  function buildRuntimeConfigFromSavedState(state) {
+    const runtimeConfig = {};
+    if (state && typeof state.baseLayer === 'string' && baseLayers[state.baseLayer]) {
+      runtimeConfig.baseLayer = state.baseLayer;
+    }
+    if (state && Array.isArray(state.enabledThirdPartyLayers)) {
+      runtimeConfig.enabledThirdPartyLayers = state.enabledThirdPartyLayers
+        .filter(name => typeof name === 'string' && thirdPartyLayers[name]);
+    }
+    if (state && state.mapView &&
+        Number.isFinite(state.mapView.lat) &&
+        Number.isFinite(state.mapView.lng) &&
+        Number.isFinite(state.mapView.zoom)) {
+      runtimeConfig.mapView = {
+        lat: state.mapView.lat,
+        lng: state.mapView.lng,
+        zoom: state.mapView.zoom
+      };
+    }
+    return runtimeConfig;
+  }
+
   function applyDisasterRuntimeConfig(runtimeConfig) {
     const nextConfig = runtimeConfig && typeof runtimeConfig === 'object' ? runtimeConfig : {};
     if (typeof nextConfig.baseLayer === 'string' && baseLayers[nextConfig.baseLayer] && currentBaseLayer !== baseLayers[nextConfig.baseLayer]) {
@@ -6000,7 +6027,10 @@ const ALL_FA_ICONS = [
     if (!disasterModes.modes.some(mode => mode.id === selectedDisasterModeId)) {
       selectedDisasterModeId = disasterModes.defaultModeId;
     }
-    pendingDisasterRuntime = cloneJson(buildRuntimeConfigFromPreset(getSelectedDisasterMode() ? getSelectedDisasterMode().preset : null));
+    pendingDisasterRuntime = Object.assign(
+      buildRuntimeConfigFromPreset(getSelectedDisasterMode() ? getSelectedDisasterMode().preset : null),
+      buildRuntimeConfigFromSavedState(savedAppState)
+    );
     renderDisasterModePicker();
   }
 
