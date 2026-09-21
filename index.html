@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="app-version" content="11b0c42" />
   <title>PMC CERT Map</title>
 
   <!-- Google Identity Services (GIS) -->
@@ -1045,6 +1046,37 @@
       text-overflow: ellipsis;
     }
 
+    #app-update-alert {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1200;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: min(560px, 92vw);
+      padding: 9px 12px;
+      color: #5f3700;
+      background: #fff3cd;
+      border: 1px solid #e0a800;
+      border-radius: 5px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+      font-size: 0.84rem;
+    }
+    #app-update-alert button {
+      flex: 0 0 auto;
+      border: 1px solid #996f00;
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: #fff;
+      background: #996f00;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    #app-update-alert button:hover { background: #765500; }
+
     /* ── Commit info dialog ───────────────────────────────────── */
     .commit-info-modal-box {
       width: min(420px, 92vw);
@@ -1823,6 +1855,12 @@
 <!-- Status bar -->
 <div id="status-bar">Waiting for sheet configuration…</div>
 
+<!-- Application update alert -->
+<div id="app-update-alert" class="hidden" role="alert" aria-live="assertive">
+  <span>A newer version of the map is available. Reload to use it.</span>
+  <button type="button" id="app-update-reload"><i class="fa-solid fa-rotate"></i> Reload</button>
+</div>
+
 <!-- PMC CERT logo (lower left) -->
 <img id="pmc-cert-logo" src="assets/pmc-cert-logo.png" alt="PMC CERT logo" />
 
@@ -1885,6 +1923,10 @@
   const SHARED_MAP_POLL_INTERVAL_MS = 15000;
   const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';
   const APP_STATE_KEY = 'pmc_cert_map_state';
+  const appVersionMeta = document.querySelector('meta[name="app-version"]');
+  const APP_VERSION = appVersionMeta ? appVersionMeta.getAttribute('content') || '' : '';
+  // Check for a newer deployed app every five minutes.
+  const APP_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
   const DISASTER_MODES_URL = 'assets/disaster-modes.json';
   const DRIVE_JSON_MIME_TYPE = 'application/json';
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
@@ -3815,7 +3857,47 @@ const ALL_FA_ICONS = [
   let geocoderIndex = null;
 
   const statusBar = document.getElementById('status-bar');
+  const appUpdateAlert = document.getElementById('app-update-alert');
+  const appUpdateReload = document.getElementById('app-update-reload');
   function setStatus(msg) { statusBar.textContent = msg; }
+
+  /**
+   * check for a newer deployed application version.
+   *
+   * @pre The document contains the current app-version marker and update alert elements.
+   * @post The alert is shown only when a no-cache fetch finds a different non-empty marker.
+   * @sideEffects Performs a network request and updates the update alert visibility.
+   * @throws {Error} Network and malformed-response failures are logged and leave the current app running.
+   */
+  async function checkForAppUpdate() {
+    if (!APP_VERSION || !appUpdateAlert) return;
+    const updateUrl = new URL(window.location.href);
+    updateUrl.searchParams.set('_appUpdateCheck', String(Date.now()));
+    try {
+      const response = await fetch(updateUrl.toString(), {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      if (!response.ok) throw new Error(`Application update check failed (${response.status}).`);
+      const html = await response.text();
+      const latestDocument = new DOMParser().parseFromString(html, 'text/html');
+      const latestMeta = latestDocument.querySelector('meta[name="app-version"]');
+      const latestVersion = latestMeta ? latestMeta.getAttribute('content') || '' : '';
+      if (latestVersion && latestVersion !== APP_VERSION) {
+        appUpdateAlert.classList.remove('hidden');
+      }
+    } catch (err) {
+      console.warn('Could not check for a newer application version:', err);
+    }
+  }
+
+  if (appUpdateReload) {
+    appUpdateReload.addEventListener('click', function () {
+      window.location.reload();
+    });
+  }
+  checkForAppUpdate();
+  window.setInterval(checkForAppUpdate, APP_UPDATE_CHECK_INTERVAL_MS);
 
   function sharedMapBaseUrl() {
     return `${window.location.origin}${window.location.pathname}`;

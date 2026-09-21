@@ -41,6 +41,8 @@ requirements explicitly change.
 
 - Prefer data-driven configuration (`assets/disaster-modes.json`) over branches
   that encode product choices in `index.html`.
+- Add an inline comment describing what each constant numerical value
+  represents.
 - Make external boundaries explicit: validate Google Sheet rows, fetched JSON,
   URL parameters, and local storage before using them.
 - Treat network responses, missing columns, stale shared state, and geocoding
