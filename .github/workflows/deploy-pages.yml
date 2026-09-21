@@ -77,17 +77,22 @@ jobs:
         run: |
           export COMMIT_HASH=$(git rev-parse --short HEAD)
           export COMMIT_TIME=$(git log -1 --format="%cd" --date=iso)
+          export BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           python3 -c "
           import os, re
           h = os.environ['COMMIT_HASH']
           t = os.environ['COMMIT_TIME']
+          b = os.environ['BUILD_TIME']
           with open('index.html', 'r', encoding='utf-8') as f:
               content = f.read()
           content = re.sub(r'<a\s+([^>]*?)href=\"https://github\.com/phargogh/pmccert-map-data-from-google-sheet/commit/[^\"]*\"([^>]*)>[^<]*</a>',
                            fr'<a \1href=\"https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/{h}\"\2>{h}</a>',
                            content)
-          content = re.sub(r'<span id=\"commit-date\">[^<]*</span>',
-                           f'<span id=\"commit-date\">{t}</span>',
+          content = re.sub(r'(<(?:span|time)\s+id=\"commit-date\">)[^<]*(</(?:span|time)>)',
+                           fr'\g<1>{t}\g<2>',
+                           content)
+          content = re.sub(r'(<(?:span|time)\s+id=\"build-date\">)[^<]*(</(?:span|time)>)',
+                           fr'\g<1>{b}\g<2>',
                            content)
           with open('index.html', 'w', encoding='utf-8') as f:
               f.write(content)
