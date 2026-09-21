@@ -17,9 +17,9 @@ publicly accessible Google Sheet.
 * **Configurable column mapping per sheet** — automatically detects and allows you to select
   which sheet columns contain the incident address, open/closed status, and label/description for each sheet.
   Change column mapping at any time in the **Manage Sheets** dialog.
-* **Dropdown category styling** — select a category column to inspect its Google Sheets dropdown
-  options, then click an option's colored icon to assign its own FontAwesome icon and marker
-  background color in the appearance dialog.
+* **Dropdown category styling** — enable **This sheet has categories** and select a category
+  column to inspect its Google Sheets dropdown options, then click an option's colored icon to
+  assign its own FontAwesome icon and marker background color in the appearance dialog.
 * **Severity color gradients** — optionally map a severity column to user-defined string values.
   Values use progressively more saturated shades of the sheet color; drag values along the
   gradient and add future values without changing the sheet.
@@ -211,6 +211,7 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
              "label": 2,
              "category": null
            },
+           "categoryEnabled": false,
            "headers": ["Address", "Status", "Label"],
            "icon": { "fa": "fa-solid fa-house-crack", "label": "Earthquake" },
            "color": "#D97706",

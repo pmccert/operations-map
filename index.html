@@ -252,7 +252,7 @@
     }
     .column-mapping-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
       margin-bottom: 12px;
     }
@@ -314,6 +314,9 @@
       justify-content: space-between;
       gap: 8px;
       margin-bottom: 8px;
+    }
+    .category-options-body {
+      margin-top: 8px;
     }
     .category-options-note {
       color: #666;
@@ -3354,6 +3357,7 @@ const ALL_FA_ICONS = [
       icon: ICON_OPTIONS[idx],
       color: COLOR_PALETTE[colorIdx],
       categoryOptions: [],
+      categoryEnabled: false,
       visible: true,
       severityEnabled: false,
       severityLevels: []
@@ -3378,6 +3382,9 @@ const ALL_FA_ICONS = [
           severity: Number.isInteger(savedSheet.columnMapping.severity) ? savedSheet.columnMapping.severity : null
         };
       }
+      restored.categoryEnabled = typeof savedSheet.categoryEnabled === 'boolean'
+        ? savedSheet.categoryEnabled
+        : Number.isInteger(restored.columnMapping.category);
       if (Array.isArray(savedSheet.categoryOptions)) {
         restored.categoryOptions = savedSheet.categoryOptions
           .filter(option => option && typeof option.value === 'string')
@@ -3438,6 +3445,7 @@ const ALL_FA_ICONS = [
         icon: sheet.icon,
         color: sheet.color,
         categoryOptions: sheet.categoryOptions,
+        categoryEnabled: sheet.categoryEnabled === true,
         severityEnabled: sheet.severityEnabled === true,
         severityLevels: sheet.severityLevels
         ,visible: sheet.visible !== false
@@ -4437,6 +4445,7 @@ const ALL_FA_ICONS = [
         icon: sheet.icon,
         color: sheet.color,
         categoryOptions: sheet.categoryOptions,
+        categoryEnabled: sheet.categoryEnabled === true,
         severityEnabled: sheet.severityEnabled === true,
         severityLevels: sheet.severityLevels,
         rows: Array.isArray(sheet.lastRows) ? sheet.lastRows : []
@@ -4534,6 +4543,9 @@ const ALL_FA_ICONS = [
           }))
           .filter(option => option.value)
         : [],
+      categoryEnabled: typeof value.categoryEnabled === 'boolean'
+        ? value.categoryEnabled
+        : Number.isInteger(columnMapping.category),
       severityEnabled: value.severityEnabled === true,
       severityLevels: Array.isArray(value.severityLevels)
         ? value.severityLevels.filter(level => level && typeof level.value === 'string')
@@ -5107,7 +5119,7 @@ const ALL_FA_ICONS = [
           <span class="legend-sheet-name">${escHtml(sheet.name)}</span>
         </div>
       `;
-      if (Array.isArray(sheet.categoryOptions)) {
+      if (sheet.categoryEnabled === true && Array.isArray(sheet.categoryOptions)) {
         sheet.categoryOptions.forEach(category => {
           const categoryColor = sanitizeLegendColor(category.color);
           itemsHtml += `
@@ -6454,7 +6466,7 @@ const ALL_FA_ICONS = [
     const addrCol   = sheet.columnMapping.address ?? 0;
     const statusCol = sheet.columnMapping.status;
     const labelCol  = sheet.columnMapping.label;
-    const categoryCol = sheet.columnMapping.category;
+    const categoryCol = sheet.categoryEnabled === true ? sheet.columnMapping.category : null;
     const severityCol = sheet.columnMapping.severity;
 
     const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
@@ -6754,6 +6766,9 @@ const ALL_FA_ICONS = [
         severity: Number.isInteger(value.columnMapping.severity) ? value.columnMapping.severity : null
       };
     }
+    restored.categoryEnabled = typeof (value && value.categoryEnabled) === 'boolean'
+      ? value.categoryEnabled
+      : Number.isInteger(restored.columnMapping.category);
     if (Array.isArray(value && value.headers)) {
       restored.headers = value.headers.map(header => String(header));
     }
@@ -7083,7 +7098,7 @@ const ALL_FA_ICONS = [
    */
   function getCategoryStyle(sheet, categoryValue) {
     const normalizedValue = String(categoryValue || '').trim().toLowerCase();
-    if (!normalizedValue || !Array.isArray(sheet.categoryOptions)) return null;
+    if (sheet.categoryEnabled !== true || !normalizedValue || !Array.isArray(sheet.categoryOptions)) return null;
     return sheet.categoryOptions.find(option =>
       option.value.toLowerCase() === normalizedValue
     ) || null;
@@ -7267,7 +7282,8 @@ const ALL_FA_ICONS = [
     const levels = Array.isArray(sheet.severityLevels) ? sheet.severityLevels : [];
     const gradient = document.createElement('div');
     gradient.className = 'severity-gradient';
-    const categories = Array.isArray(sheet.categoryOptions) && sheet.categoryOptions.length > 0
+    const categories = sheet.categoryEnabled === true &&
+        Array.isArray(sheet.categoryOptions) && sheet.categoryOptions.length > 0
       ? sheet.categoryOptions
       : [{ color: sheet.color }];
     const gradientHeight = Math.max(29, categories.length * 14);
@@ -7650,7 +7666,8 @@ const ALL_FA_ICONS = [
             if (categorySelect) populateSelect(categorySelect, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
             if (severitySelect) populateSelect(severitySelect, sheet.headers, sheet.columnMapping.severity, false, '(Select Severity Column)');
             if (statusEl) statusEl.textContent = `Detected ${sheet.headers.length} columns`;
-            if (categorySelect && sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
+            if (categorySelect && sheet.categoryEnabled === true &&
+                sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
               inspectCategoryOptions(sheet, card);
             }
             if (severitySelect && sheet.severityEnabled) inspectSeverityOptions(sheet, card);
@@ -7824,21 +7841,24 @@ const ALL_FA_ICONS = [
           <label class="sub-field-label">Label</label>
           <select class="select-input col-label-select"></select>
         </div>
-        <div>
-          <label class="sub-field-label">Category</label>
-          <select class="select-input col-category-select"></select>
-        </div>
       </div>
       <div class="category-options-section">
-        <div class="category-options-header">
-          <label class="field-label" style="margin-bottom: 0;">Category Styles</label>
-          <span class="category-detect-status"></span>
+        <label class="severity-toggle">
+          <input type="checkbox" class="category-enabled-input" />
+          This sheet has categories
+        </label>
+        <div class="category-options-body hidden">
+          <div class="category-options-header">
+            <label class="sub-field-label">Category column</label>
+            <span class="category-detect-status"></span>
+          </div>
+          <select class="select-input col-category-select"></select>
+          <div class="category-options-note">
+            Select a dropdown column to assign a FontAwesome icon and background color to each option.
+            Sign in with Google to read its configured dropdown choices.
+          </div>
+          <div class="category-style-container"></div>
         </div>
-        <div class="category-options-note">
-          Select a dropdown column to assign a FontAwesome icon and background color to each option.
-          Sign in with Google to read its configured dropdown choices.
-        </div>
-        <div class="category-style-container"></div>
       </div>
 
       <div class="severity-config">
@@ -7871,6 +7891,8 @@ const ALL_FA_ICONS = [
     const statusSelect   = card.querySelector('.col-status-select');
     const labelSelect    = card.querySelector('.col-label-select');
     const categorySelect = card.querySelector('.col-category-select');
+    const categoryEnabledInput = card.querySelector('.category-enabled-input');
+    const categoryBody = card.querySelector('.category-options-body');
     const severitySelect = card.querySelector('.col-severity-select');
     const severityEnabledInput = card.querySelector('.severity-enabled-input');
     const severityBody = card.querySelector('.severity-config-body');
@@ -7879,7 +7901,7 @@ const ALL_FA_ICONS = [
     const severityAddBtn = card.querySelector('.severity-add-btn');
 
     if (mapIsReadOnly) {
-      [nameInput, urlInput, refreshBtn, removeBtn, addrSelect, statusSelect, labelSelect, categorySelect, severitySelect, severityEnabledInput, severityAddInput, severityAddBtn].forEach(el => {
+      [nameInput, urlInput, refreshBtn, removeBtn, addrSelect, statusSelect, labelSelect, categorySelect, categoryEnabledInput, severitySelect, severityEnabledInput, severityAddInput, severityAddBtn].forEach(el => {
         if (el) el.disabled = true;
       });
     }
@@ -7929,6 +7951,8 @@ const ALL_FA_ICONS = [
     populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
     populateSelect(categorySelect, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
     populateSelect(severitySelect, sheet.headers, sheet.columnMapping.severity, false, '(Select Severity Column)');
+    categoryEnabledInput.checked = sheet.categoryEnabled === true;
+    categoryBody.classList.toggle('hidden', !categoryEnabledInput.checked);
     severityEnabledInput.checked = sheet.severityEnabled === true;
     severityBody.classList.toggle('hidden', !severityEnabledInput.checked);
     renderSeverityGradient(severityGradient, sheet, () => refreshSheetMarkerStyles(sheet), { disabled: mapIsReadOnly });
@@ -7953,6 +7977,17 @@ const ALL_FA_ICONS = [
       const val = parseInt(categorySelect.value, 10);
       sheet.columnMapping.category = val >= 0 ? val : null;
       inspectCategoryOptions(sheet, card);
+    });
+    categoryEnabledInput.addEventListener('change', function () {
+      sheet.categoryEnabled = categoryEnabledInput.checked;
+      categoryBody.classList.toggle('hidden', !sheet.categoryEnabled);
+      if (sheet.categoryEnabled) {
+        inspectCategoryOptions(sheet, card);
+      }
+      updateLegend();
+      refreshSheetMarkerStyles(sheet);
+      updateClosedMarkersVisibility();
+      persistAppState();
     });
     severityEnabledInput.addEventListener('change', function () {
       sheet.severityEnabled = severityEnabledInput.checked;
@@ -7987,7 +8022,8 @@ const ALL_FA_ICONS = [
       if (!mapIsReadOnly) openStyleModal({ kind: 'sheet', sheet, badge: badgePreview }, badgePreview);
     });
 
-    if (sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
+    if (sheet.categoryEnabled === true &&
+        sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
       inspectCategoryOptions(sheet, card, sheet.lastRows || sheet.importedRows);
     }
     if (sheet.severityEnabled && sheet.columnMapping.severity !== null && sheet.columnMapping.severity !== undefined) {
