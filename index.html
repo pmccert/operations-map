@@ -7622,6 +7622,8 @@ const ALL_FA_ICONS = [
   let isOverridden       = false;
   let localAddressesData = null;
   let savedSheetsSnapshot = null;
+  let activeCategoryColorMappingSheet = null;
+  let activeCategoryColorMappingOption = null;
 
   /**
    * Updates the modal and source-row previews for an appearance target.
@@ -7941,9 +7943,6 @@ const ALL_FA_ICONS = [
       if (categoryColorMappingStatus) categoryColorMappingStatus.textContent = 'Could not read column values. Add values manually.';
     }
   }
-
-  let activeCategoryColorMappingSheet = null;
-  let activeCategoryColorMappingOption = null;
 
   /**
    * Opens the per-category value-to-color mapping dialog.
