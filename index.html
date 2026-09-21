@@ -4123,23 +4123,6 @@ const ALL_FA_ICONS = [
         });
       }
     });
-    Object.entries(incidentLayerGroups).forEach(([key, group]) => {
-      const category = group._categoryValue || 'Uncategorized';
-      const sheet = sheets.find(candidate => candidate.id === group._sheetId);
-      const categoryStyle = sheet ? getCategoryStyle(sheet, category) : null;
-      itemsHtml += `
-        <div class="legend-item" title="${escHtml(category)}">
-          <label class="legend-checkbox-label" for="toggle-category-${escHtml(key)}">
-            <input type="checkbox" id="toggle-category-${escHtml(key)}"
-              data-incident-layer-group="${escHtml(key)}"
-              ${map.hasLayer(group) ? 'checked' : ''} />
-            <span class="legend-color-swatch" style="background-color: ${sanitizeLegendColor(categoryStyle && categoryStyle.color)};"></span>
-            <span class="legend-sheet-name">${escHtml(sheet ? sheet.name + ': ' : '')}${escHtml(category)}</span>
-          </label>
-        </div>
-      `;
-    });
-
     div.innerHTML = `
       <div class="legend-title">Legend</div>
       ${itemsHtml}
@@ -4863,12 +4846,10 @@ const ALL_FA_ICONS = [
     const key = incidentLayerGroupKey(sheet, categoryValue);
     if (incidentLayerGroups[key]) return incidentLayerGroups[key];
     const category = String(categoryValue || '').trim() || 'Uncategorized';
-    const name = `${sheet.name}: ${category}`;
     const group = L.layerGroup().addTo(map);
     group._sheetId = sheet.id;
     group._categoryValue = category;
     incidentLayerGroups[key] = group;
-    if (mapLayersControl) mapLayersControl.addOverlay(group, name);
     updateLegend();
     return group;
   }
