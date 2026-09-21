@@ -18,7 +18,8 @@ publicly accessible Google Sheet.
   which sheet columns contain the incident address, open/closed status, and label/description for each sheet.
   Change column mapping at any time in the **Manage Sheets** dialog.
 * **Dropdown category styling** — select a category column to inspect its Google Sheets dropdown
-  options, then assign each option its own FontAwesome icon and marker background color.
+  options, then click an option's colored icon to assign its own FontAwesome icon and marker
+  background color in the appearance dialog.
 * **Severity color gradients** — optionally map a severity column to user-defined string values.
   Values use progressively more saturated shades of the sheet color; drag values along the
   gradient and add future values without changing the sheet.
@@ -121,7 +122,8 @@ setup dialog or via the toolbar:
    * **Earthquake**, **Evacuation**, and **Snow Emergency** preload starter sheet settings and icons.
 3. Paste your **Google Sheet URL** into any preloaded sheet, or click **+ Add Another Sheet** to add your own.
    The app auto-detects sheet columns and selects matching Address, Status, and Label columns for each sheet.
-4. Choose or adjust the incident icon and color for each sheet.
+4. Click a sheet's colored icon to open the appearance dialog, then choose or
+   adjust the incident icon and color.
    Optionally select a **Category** column. When signed in with Google, the app reads that
    column's configured dropdown options through the Sheets API; each option can then be styled
    with its own icon and color. Without sign-in, the app uses distinct values currently present
@@ -141,7 +143,8 @@ setup dialog or via the toolbar:
     use **Custom Features** to manage saved features.
 11. Right-click anywhere on the map and click **Copy coordinates** to copy the latitude/longitude pair.
 12. Use **Manage Sheets** in the top-left **Map Actions** menu at any time to edit
-     sheet URLs, column mappings, icons, and colors.
+     sheet URLs, column mappings, icons, and colors. Click a sheet's icon to
+     reopen its appearance dialog.
 13. Use **Save Map File** to export the current configuration and loaded data. Use
     **Load Map File** in another browser to restore it; the imported snapshot is
     displayed first and then normal sheet refresh resumes.
