@@ -1312,6 +1312,31 @@
       color: rgba(0, 0, 0, 0.7);
       letter-spacing: -0.2px;
     }
+    .map-legend .legend-third-party .legend-sheet-name {
+      flex: 1;
+      min-width: 0;
+    }
+    .map-legend .legend-ramp-toggle {
+      border: 1px solid #bbb;
+      border-radius: 3px;
+      background: #fff;
+      color: #555;
+      cursor: pointer;
+      font-size: 0.68rem;
+      padding: 2px 4px;
+      white-space: nowrap;
+    }
+    .map-legend .legend-ramp-toggle:hover {
+      background: #f1f1f1;
+      border-color: #888;
+    }
+    .map-legend .legend-ramp-toggle:focus-visible {
+      outline: 2px solid #2c7bb6;
+      outline-offset: 1px;
+    }
+    .map-legend .legend-ramp-hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -4126,6 +4151,13 @@ const ALL_FA_ICONS = [
   };
   legendControl.addTo(map);
 
+  const hiddenThirdPartyRamps = new Set();
+
+  /**
+   * Renders the map legend from the current incident and third-party layer state.
+   * @post Active third-party layers with legend items expose their complete color ramp.
+   * @sideeffect Replaces the legend control contents and preserves ramp collapse state.
+   */
   function updateLegend() {
     const div = document.getElementById('map-legend-box');
     if (!div) return;
@@ -4153,9 +4185,37 @@ const ALL_FA_ICONS = [
         });
       }
     });
+    let thirdPartyItemsHtml = '';
+    Object.entries(thirdPartyLayers).forEach(([layerName, config]) => {
+      if (!config.activated || !map.hasLayer(config.layer) || !Array.isArray(config.legendItems)) return;
+      const rampId = `legend-ramp-${config.id}`;
+      const rampIsHidden = hiddenThirdPartyRamps.has(config.id);
+      const rampItemsHtml = config.legendItems.map(item => `
+        <li class="legend-subitem">
+          <span class="legend-color-swatch" style="background-color: ${sanitizeLegendColor(item.color)};"></span>
+          <span>${escHtml(item.label)}</span>
+        </li>
+      `).join('');
+      thirdPartyItemsHtml += `
+        <div class="legend-third-party">
+          <div class="legend-item" title="${escHtml(layerName)}">
+            <input type="checkbox" class="legend-layer-toggle" data-third-party-layer="${escHtml(layerName)}" checked ${mapIsReadOnly ? 'disabled' : ''} />
+            <span class="legend-icon" style="background-color: ${sanitizeLegendColor(config.color)};"><i class="${escHtml(config.icon)}"></i></span>
+            <span class="legend-sheet-name">${escHtml(layerName)}</span>
+            <button type="button" class="legend-ramp-toggle" data-ramp-id="${escHtml(config.id)}" aria-controls="${rampId}" aria-expanded="${!rampIsHidden}">
+              ${rampIsHidden ? 'Show colors' : 'Hide colors'}
+            </button>
+          </div>
+          <ul id="${rampId}" class="legend-subitems${rampIsHidden ? ' legend-ramp-hidden' : ''}">
+            ${rampItemsHtml}
+          </ul>
+        </div>
+      `;
+    });
     div.innerHTML = `
       <div class="legend-title">Legend</div>
       ${itemsHtml}
+      ${thirdPartyItemsHtml}
       <div class="legend-status-section" style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #ddd;">
         <div class="legend-item">
           <label class="legend-checkbox-label" for="toggle-closed-incidents" title="Show or hide closed incidents">
@@ -5083,6 +5143,18 @@ const ALL_FA_ICONS = [
         }
       }
     }
+  });
+
+  document.addEventListener('click', function (e) {
+    const toggle = e.target && e.target.closest ? e.target.closest('.legend-ramp-toggle') : null;
+    if (!toggle) return;
+    const rampId = toggle.dataset.rampId;
+    const ramp = document.getElementById(`legend-ramp-${rampId}`);
+    if (!ramp) return;
+    const isHidden = ramp.classList.toggle('legend-ramp-hidden');
+    hiddenThirdPartyRamps[isHidden ? 'add' : 'delete'](rampId);
+    toggle.textContent = isHidden ? 'Show colors' : 'Hide colors';
+    toggle.setAttribute('aria-expanded', String(!isHidden));
   });
 
   // ── Polling / plotting ────────────────────────────────────────────────────────
