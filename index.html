@@ -333,7 +333,7 @@
     }
     .category-style-item {
       display: grid;
-      grid-template-columns: minmax(42px, 48px) minmax(100px, 1fr);
+      grid-template-columns: minmax(42px, 48px) minmax(100px, 1fr) auto;
       align-items: center;
       gap: 8px;
       padding: 8px;
@@ -380,6 +380,60 @@
       color: #777;
       font-size: 0.82rem;
       padding: 6px 0;
+    }
+    .category-color-mapping-btn {
+      padding: 6px 8px;
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+    .category-color-mapping-btn i {
+      margin-right: 4px;
+    }
+    .category-color-mapping-modal-box {
+      width: min(620px, 94vw);
+    }
+    .category-color-mapping-list {
+      display: grid;
+      gap: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin: 12px 0;
+    }
+    .category-color-mapping-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 46px;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      background: #f8fafc;
+    }
+    .category-color-mapping-row label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+    .category-color-mapping-row input[type="color"] {
+      width: 42px;
+      height: 30px;
+      padding: 1px;
+      border: 1px solid #aeb8c2;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .category-color-mapping-add {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .category-color-mapping-add .text-input {
+      margin-bottom: 0;
+      flex: 1;
     }
     .severity-config {
       margin-top: 12px;
@@ -1485,6 +1539,26 @@
       </div>
     </div>
     <button type="button" id="sheet-style-done" class="btn-primary" style="margin-top: 18px;">Done</button>
+  </div>
+</div>
+
+<!-- ── Category value color mapping modal ─────────────────────── -->
+<div id="category-color-mapping-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="category-color-mapping-title">
+  <div id="category-color-mapping-dialog" class="modal-box category-color-mapping-modal-box" tabindex="-1">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+      <h2 id="category-color-mapping-title" style="margin-bottom: 0;">Category color mappings</h2>
+      <button type="button" id="category-color-mapping-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
+    </div>
+    <p id="category-color-mapping-description">Choose a column and map its values to marker colors for this category.</p>
+    <label class="field-label" for="category-color-mapping-column">Value column</label>
+    <select id="category-color-mapping-column" class="select-input"></select>
+    <div id="category-color-mapping-status" class="category-detect-status"></div>
+    <div id="category-color-mapping-list" class="category-color-mapping-list"></div>
+    <div class="category-color-mapping-add">
+      <input id="category-color-mapping-add-input" class="text-input" type="text" placeholder="Add column value" />
+      <button type="button" id="category-color-mapping-add-btn" class="btn-secondary">Add</button>
+    </div>
+    <button type="button" id="category-color-mapping-done" class="btn-primary" style="margin-top: 18px;">Done</button>
   </div>
 </div>
 
@@ -2784,6 +2858,15 @@ const ALL_FA_ICONS = [
     if (handledByShared) return;
     const handledByCommitInfo = handleManagedModalKeyboard(e, commitInfoModal, closeCommitInfoModal);
     if (handledByCommitInfo) return;
+    const handledByCategoryColorMapping = handleManagedModalKeyboard(
+      e,
+      document.getElementById('category-color-mapping-modal'),
+      closeCategoryColorMappingModal
+    );
+    if (handledByCategoryColorMapping) {
+      e.stopImmediatePropagation();
+      return;
+    }
     const handledBySheetStyle = handleManagedModalKeyboard(
       e,
       document.getElementById('sheet-style-modal'),
@@ -3389,7 +3472,14 @@ const ALL_FA_ICONS = [
               ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
               : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
             color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
-            ,visible: option.visible !== false
+            ,visible: option.visible !== false,
+            colorMappingColumn: Number.isInteger(option.colorMappingColumn) ? option.colorMappingColumn : null,
+            colorMappings: Array.isArray(option.colorMappings)
+              ? option.colorMappings
+                .filter(mapping => mapping && typeof mapping.value === 'string' && normalizeHexColor(mapping.color))
+                .map(mapping => ({ value: mapping.value.trim(), color: normalizeHexColor(mapping.color) }))
+                .filter(mapping => mapping.value)
+              : []
           }))
           .filter(option => option.value);
       }
@@ -4493,7 +4583,14 @@ const ALL_FA_ICONS = [
               ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
               : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
             color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
-            ,visible: option.visible !== false
+            ,visible: option.visible !== false,
+            colorMappingColumn: Number.isInteger(option.colorMappingColumn) ? option.colorMappingColumn : null,
+            colorMappings: Array.isArray(option.colorMappings)
+              ? option.colorMappings
+                .filter(mapping => mapping && typeof mapping.value === 'string' && normalizeHexColor(mapping.color))
+                .map(mapping => ({ value: mapping.value.trim(), color: normalizeHexColor(mapping.color) }))
+                .filter(mapping => mapping.value)
+              : []
           }))
           .filter(option => option.value)
         : [],
@@ -6440,6 +6537,13 @@ const ALL_FA_ICONS = [
         row[categoryCol] !== undefined) ? String(row[categoryCol]).trim() : '';
       const severityValue = (severityCol !== null && severityCol !== undefined && severityCol >= 0 &&
         row[severityCol] !== undefined) ? String(row[severityCol]).trim() : '';
+      const categoryStyle = getCategoryStyle(sheet, categoryValue);
+      const colorMappingColumn = categoryStyle && Number.isInteger(categoryStyle.colorMappingColumn)
+        ? categoryStyle.colorMappingColumn
+        : null;
+      const colorMappingValue = colorMappingColumn !== null && row[colorMappingColumn] !== undefined
+        ? String(row[colorMappingColumn]).trim()
+        : '';
       const isOpen    = (statusCol !== null && statusCol >= 0) ? statusRaw !== 'closed' : true;
       if (isOpen) {
         sheetOpen++;
@@ -6482,7 +6586,7 @@ const ALL_FA_ICONS = [
         fuzzyStreet: geo ? geo.fuzzyStreet : null,
         editDist:    geo ? geo.editDist    : null,
       };
-      const incidentStyle = getIncidentStyle(sheet, categoryValue, severityValue);
+      const incidentStyle = getIncidentStyle(sheet, categoryValue, colorMappingValue, severityValue);
 
       const shouldShow = shouldShowIncident(sheet, categoryValue, isOpen, Boolean(geo));
       const incidentLayerGroup = getIncidentLayerGroup(sheet, categoryValue);
@@ -6492,7 +6596,9 @@ const ALL_FA_ICONS = [
         m._isOpen = isOpen;
         m._sheetId = sheet.id;
         m._categoryValue = categoryValue;
+        m._colorMappingValue = colorMappingValue;
         m._severityValue = severityValue;
+        m._row = row;
         if (m._incidentLayerGroup !== incidentLayerGroup) {
           if (m._incidentLayerGroup) m._incidentLayerGroup.removeLayer(m);
           m._incidentLayerGroup = incidentLayerGroup;
@@ -6513,7 +6619,9 @@ const ALL_FA_ICONS = [
         marker._isOpen = isOpen;
         marker._sheetId = sheet.id;
         marker._categoryValue = categoryValue;
+        marker._colorMappingValue = colorMappingValue;
         marker._severityValue = severityValue;
+        marker._row = row;
         marker._incidentLayerGroup = incidentLayerGroup;
         marker._isOutOfRange = isMoreThanOneDegreeFromPmc(lat, lon);
         syncIncidentMarkerLayer(marker, shouldShow);
@@ -6743,7 +6851,14 @@ const ALL_FA_ICONS = [
             ? { fa: option.icon.fa, label: option.icon.label || formatIconLabel(option.icon.fa) }
             : ICON_OPTIONS[optionIndex % ICON_OPTIONS.length],
           color: normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
-          ,visible: option.visible !== false
+          ,visible: option.visible !== false,
+          colorMappingColumn: Number.isInteger(option.colorMappingColumn) ? option.colorMappingColumn : null,
+          colorMappings: Array.isArray(option.colorMappings)
+            ? option.colorMappings
+              .filter(mapping => mapping && typeof mapping.value === 'string' && normalizeHexColor(mapping.color))
+              .map(mapping => ({ value: mapping.value.trim(), color: normalizeHexColor(mapping.color) }))
+              .filter(mapping => mapping.value)
+            : []
         }))
         .filter(option => option.value);
     }
@@ -7102,6 +7217,22 @@ const ALL_FA_ICONS = [
   }
 
   /**
+   * Gets the color mapped to a category-specific column value.
+   *
+   * @pre `option` is a category option and `mappingValue` is a value from its configured column.
+   * @post Returns a configured color or null when the value is not mapped.
+   */
+  function categoryMappedColor(option, mappingValue) {
+    if (!option || !Array.isArray(option.colorMappings)) return null;
+    const normalizedValue = String(mappingValue || '').trim().toLowerCase();
+    if (!normalizedValue) return null;
+    const mapping = option.colorMappings.find(item =>
+      item.value.toLowerCase() === normalizedValue
+    );
+    return mapping ? normalizeHexColor(mapping.color) : null;
+  }
+
+  /**
    * get incident style.
    *
    * @pre Arguments satisfy the documented shape and current application invariants hold.
@@ -7109,12 +7240,14 @@ const ALL_FA_ICONS = [
    * @sideEffects May update application state or user-visible UI when required by the operation.
    * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
    */
-  function getIncidentStyle(sheet, categoryValue, severityValue) {
+  function getIncidentStyle(sheet, categoryValue, mappingValue, severityValue) {
     const categoryStyle = getCategoryStyle(sheet, categoryValue);
     if (categoryStyle) {
+      const mappedColor = categoryMappedColor(categoryStyle, mappingValue);
       return {
         icon: categoryStyle.icon,
-        color: severityColor(sheet, severityValue, normalizeHexColor(categoryStyle.color) || categoryStyle.color) ||
+        color: mappedColor ||
+          severityColor(sheet, severityValue, normalizeHexColor(categoryStyle.color) || categoryStyle.color) ||
           categoryStyle.color
       };
     }
@@ -7132,7 +7265,14 @@ const ALL_FA_ICONS = [
   function refreshSheetMarkerStyles(sheet) {
     Object.values(incidentMarkers).forEach(marker => {
       if (marker._sheetId !== sheet.id) return;
-      const style = getIncidentStyle(sheet, marker._categoryValue, marker._severityValue);
+      const categoryStyle = getCategoryStyle(sheet, marker._categoryValue);
+      const mappingColumn = categoryStyle && Number.isInteger(categoryStyle.colorMappingColumn)
+        ? categoryStyle.colorMappingColumn
+        : null;
+      const mappingValue = marker._row && mappingColumn !== null && marker._row[mappingColumn] !== undefined
+        ? String(marker._row[mappingColumn]).trim()
+        : marker._colorMappingValue;
+      const style = getIncidentStyle(sheet, marker._categoryValue, mappingValue, marker._severityValue);
       marker.setIcon(buildDivIcon(marker._isOpen, style.icon.fa, style.color));
     });
   }
@@ -7155,7 +7295,9 @@ const ALL_FA_ICONS = [
         value: trimmedValue,
         icon: ICON_OPTIONS[index % ICON_OPTIONS.length],
         color: COLOR_PALETTE[index % COLOR_PALETTE.length],
-        visible: true
+        visible: true,
+        colorMappingColumn: null,
+        colorMappings: []
       };
     });
   }
@@ -7214,8 +7356,20 @@ const ALL_FA_ICONS = [
         }
       });
 
+      const mappingButton = document.createElement('button');
+      mappingButton.type = 'button';
+      mappingButton.className = 'btn-secondary category-color-mapping-btn';
+      mappingButton.innerHTML = '<i class="fa-solid fa-palette"></i> Colors';
+      mappingButton.title = 'Configure column value colors for this category';
+      mappingButton.setAttribute('aria-label', `Configure column value colors for ${option.value}`);
+      mappingButton.disabled = disabled;
+      mappingButton.addEventListener('click', function () {
+        if (!disabled) openCategoryColorMappingModal(sheet, option, mappingButton);
+      });
+
       item.appendChild(appearanceButton);
       item.appendChild(valueEl);
+      item.appendChild(mappingButton);
       list.appendChild(item);
     });
     container.appendChild(list);
@@ -7309,6 +7463,17 @@ const ALL_FA_ICONS = [
   const sheetStylePreviewName  = document.getElementById('sheet-style-preview-name');
   const sheetStyleIconPicker   = document.getElementById('sheet-style-icon-picker');
   const sheetStyleColorPicker  = document.getElementById('sheet-style-color-picker');
+  const categoryColorMappingModal = document.getElementById('category-color-mapping-modal');
+  const categoryColorMappingDialog = document.getElementById('category-color-mapping-dialog');
+  const categoryColorMappingTitle = document.getElementById('category-color-mapping-title');
+  const categoryColorMappingDescription = document.getElementById('category-color-mapping-description');
+  const categoryColorMappingColumn = document.getElementById('category-color-mapping-column');
+  const categoryColorMappingStatus = document.getElementById('category-color-mapping-status');
+  const categoryColorMappingList = document.getElementById('category-color-mapping-list');
+  const categoryColorMappingAddInput = document.getElementById('category-color-mapping-add-input');
+  const categoryColorMappingAddBtn = document.getElementById('category-color-mapping-add-btn');
+  const categoryColorMappingCloseBtn = document.getElementById('category-color-mapping-close');
+  const categoryColorMappingDoneBtn = document.getElementById('category-color-mapping-done');
   const btnAddSheet           = document.getElementById('btn-add-sheet');
   const geocoderLocalNotice = document.getElementById('geocoder-local-notice');
   const geocoderFieldGroup  = document.getElementById('geocoder-field-group');
@@ -7427,6 +7592,162 @@ const ALL_FA_ICONS = [
   if (sheetStyleModal) {
     sheetStyleModal.addEventListener('click', function (event) {
       if (event.target === sheetStyleModal) closeStyleModal();
+    });
+  }
+
+  /**
+   * Renders the configured value-to-color mappings for one category.
+   *
+   * @pre `option.colorMappings` contains normalized mapping objects.
+   * @post The dialog reflects the current mapping values and colors.
+   * @sideEffects Updates only the mounted color-mapping dialog.
+   */
+  function renderCategoryColorMappings(option) {
+    if (!categoryColorMappingList || !option) return;
+    categoryColorMappingList.innerHTML = '';
+    const mappings = Array.isArray(option.colorMappings) ? option.colorMappings : [];
+    if (mappings.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'category-style-empty';
+      empty.textContent = 'Choose a column to preload values, or add a value below.';
+      categoryColorMappingList.appendChild(empty);
+      return;
+    }
+    mappings.forEach(mapping => {
+      const row = document.createElement('div');
+      row.className = 'category-color-mapping-row';
+      const label = document.createElement('label');
+      label.textContent = mapping.value;
+      label.title = mapping.value;
+      const colorInput = document.createElement('input');
+      colorInput.type = 'color';
+      colorInput.value = normalizeHexColor(mapping.color) || option.color;
+      colorInput.setAttribute('aria-label', `Color for ${mapping.value}`);
+      colorInput.addEventListener('input', function () {
+        mapping.color = colorInput.value;
+        refreshSheetMarkerStyles(activeCategoryColorMappingSheet);
+      });
+      row.appendChild(label);
+      row.appendChild(colorInput);
+      categoryColorMappingList.appendChild(row);
+    });
+  }
+
+  /**
+   * Merges values discovered in a selected column into one category's mappings.
+   *
+   * @pre `values` contains untrusted sheet-cell strings.
+   * @post Existing mappings retain their colors; new unique values receive the category color.
+   */
+  function preloadCategoryColorMappings(option, values) {
+    const existing = Array.isArray(option.colorMappings) ? option.colorMappings : [];
+    const byValue = new Map(existing.map(mapping => [mapping.value.toLowerCase(), mapping]));
+    values.forEach(value => {
+      const normalizedValue = String(value || '').trim();
+      if (!normalizedValue || byValue.has(normalizedValue.toLowerCase())) return;
+      const mapping = { value: normalizedValue, color: option.color };
+      byValue.set(normalizedValue.toLowerCase(), mapping);
+      existing.push(mapping);
+    });
+    option.colorMappings = existing;
+  }
+
+  /**
+   * Loads values from the category's selected mapping column.
+   *
+   * @pre The active category has a valid sheet and optional column selection.
+   * @post Values already present in the sheet are added to the dialog without replacing manual values.
+   * @throws {Error} Does not throw; read failures are displayed in the dialog and logged.
+   */
+  async function refreshCategoryColorMappingValues(sheet, option) {
+    if (!Number.isInteger(option.colorMappingColumn)) {
+      renderCategoryColorMappings(option);
+      return;
+    }
+    if (categoryColorMappingStatus) categoryColorMappingStatus.textContent = 'Reading column values…';
+    try {
+      const rows = sheet.lastRows || sheet.importedRows || await fetchSheetRows(sheet);
+      preloadCategoryColorMappings(option, getUniqueColumnValues(rows, option.colorMappingColumn));
+      renderCategoryColorMappings(option);
+      if (categoryColorMappingStatus) {
+        categoryColorMappingStatus.textContent = `${option.colorMappings.length} value${option.colorMappings.length === 1 ? '' : 's'} configured`;
+      }
+    } catch (error) {
+      console.warn(`Could not read color-mapping values for "${sheet.name}":`, error);
+      renderCategoryColorMappings(option);
+      if (categoryColorMappingStatus) categoryColorMappingStatus.textContent = 'Could not read column values. Add values manually.';
+    }
+  }
+
+  let activeCategoryColorMappingSheet = null;
+  let activeCategoryColorMappingOption = null;
+
+  /**
+   * Opens the per-category value-to-color mapping dialog.
+   *
+   * @pre Editing is allowed and the category belongs to `sheet`.
+   * @post The dialog is populated with the sheet's columns and known values.
+   * @sideEffects May fetch rows to discover currently used values.
+   */
+  function openCategoryColorMappingModal(sheet, option, trigger) {
+    if (mapIsReadOnly || !categoryColorMappingModal || !sheet || !option) return;
+    activeCategoryColorMappingSheet = sheet;
+    activeCategoryColorMappingOption = option;
+    if (categoryColorMappingTitle) categoryColorMappingTitle.textContent = `Colors for "${option.value}"`;
+    if (categoryColorMappingDescription) {
+      categoryColorMappingDescription.textContent =
+        'Choose the column whose values should control this category’s marker color. Existing values are preloaded; add future values below.';
+    }
+    populateSelect(categoryColorMappingColumn, sheet.headers, option.colorMappingColumn, false, '(Select value column)');
+    if (categoryColorMappingStatus) categoryColorMappingStatus.textContent = '';
+    renderCategoryColorMappings(option);
+    openManagedModal(categoryColorMappingModal, {
+      dialogPanel: categoryColorMappingDialog,
+      initialFocus: categoryColorMappingCloseBtn || trigger
+    });
+    refreshCategoryColorMappingValues(sheet, option);
+  }
+
+  /**
+   * Closes the category value-to-color mapping dialog.
+   *
+   * @post The dialog closes and all mapping changes are persisted and applied to existing markers.
+   */
+  function closeCategoryColorMappingModal() {
+    if (activeCategoryColorMappingSheet) {
+      refreshSheetMarkerStyles(activeCategoryColorMappingSheet);
+      persistAppState();
+    }
+    activeCategoryColorMappingSheet = null;
+    activeCategoryColorMappingOption = null;
+    closeManagedModal(categoryColorMappingModal);
+  }
+
+  if (categoryColorMappingColumn) {
+    categoryColorMappingColumn.addEventListener('change', function () {
+      if (!activeCategoryColorMappingSheet || !activeCategoryColorMappingOption) return;
+      const column = parseInt(categoryColorMappingColumn.value, 10);
+      activeCategoryColorMappingOption.colorMappingColumn = column >= 0 ? column : null;
+      activeCategoryColorMappingOption.colorMappings = [];
+      refreshSheetMarkerStyles(activeCategoryColorMappingSheet);
+      refreshCategoryColorMappingValues(activeCategoryColorMappingSheet, activeCategoryColorMappingOption);
+    });
+  }
+  if (categoryColorMappingAddBtn) {
+    categoryColorMappingAddBtn.addEventListener('click', function () {
+      if (!activeCategoryColorMappingOption || !categoryColorMappingAddInput) return;
+      const value = categoryColorMappingAddInput.value.trim();
+      if (!value) return;
+      preloadCategoryColorMappings(activeCategoryColorMappingOption, [value]);
+      categoryColorMappingAddInput.value = '';
+      renderCategoryColorMappings(activeCategoryColorMappingOption);
+    });
+  }
+  if (categoryColorMappingCloseBtn) categoryColorMappingCloseBtn.addEventListener('click', closeCategoryColorMappingModal);
+  if (categoryColorMappingDoneBtn) categoryColorMappingDoneBtn.addEventListener('click', closeCategoryColorMappingModal);
+  if (categoryColorMappingModal) {
+    categoryColorMappingModal.addEventListener('click', function (event) {
+      if (event.target === categoryColorMappingModal) closeCategoryColorMappingModal();
     });
   }
 
@@ -7809,28 +8130,10 @@ const ALL_FA_ICONS = [
           <select class="select-input col-category-select"></select>
           <div class="category-options-note">
             Select a dropdown column to assign a FontAwesome icon and background color to each option.
+            Use an option’s <strong>Colors</strong> button to map another column’s values to marker colors.
             Sign in with Google to read its configured dropdown choices.
           </div>
           <div class="category-style-container"></div>
-        </div>
-      </div>
-
-      <div class="severity-config">
-        <label class="severity-toggle">
-          <input type="checkbox" class="severity-enabled-input" />
-          This sheet has a severity column
-        </label>
-        <div class="severity-config-body hidden">
-          <div class="severity-note">
-            Low severity uses the lightest shade of this sheet color; high severity uses the most saturated shade.
-            Drag labels to position intermediate values, or add values that may appear later.
-          </div>
-          <select class="select-input col-severity-select"></select>
-          <div class="severity-gradient-container"></div>
-          <div class="severity-add-row">
-            <input class="text-input severity-add-input" type="text" placeholder="Add severity value" />
-            <button type="button" class="btn-secondary severity-add-btn">Add</button>
-          </div>
         </div>
       </div>
 
@@ -7847,15 +8150,9 @@ const ALL_FA_ICONS = [
     const categorySelect = card.querySelector('.col-category-select');
     const categoryEnabledInput = card.querySelector('.category-enabled-input');
     const categoryBody = card.querySelector('.category-options-body');
-    const severitySelect = card.querySelector('.col-severity-select');
-    const severityEnabledInput = card.querySelector('.severity-enabled-input');
-    const severityBody = card.querySelector('.severity-config-body');
-    const severityGradient = card.querySelector('.severity-gradient-container');
-    const severityAddInput = card.querySelector('.severity-add-input');
-    const severityAddBtn = card.querySelector('.severity-add-btn');
 
     if (mapIsReadOnly) {
-      [nameInput, urlInput, refreshBtn, removeBtn, addrSelect, statusSelect, labelSelect, categorySelect, categoryEnabledInput, severitySelect, severityEnabledInput, severityAddInput, severityAddBtn].forEach(el => {
+      [nameInput, urlInput, refreshBtn, removeBtn, addrSelect, statusSelect, labelSelect, categorySelect, categoryEnabledInput].forEach(el => {
         if (el) el.disabled = true;
       });
     }
@@ -7904,12 +8201,8 @@ const ALL_FA_ICONS = [
     populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
     populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
     populateSelect(categorySelect, sheet.headers, sheet.columnMapping.category, false, '(None — No Category)');
-    populateSelect(severitySelect, sheet.headers, sheet.columnMapping.severity, false, '(Select Severity Column)');
     categoryEnabledInput.checked = sheet.categoryEnabled === true;
     categoryBody.classList.toggle('hidden', !categoryEnabledInput.checked);
-    severityEnabledInput.checked = sheet.severityEnabled === true;
-    severityBody.classList.toggle('hidden', !severityEnabledInput.checked);
-    renderSeverityGradient(severityGradient, sheet, () => refreshSheetMarkerStyles(sheet), { disabled: mapIsReadOnly });
     renderCategoryStyles(card.querySelector('.category-style-container'), sheet, null, { disabled: mapIsReadOnly });
 
     if (sheet.rawUrl && (!sheet.headers || sheet.headers.length === 0)) {
@@ -7943,28 +8236,6 @@ const ALL_FA_ICONS = [
       updateClosedMarkersVisibility();
       persistAppState();
     });
-    severityEnabledInput.addEventListener('change', function () {
-      sheet.severityEnabled = severityEnabledInput.checked;
-      severityBody.classList.toggle('hidden', !sheet.severityEnabled);
-      if (sheet.severityEnabled) inspectSeverityOptions(sheet, card);
-      renderSeverityGradient(severityGradient, sheet, () => refreshSheetMarkerStyles(sheet), { disabled: mapIsReadOnly });
-    });
-    severitySelect.addEventListener('change', function () {
-      const val = parseInt(severitySelect.value, 10);
-      sheet.columnMapping.severity = val >= 0 ? val : null;
-      if (sheet.severityEnabled) inspectSeverityOptions(sheet, card);
-    });
-    severityAddBtn.addEventListener('click', function () {
-      const value = severityAddInput.value.trim();
-      if (!value || (sheet.severityLevels || []).some(level => level.value.toLowerCase() === value.toLowerCase())) return;
-      const nextPosition = sheet.severityLevels.length
-        ? sheet.severityLevels.length / (sheet.severityLevels.length + 1)
-        : 0;
-      sheet.severityLevels.push({ value, position: nextPosition });
-      severityAddInput.value = '';
-      renderSeverityGradient(severityGradient, sheet, () => refreshSheetMarkerStyles(sheet), { disabled: mapIsReadOnly });
-    });
-
     removeBtn.addEventListener('click', function () {
       if (sheets.length <= 1) return;
       sheets = sheets.filter(s => s.id !== sheet.id);
@@ -7979,9 +8250,6 @@ const ALL_FA_ICONS = [
     if (sheet.categoryEnabled === true &&
         sheet.columnMapping.category !== null && sheet.columnMapping.category !== undefined) {
       inspectCategoryOptions(sheet, card, sheet.lastRows || sheet.importedRows);
-    }
-    if (sheet.severityEnabled && sheet.columnMapping.severity !== null && sheet.columnMapping.severity !== undefined) {
-      inspectSeverityOptions(sheet, card, sheet.lastRows || sheet.importedRows);
     }
 
     return card;
