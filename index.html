@@ -3549,7 +3549,7 @@ const ALL_FA_ICONS = [
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function mapSnapshot() {
@@ -3604,12 +3604,42 @@ const ALL_FA_ICONS = [
     };
   }
 
-  function exportMapSnapshot() {
-    downloadTextFile(
-      `pmc-cert-map-${new Date().toISOString().slice(0, 10)}.json`,
-      JSON.stringify(mapSnapshot(), null, 2)
-    );
-    setStatus('Map configuration and loaded data saved to a file.');
+  /**
+   * Saves the current map snapshot to a user-selected JSON file.
+   * @pre The map has been initialized and its current state is exportable.
+   * @post The snapshot is written to the selected file, or downloaded using
+   *   the browser's default download behavior when a save picker is unavailable.
+   * @throws Reports unexpected file-system failures through the status UI.
+   */
+  async function exportMapSnapshot() {
+    const filename = `pmc-cert-map-${new Date().toISOString().slice(0, 10)}.json`;
+
+    try {
+      const snapshot = JSON.stringify(mapSnapshot(), null, 2);
+      if (typeof window.showSaveFilePicker === 'function') {
+        const fileHandle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'JSON map file',
+            accept: { 'application/json': ['.json'] }
+          }]
+        });
+        const writable = await fileHandle.createWritable();
+        await writable.write(snapshot);
+        await writable.close();
+      } else {
+        downloadTextFile(filename, snapshot);
+      }
+      setStatus('Map configuration and loaded data saved to a file.');
+    } catch (error) {
+      if (error && error.name === 'AbortError') {
+        setStatus('Map file save canceled.');
+        return;
+      }
+      console.error('Failed to save map file.', error);
+      const message = error instanceof Error ? error.message : 'Unknown error.';
+      setStatus(`Could not save map file: ${message}`);
+    }
   }
 
   function validateImportedSheet(value, index) {
