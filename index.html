@@ -390,7 +390,8 @@
       margin-right: 4px;
     }
     .category-color-mapping-modal-box {
-      width: min(620px, 94vw);
+      width: min(500px, 92vw);
+      overflow-x: hidden;
     }
     .category-color-mapping-list {
       display: grid;
@@ -401,7 +402,7 @@
     }
     .category-color-mapping-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 46px;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 10px;
       padding: 8px;
@@ -425,6 +426,31 @@
       border-radius: 4px;
       cursor: pointer;
     }
+    .category-color-ramp {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      min-width: 0;
+    }
+    .category-color-ramp-btn {
+      width: 24px;
+      height: 24px;
+      flex: 0 0 24px;
+      border: 2px solid transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .category-color-ramp-btn:hover,
+    .category-color-ramp-btn:focus-visible {
+      border-color: #2c7bb6;
+      outline: none;
+    }
+    .category-color-ramp-btn.active {
+      border-color: #222;
+      box-shadow: 0 0 0 2px #fff inset, 0 1px 3px rgba(0,0,0,0.3);
+    }
     .category-color-mapping-add {
       display: flex;
       gap: 8px;
@@ -434,6 +460,38 @@
     .category-color-mapping-add .text-input {
       margin-bottom: 0;
       flex: 1;
+    }
+    .category-color-scheme {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      background: #f8fafc;
+    }
+    .category-color-scheme-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .category-color-scheme-row .select-input {
+      flex: 1;
+      margin-bottom: 0;
+    }
+    .category-color-scheme-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+    }
+    .category-color-scheme-controls input[type="color"] {
+      width: 42px;
+      height: 30px;
+      padding: 1px;
+      border: 1px solid #aeb8c2;
+      border-radius: 4px;
+      cursor: pointer;
     }
     .severity-config {
       margin-top: 12px;
@@ -1552,6 +1610,16 @@
     <label class="field-label" for="category-color-mapping-column">Value column</label>
     <select id="category-color-mapping-column" class="select-input"></select>
     <div id="category-color-mapping-status" class="category-detect-status"></div>
+    <div class="category-color-scheme">
+      <div class="category-color-scheme-row">
+        <label class="sub-field-label" for="category-color-scheme-select" style="margin-bottom: 0;">Color scheme</label>
+        <select id="category-color-scheme-select" class="select-input">
+          <option value="monochromatic">Monochromatic ramp</option>
+          <option value="palette">Color palette</option>
+        </select>
+      </div>
+      <div id="category-color-scheme-controls" class="category-color-scheme-controls"></div>
+    </div>
     <div id="category-color-mapping-list" class="category-color-mapping-list"></div>
     <div class="category-color-mapping-add">
       <input id="category-color-mapping-add-input" class="text-input" type="text" placeholder="Add column value" />
@@ -3504,7 +3572,9 @@ const ALL_FA_ICONS = [
                 .filter(mapping => mapping && typeof mapping.value === 'string' && normalizeHexColor(mapping.color))
                 .map(mapping => ({ value: mapping.value.trim(), color: normalizeHexColor(mapping.color) }))
                 .filter(mapping => mapping.value)
-              : []
+              : [],
+            colorMappingScheme: option.colorMappingScheme === 'palette' ? 'palette' : 'monochromatic',
+            colorMappingBaseColor: normalizeHexColor(option.colorMappingBaseColor) || normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
           }))
           .filter(option => option.value);
       }
@@ -4621,7 +4691,9 @@ const ALL_FA_ICONS = [
                 .filter(mapping => mapping && typeof mapping.value === 'string' && normalizeHexColor(mapping.color))
                 .map(mapping => ({ value: mapping.value.trim(), color: normalizeHexColor(mapping.color) }))
                 .filter(mapping => mapping.value)
-              : []
+              : [],
+            colorMappingScheme: option.colorMappingScheme === 'palette' ? 'palette' : 'monochromatic',
+            colorMappingBaseColor: normalizeHexColor(option.colorMappingBaseColor) || normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
           }))
           .filter(option => option.value)
         : [],
@@ -6912,7 +6984,9 @@ const ALL_FA_ICONS = [
               .filter(mapping => mapping && typeof mapping.value === 'string' && normalizeHexColor(mapping.color))
               .map(mapping => ({ value: mapping.value.trim(), color: normalizeHexColor(mapping.color) }))
               .filter(mapping => mapping.value)
-            : []
+          : [],
+          colorMappingScheme: option.colorMappingScheme === 'palette' ? 'palette' : 'monochromatic',
+          colorMappingBaseColor: normalizeHexColor(option.colorMappingBaseColor) || normalizeHexColor(option.color) || COLOR_PALETTE[optionIndex % COLOR_PALETTE.length]
         }))
         .filter(option => option.value);
     }
@@ -7352,7 +7426,9 @@ const ALL_FA_ICONS = [
         color: COLOR_PALETTE[index % COLOR_PALETTE.length],
         visible: true,
         colorMappingColumn: null,
-        colorMappings: []
+        colorMappings: [],
+        colorMappingScheme: 'monochromatic',
+        colorMappingBaseColor: COLOR_PALETTE[index % COLOR_PALETTE.length]
       };
     });
   }
@@ -7524,6 +7600,8 @@ const ALL_FA_ICONS = [
   const categoryColorMappingDescription = document.getElementById('category-color-mapping-description');
   const categoryColorMappingColumn = document.getElementById('category-color-mapping-column');
   const categoryColorMappingStatus = document.getElementById('category-color-mapping-status');
+  const categoryColorSchemeSelect = document.getElementById('category-color-scheme-select');
+  const categoryColorSchemeControls = document.getElementById('category-color-scheme-controls');
   const categoryColorMappingList = document.getElementById('category-color-mapping-list');
   const categoryColorMappingAddInput = document.getElementById('category-color-mapping-add-input');
   const categoryColorMappingAddBtn = document.getElementById('category-color-mapping-add-btn');
@@ -7670,14 +7748,87 @@ const ALL_FA_ICONS = [
   }
 
   /**
-   * Renders the configured value-to-color mappings for one category.
+   * Chooses the generated color for one mapping under the active scheme.
    *
-   * @pre `option.colorMappings` contains normalized mapping objects.
-   * @post The dialog reflects the current mapping values and colors.
-   * @sideEffects Updates only the mounted color-mapping dialog.
+   * @pre `option` has a valid category color and optional mapping scheme data.
+   * @post Returns one valid color from the selected palette or monochromatic ramp.
    */
+  function getCategoryColorSchemeColor(option, index, count) {
+    const scheme = option.colorMappingScheme === 'palette' ? 'palette' : 'monochromatic';
+    if (scheme === 'palette') return COLOR_PALETTE[index % COLOR_PALETTE.length];
+    const ramp = getMonochromaticRampColors(option);
+    const rampIndex = count < 2
+      ? Math.floor(ramp.length * 0.75)
+      : Math.round((index / (count - 1)) * (ramp.length - 1));
+    return ramp[Math.max(0, Math.min(ramp.length - 1, rampIndex))];
+  }
+
+  /**
+   * Builds the allowed colors for a monochromatic category ramp.
+   *
+   * @pre `option` has a valid optional base color or category color.
+   * @post Returns a non-empty ordered list of colors from lightest to darkest.
+   */
+  function getMonochromaticRampColors(option) {
+    const baseColor = normalizeHexColor(option.colorMappingBaseColor) ||
+      normalizeHexColor(option.color) || COLOR_PALETTE[0];
+    return Array.from({ length: 9 }, function (_, index) {
+      return mixHexColors('#ffffff', baseColor, 0.18 + (0.82 * index / 8));
+    });
+  }
+
+  /**
+   * Applies the selected color scheme to every configured category value.
+   *
+   * @pre `option` is a normalized category option with an array of mappings.
+   * @post Each mapping has a valid color generated from the selected scheme.
+   * @sideEffects Updates mapping colors, the dialog, visible markers, and browser persistence.
+   */
+  function applyCategoryColorScheme(option) {
+    if (!option || !Array.isArray(option.colorMappings)) return;
+    option.colorMappings.forEach((mapping, index) => {
+      mapping.color = getCategoryColorSchemeColor(option, index, option.colorMappings.length);
+    });
+    renderCategoryColorMappings(option);
+    if (activeCategoryColorMappingSheet) {
+      refreshSheetMarkerStyles(activeCategoryColorMappingSheet);
+      persistAppState();
+    }
+  }
+
+  /**
+   * Renders the scheme controls for the active category mapping dialog.
+   *
+   * @pre `option` is the category whose mappings are being edited.
+   * @post The dialog exposes a base-color control only for the monochromatic scheme.
+   * @sideEffects Updates only the mounted scheme control area.
+   */
+  function renderCategoryColorSchemeControls(option) {
+    if (!categoryColorSchemeSelect || !categoryColorSchemeControls || !option) return;
+    categoryColorSchemeSelect.value = option.colorMappingScheme === 'palette' ? 'palette' : 'monochromatic';
+    categoryColorSchemeControls.innerHTML = '';
+    if (categoryColorSchemeSelect.value === 'monochromatic') {
+      const label = document.createElement('span');
+      label.textContent = 'Base color';
+      const colorInput = document.createElement('input');
+      colorInput.type = 'color';
+      colorInput.value = normalizeHexColor(option.colorMappingBaseColor) ||
+        normalizeHexColor(option.color) || COLOR_PALETTE[0];
+      colorInput.setAttribute('aria-label', 'Monochromatic ramp base color');
+      colorInput.addEventListener('input', function () {
+        option.colorMappingBaseColor = colorInput.value;
+        applyCategoryColorScheme(option);
+      });
+      categoryColorSchemeControls.appendChild(label);
+      categoryColorSchemeControls.appendChild(colorInput);
+      return;
+    }
+
+  }
+
   function renderCategoryColorMappings(option) {
     if (!categoryColorMappingList || !option) return;
+    renderCategoryColorSchemeControls(option);
     categoryColorMappingList.innerHTML = '';
     const mappings = Array.isArray(option.colorMappings) ? option.colorMappings : [];
     if (mappings.length === 0) {
@@ -7687,22 +7838,57 @@ const ALL_FA_ICONS = [
       categoryColorMappingList.appendChild(empty);
       return;
     }
-    mappings.forEach(mapping => {
+    mappings.forEach((mapping, mappingIndex) => {
       const row = document.createElement('div');
       row.className = 'category-color-mapping-row';
       const label = document.createElement('label');
       label.textContent = mapping.value;
       label.title = mapping.value;
-      const colorInput = document.createElement('input');
-      colorInput.type = 'color';
-      colorInput.value = normalizeHexColor(mapping.color) || option.color;
-      colorInput.setAttribute('aria-label', `Color for ${mapping.value}`);
-      colorInput.addEventListener('input', function () {
-        mapping.color = colorInput.value;
-        refreshSheetMarkerStyles(activeCategoryColorMappingSheet);
-      });
-      row.appendChild(label);
-      row.appendChild(colorInput);
+      const isMonochromatic = option.colorMappingScheme !== 'palette';
+      const normalizedMappingColor = normalizeHexColor(mapping.color);
+      if (isMonochromatic) {
+        const ramp = getMonochromaticRampColors(option);
+        const fallbackColor = getCategoryColorSchemeColor(option, mappingIndex, mappings.length);
+        const selectedColor = ramp.includes(normalizedMappingColor) ? normalizedMappingColor : fallbackColor;
+        mapping.color = selectedColor;
+        const rampPicker = document.createElement('div');
+        rampPicker.className = 'category-color-ramp';
+        rampPicker.setAttribute('role', 'group');
+        rampPicker.setAttribute('aria-label', `Ramp colors for ${mapping.value}`);
+        ramp.forEach((color, index) => {
+          const colorButton = document.createElement('button');
+          colorButton.type = 'button';
+          colorButton.className = 'category-color-ramp-btn';
+          colorButton.style.backgroundColor = color;
+          colorButton.title = `Shade ${index + 1}: ${color}`;
+          colorButton.setAttribute('aria-label', `Shade ${index + 1} for ${mapping.value}`);
+          colorButton.setAttribute('aria-pressed', String(color === selectedColor));
+          if (color === selectedColor) colorButton.classList.add('active');
+          colorButton.addEventListener('click', function () {
+            mapping.color = color;
+            rampPicker.querySelectorAll('.category-color-ramp-btn').forEach(button => {
+              const selected = button === colorButton;
+              button.classList.toggle('active', selected);
+              button.setAttribute('aria-pressed', String(selected));
+            });
+            refreshSheetMarkerStyles(activeCategoryColorMappingSheet);
+          });
+          rampPicker.appendChild(colorButton);
+        });
+        row.appendChild(label);
+        row.appendChild(rampPicker);
+      } else {
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.value = normalizedMappingColor || option.color;
+        colorInput.setAttribute('aria-label', `Color for ${mapping.value}`);
+        colorInput.addEventListener('input', function () {
+          mapping.color = colorInput.value;
+          refreshSheetMarkerStyles(activeCategoryColorMappingSheet);
+        });
+        row.appendChild(label);
+        row.appendChild(colorInput);
+      }
       categoryColorMappingList.appendChild(row);
     });
   }
@@ -7719,7 +7905,10 @@ const ALL_FA_ICONS = [
     values.forEach(value => {
       const normalizedValue = String(value || '').trim();
       if (!normalizedValue || byValue.has(normalizedValue.toLowerCase())) return;
-      const mapping = { value: normalizedValue, color: option.color };
+      const mapping = {
+        value: normalizedValue,
+        color: getCategoryColorSchemeColor(option, existing.length, existing.length + 1)
+      };
       byValue.set(normalizedValue.toLowerCase(), mapping);
       existing.push(mapping);
     });
@@ -7805,6 +7994,20 @@ const ALL_FA_ICONS = [
       activeCategoryColorMappingOption.colorMappings = [];
       refreshSheetMarkerStyles(activeCategoryColorMappingSheet);
       refreshCategoryColorMappingValues(activeCategoryColorMappingSheet, activeCategoryColorMappingOption);
+    });
+  }
+  if (categoryColorSchemeSelect) {
+    categoryColorSchemeSelect.addEventListener('change', function () {
+      if (!activeCategoryColorMappingOption) return;
+      activeCategoryColorMappingOption.colorMappingScheme = categoryColorSchemeSelect.value === 'palette'
+        ? 'palette'
+        : 'monochromatic';
+      if (activeCategoryColorMappingOption.colorMappingScheme === 'monochromatic' &&
+          !normalizeHexColor(activeCategoryColorMappingOption.colorMappingBaseColor)) {
+        activeCategoryColorMappingOption.colorMappingBaseColor =
+          normalizeHexColor(activeCategoryColorMappingOption.color) || COLOR_PALETTE[0];
+      }
+      applyCategoryColorScheme(activeCategoryColorMappingOption);
     });
   }
   if (categoryColorMappingAddBtn) {
