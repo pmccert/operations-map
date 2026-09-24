@@ -1611,6 +1611,34 @@
       color: #444;
       line-height: 1.2;
     }
+    .leaflet-control-layers .fire-layer-control-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .leaflet-control-layers .fire-layer-control-label > span {
+      flex: 1;
+      min-width: 0;
+    }
+    .third-party-layer-info {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      color: #1f6f9f;
+      font-size: 15px;
+      text-decoration: none;
+      flex: 0 0 auto;
+    }
+    .third-party-layer-info:hover,
+    .third-party-layer-info:focus-visible {
+      color: #124666;
+      background: #e6f2f8;
+      outline: 2px solid #1f6f9f;
+      outline-offset: 1px;
+    }
     .map-legend .legend-color-swatch {
       width: 12px;
       height: 12px;
@@ -2561,6 +2589,33 @@ const ALL_FA_ICONS = [
     });
   }
 
+  /**
+   * Create the current-year interagency fire perimeter layer.
+   * @pre Leaflet and the fire-property normalization helper are initialized.
+   * @post Returns an empty GeoJSON layer styled for reported fire perimeters.
+   * @sideEffects Creates a Leaflet layer but does not add it to the map.
+   */
+  function createFirePerimetersLayer() {
+    return L.geoJSON(null, {
+      style: {
+        color: '#a93226',
+        weight: 2,
+        fillColor: '#e67e22',
+        fillOpacity: 0.22
+      },
+      onEachFeature: function (feature, featureLayer) {
+        const properties = feature.properties || {};
+        const name = fireProperty(properties, ['poly_IncidentName', 'IncidentName']) || 'Wildfire perimeter';
+        const acres = fireProperty(properties, ['poly_GISAcres', 'GIS_ACRES', 'Acres']);
+        const details = acres ? `<br>Mapped perimeter: ${escHtml(acres)} acres` : '';
+        featureLayer.bindPopup(
+          `<div class="incident-popup"><strong>${escHtml(name)}</strong>` +
+          `<br><span class="badge" style="background-color:#a93226;">Reported fire perimeter</span>${details}</div>`
+        );
+      }
+    });
+  }
+
   const thirdPartyLayers = {
     'Known Fire Incidents': {
       id: 'fires',
@@ -2568,7 +2623,21 @@ const ALL_FA_ICONS = [
       activated: false,
       clearOnDisable: true,
       icon: 'fa-solid fa-fire',
-      color: '#d35400'
+      color: '#d35400',
+      infoUrl: 'https://www.arcgis.com/home/item.html?id=4181a117dc9e43db8598533e29972015'
+    },
+    'Current-Year Fire Perimeters': {
+      id: 'fire-perimeters',
+      layer: createFirePerimetersLayer(),
+      activated: false,
+      clearOnDisable: true,
+      icon: 'fa-solid fa-fire',
+      color: '#a93226',
+      infoUrl: 'https://www.arcgis.com/home/item.html?id=7c81ab78d8464e5c9771e49b64e834e9',
+      legendRampInitiallyHidden: true,
+      legendItems: [
+        { label: 'Reported fire perimeter', color: '#e67e22', colorName: 'orange' }
+      ]
     },
     'Landslide Risk Map': {
       id: 'landslide-risk',
@@ -2589,6 +2658,7 @@ const ALL_FA_ICONS = [
         { label: 'High', color: '#fc8d59', colorName: 'orange' },
         { label: 'Very High', color: '#d73027', colorName: 'red' }
       ],
+      infoUrl: 'https://www.conservation.ca.gov/cgs/landslides',
       requiresWebMercator: true
     },
     '100 Year Flood Zone': {
@@ -2598,6 +2668,7 @@ const ALL_FA_ICONS = [
       clearOnDisable: true,
       icon: 'fa-solid fa-triangle-exclamation',
       color: '#5d00af',
+      infoUrl: 'https://mitigatehazards.com/Kern2026CountyRAMP/',
       legendItems: [
         { label: '100 Year Flood Zone', color: '#5d00af', colorName: 'purple' }
       ]
@@ -2653,16 +2724,59 @@ const ALL_FA_ICONS = [
 
   baseLayerContainer.append(baseLayerLabel, baseLayerSelect);
   mapLayersControl.getContainer().prepend(baseLayerContainer);
-  const overlayContainer = mapLayersControl.getContainer().querySelector('.leaflet-control-layers-overlays');
-  if (overlayContainer) {
-    const thirdPartySeparator = document.createElement('div');
-    thirdPartySeparator.className = 'leaflet-control-layers-separator';
-    const thirdPartyLabel = document.createElement('div');
-    thirdPartyLabel.textContent = 'Third-party layers';
-    thirdPartyLabel.style.fontWeight = 'bold';
-    thirdPartyLabel.style.marginBottom = '4px';
-    overlayContainer.before(thirdPartySeparator, thirdPartyLabel);
+  /**
+   * Decorate the Leaflet overlay list with source links for configured layers.
+   * @pre The Leaflet layers control and third-party layer configuration exist.
+   * @post Each configured source link appears once beside its matching overlay.
+   * @sideEffects Updates the layers-control DOM after Leaflet rebuilds it.
+   * @throws {Error} If the control or a configured overlay entry is unavailable.
+   */
+  function decorateThirdPartyLayerControl() {
+    const controlContainer = mapLayersControl && mapLayersControl.getContainer();
+    const overlayContainer = controlContainer
+      ? controlContainer.querySelector('.leaflet-control-layers-overlays')
+      : null;
+    if (!overlayContainer) {
+      throw new Error('Could not find the third-party layers control.');
+    }
+    if (!overlayContainer.previousElementSibling ||
+        !overlayContainer.previousElementSibling.classList.contains('third-party-layer-heading')) {
+      const thirdPartySeparator = document.createElement('div');
+      thirdPartySeparator.className = 'leaflet-control-layers-separator';
+      const thirdPartyLabel = document.createElement('div');
+      thirdPartyLabel.className = 'third-party-layer-heading';
+      thirdPartyLabel.textContent = 'Third-party layers';
+      thirdPartyLabel.style.fontWeight = 'bold';
+      thirdPartyLabel.style.marginBottom = '4px';
+      overlayContainer.before(thirdPartySeparator, thirdPartyLabel);
+    }
+    Object.entries(thirdPartyLayers).forEach(([layerName, config]) => {
+      if (!config.infoUrl) return;
+      const label = Array.from(overlayContainer.querySelectorAll('label')).find(candidate => {
+        const text = candidate.querySelector('span');
+        return text && text.textContent.trim() === layerName;
+      });
+      if (!label) {
+        throw new Error(`Could not find the layer control entry for "${layerName}".`);
+      }
+      if (label.querySelector('.third-party-layer-info')) return;
+      label.classList.add('fire-layer-control-label');
+      const infoLink = document.createElement('a');
+      infoLink.className = 'third-party-layer-info';
+      infoLink.href = config.infoUrl;
+      infoLink.target = '_blank';
+      infoLink.rel = 'noopener noreferrer';
+      infoLink.title = `More information about ${layerName} (opens in a new tab)`;
+      infoLink.setAttribute('aria-label', `More information about ${layerName} (opens in a new tab)`);
+      const infoIcon = document.createElement('i');
+      infoIcon.className = 'fa-solid fa-circle-info';
+      infoIcon.setAttribute('aria-hidden', 'true');
+      infoLink.appendChild(infoIcon);
+      infoLink.addEventListener('click', event => event.stopPropagation());
+      label.appendChild(infoLink);
+    });
   }
+  decorateThirdPartyLayerControl();
   if (savedAppState && savedAppState.mapView &&
       Number.isFinite(savedAppState.mapView.lat) &&
       Number.isFinite(savedAppState.mapView.lng) &&
@@ -3554,6 +3668,7 @@ const ALL_FA_ICONS = [
   });
 
   map.on('overlayadd', function (e) {
+    decorateThirdPartyLayerControl();
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
       if (!canEnableThirdPartyLayer(thirdPartyLayers[layerName], layerName)) {
@@ -3571,6 +3686,7 @@ const ALL_FA_ICONS = [
   });
 
   map.on('overlayremove', function (e) {
+    decorateThirdPartyLayerControl();
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
       thirdPartyLayers[layerName].activated = false;
@@ -4451,6 +4567,7 @@ const ALL_FA_ICONS = [
       } else if (!mapIsReadOnly && !mapLayersControlAttached) {
         mapLayersControl.addTo(map);
         mapLayersControlAttached = true;
+        decorateThirdPartyLayerControl();
       }
     }
   }
@@ -4792,6 +4909,7 @@ const ALL_FA_ICONS = [
 
   const THIRD_PARTY_ENDPOINTS = {
     fires: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?where=1%3D1&geometry=-119.7%2C34.4%2C-118.6%2C35.3&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&outFields=*&outSR=4326&f=geojson',
+    firePerimeters: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_YearToDate/FeatureServer/0/query?where=1%3D1&geometry=-119.7%2C34.4%2C-118.6%2C35.3&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&outFields=*&outSR=4326&f=geojson',
     awarenessZone: 'https://dpsgeo.carto.com/api/v2/sql?api_key=N2szY6xjxnwJuPTc7zcV5Q&format=geojson&q=SELECT%20*%20FROM%20kc26_az%20WHERE%20haz_az%20=%20%27Yes%27'
   };
 
@@ -4973,6 +5091,25 @@ const ALL_FA_ICONS = [
   }
 
   /**
+   * Fetch and display current-year wildland fire perimeter GeoJSON from WFIGS.
+   * @pre The configured perimeter endpoint is reachable and returns GeoJSON.
+   * @post Replaces perimeter features with a validated Feature or FeatureCollection.
+   * @sideEffects Fetches public data and mutates the perimeter Leaflet layer.
+   * @throws {Error} If the request fails or its response is not valid GeoJSON.
+   */
+  async function loadFirePerimeters() {
+    const layer = thirdPartyLayers['Current-Year Fire Perimeters'].layer;
+    const response = await fetch(THIRD_PARTY_ENDPOINTS.firePerimeters, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Fire perimeters request failed (${response.status})`);
+    const data = await response.json();
+    if (!data || (data.type !== 'FeatureCollection' && data.type !== 'Feature')) {
+      throw new Error('Fire perimeters source did not return valid GeoJSON.');
+    }
+    clearThirdPartyLayer(layer);
+    layer.addData(data);
+  }
+
+  /**
    * load awareness zone.
    *
    * @pre Storage or external data may be unavailable; the fallback path remains valid.
@@ -5005,6 +5142,8 @@ const ALL_FA_ICONS = [
       setStatus(`Loading ${layerName}…`);
       if (layerName === 'Known Fire Incidents') {
         await loadFireIncidents();
+      } else if (layerName === 'Current-Year Fire Perimeters') {
+        await loadFirePerimeters();
       } else if (layerName === '100 Year Flood Zone') {
         await loadAwarenessZone();
       }
@@ -5784,12 +5923,16 @@ const ALL_FA_ICONS = [
   };
   legendControl.addTo(map);
 
-  const hiddenThirdPartyRamps = new Set();
+  const hiddenThirdPartyRamps = new Set(
+    Object.values(thirdPartyLayers)
+      .filter(config => config.legendRampInitiallyHidden === true)
+      .map(config => config.id)
+  );
   const hiddenCategoryMappings = new Set();
 
   /**
    * Renders the map legend from the current incident and third-party layer state.
-   * @post Active third-party layers with legend items expose their complete color ramp.
+   * @post Every active third-party layer is listed; configured legend items expose their color ramp.
    * @sideEffects Replaces the legend control contents and preserves ramp collapse state.
    * @throws {Error} Reports invalid layer data through the rendered legend and diagnostics.
    */
@@ -5857,28 +6000,36 @@ const ALL_FA_ICONS = [
     });
     let thirdPartyItemsHtml = '';
     Object.entries(thirdPartyLayers).forEach(([layerName, config]) => {
-      if (!config.activated || !map.hasLayer(config.layer) || !Array.isArray(config.legendItems)) return;
+      if (!config.activated || !map.hasLayer(config.layer)) return;
+      const legendItems = Array.isArray(config.legendItems) ? config.legendItems : [];
+      const hasLegendItems = legendItems.length > 0;
       const rampId = `legend-ramp-${config.id}`;
       const rampIsHidden = hiddenThirdPartyRamps.has(config.id);
-      const rampItemsHtml = config.legendItems.map(item => `
+      const rampItemsHtml = legendItems.map(item => `
         <li class="legend-subitem">
           <span class="legend-color-swatch" style="background-color: ${sanitizeLegendColor(item.color)};"></span>
           <span>${escHtml(item.label)}</span>
         </li>
       `).join('');
+      const rampToggleHtml = hasLegendItems
+        ? `
+            <button type="button" class="legend-ramp-toggle" data-ramp-id="${escHtml(config.id)}" title="${rampIsHidden ? 'Show colors' : 'Hide colors'}" aria-label="${rampIsHidden ? 'Show colors' : 'Hide colors'}" aria-controls="${rampId}" aria-expanded="${!rampIsHidden}">
+              <i class="fa-solid fa-palette legend-palette-icon${rampIsHidden ? ' legend-palette-icon-outline' : ''}" aria-hidden="true"></i>
+            </button>
+          `
+        : '';
+      const rampLegendHtml = hasLegendItems
+        ? `<ul id="${rampId}" class="legend-subitems${rampIsHidden ? ' legend-ramp-hidden' : ''}">${rampItemsHtml}</ul>`
+        : '';
       thirdPartyItemsHtml += `
         <div class="legend-third-party">
           <div class="legend-item" title="${escHtml(layerName)}">
             <input type="checkbox" class="legend-layer-toggle" data-third-party-layer="${escHtml(layerName)}" checked ${mapIsReadOnly ? 'disabled' : ''} />
             <span class="legend-icon" style="background-color: ${sanitizeLegendColor(config.color)};"><i class="${escHtml(config.icon)}"></i></span>
             <span class="legend-sheet-name">${escHtml(layerName)}</span>
-            <button type="button" class="legend-ramp-toggle" data-ramp-id="${escHtml(config.id)}" title="${rampIsHidden ? 'Show colors' : 'Hide colors'}" aria-label="${rampIsHidden ? 'Show colors' : 'Hide colors'}" aria-controls="${rampId}" aria-expanded="${!rampIsHidden}">
-              <i class="fa-solid fa-palette legend-palette-icon${rampIsHidden ? ' legend-palette-icon-outline' : ''}" aria-hidden="true"></i>
-            </button>
+            ${rampToggleHtml}
           </div>
-          <ul id="${rampId}" class="legend-subitems${rampIsHidden ? ' legend-ramp-hidden' : ''}">
-            ${rampItemsHtml}
-          </ul>
+          ${rampLegendHtml}
         </div>
       `;
     });

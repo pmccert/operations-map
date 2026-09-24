@@ -80,14 +80,17 @@ publicly accessible Google Sheet.
   * USGS Imagery Topo
   * Esri World Imagery
   * Esri Clarity
-* **Third-party map layers** — use the top-right layers menu to load known fire
-  incidents from the National Interagency Fire Center, the California
-  Geological Survey landslide risk map, and the 100-year flood zone. Enabled
+* **Third-party map layers** — use the top-right layers menu to load current
+  wildland fire incident locations and current-year fire perimeters from the
+  National Interagency Fire Center, the California Geological Survey landslide
+  risk map, and the 100-year flood zone. Fire incident locations are points;
+  perimeter coverage is not available for every incident. Each third-party
+  layer has an info button linking to its source details in a new tab. Enabled
   third-party layers also appear in the legend, where they can be hidden
-  without affecting the incident sheets. Landslide and flood layers include
-  color-class legends that can be collapsed to save space, and ArcGIS-backed
-  layers keep the highest available native resolution visible at deeper zoom
-  levels.
+  without affecting the incident sheets. Landslide, fire perimeter, and flood
+  layers include color legends that can be collapsed to save space, and
+  ArcGIS-backed layers keep the highest available native resolution visible
+  at deeper zoom levels.
 
 ## Setup
 
@@ -193,10 +196,11 @@ setup dialog or via the toolbar:
       the current local basemap override and map center, but still apply source
       updates to layers and geometries.
 15. Open the top-right layers menu and select **Known Fire Incidents**,
-    **Landslide Risk Map**, or **100 Year Flood Zone** to load those
-    third-party overlays. Use their legend checkboxes to hide an enabled
-    overlay, or use **Hide colors** / **Show colors** to collapse or expand a
-    layer's color ramp.
+    **Current-Year Fire Perimeters**, **Landslide Risk Map**, or **100 Year
+    Flood Zone** to load those third-party overlays. The info buttons link to
+    the appropriate source pages for each layer. Use the legend checkboxes to
+    hide an enabled overlay, or use **Hide colors** / **Show colors** to
+    collapse or expand a layer's color ramp.
 
 ## Disaster preset schema
 

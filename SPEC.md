@@ -106,9 +106,14 @@ The application operates without a dedicated backend server, resolving incident 
   * The alert shall automatically dismiss when the map zoom level returns to a supported range or when switching to a basemap that supports the current zoom level.
 
 * **FR-3.4: Third-Party Map Layers**
-  * The map shall provide selectable overlay layers for known fire incidents
-    (National Interagency Fire Center data) and the California Geological Survey
-    landslide risk map.
+  * The map shall provide selectable overlay layers for known fire incident
+    locations and current-year fire perimeters from the National Interagency
+    Fire Center, as well as the California Geological Survey landslide risk map.
+  * Each third-party map layer shall provide an info link to an appropriate
+    source or layer-details page.
+  * Fire perimeter features shall show the incident name and reported perimeter
+    acreage when those attributes are available. Perimeters may not be available
+    for every incident.
   * The California Geological Survey landslide risk map shall support map zoom
     up to level 20 while over-zooming its native tiles from level 16.
   * ArcGIS-backed spatial tile overlays shall preserve visibility when users zoom
