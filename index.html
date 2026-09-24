@@ -2682,6 +2682,7 @@ const ALL_FA_ICONS = [
   const unmatchedLocationsList = document.getElementById('unmatched-locations-list');
   const unmatchedLocationsCloseBtn = document.getElementById('unmatched-locations-close');
   const unmatchedLocationsDoneBtn = document.getElementById('unmatched-locations-done');
+  let latestUnmatchedLocations = [];
   const buildDate = document.getElementById('build-date');
   const buildAge = document.getElementById('build-age');
   const sharedMapPublicModal = document.getElementById('shared-map-public-modal');
@@ -4167,7 +4168,6 @@ const ALL_FA_ICONS = [
   const statusBar = document.getElementById('status-bar');
   const appUpdateAlert = document.getElementById('app-update-alert');
   const appUpdateReload = document.getElementById('app-update-reload');
-  let latestUnmatchedLocations = [];
   /**
    * Shows a plain status message and removes any unmatched-location action.
    *
