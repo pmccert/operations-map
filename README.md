@@ -148,8 +148,12 @@ setup dialog or via the toolbar:
    otherwise, enter your **addresses.json URL**.
 6. Click **Load Map**.
 7. Incidents from all configured sheets are plotted immediately and refresh every 30
-   seconds. Unmatched addresses appear in the status bar count and show an
-   error note in their popup.
+   seconds. Unmatched addresses appear in the status bar as a clickable **unmatched
+   locations** count with an information icon; click it to view addresses grouped
+   under links to their source sheets (the link icon indicates a new tab). Unmatched
+   incidents remain in the totals but are not plotted. Each address has file and
+   location icons that reveal its `addresses.json` lookup and Google Geocoding
+   request/response details.
 8. A blank map can be loaded with no sheets configured; you can still add custom features,
    enable overlay layers, or return to **Manage Sheets** later.
 9. Click any marker to see its details (sheet name, label, status, resolved address).

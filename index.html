@@ -1045,6 +1045,113 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .status-unmatched-link {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      text-decoration: underline dotted;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    #status-bar.status-with-unmatched {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 4px;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+    }
+    .status-message {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .status-unmatched-link:hover,
+    .status-unmatched-link:focus-visible {
+      color: #b9dcff;
+    }
+    .status-unmatched-link:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+    .unmatched-locations-modal-box {
+      width: min(560px, 92vw);
+    }
+    .unmatched-locations-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin: 0 0 16px;
+    }
+    .unmatched-sheet-heading {
+      margin-bottom: 6px;
+      font-size: 1rem;
+      color: #1a202c;
+    }
+    .unmatched-sheet-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #245d8d;
+      text-decoration: underline;
+    }
+    .unmatched-sheet-link:hover,
+    .unmatched-sheet-link:focus-visible {
+      color: #123d63;
+    }
+    .unmatched-sheet-addresses {
+      margin-left: 20px;
+      color: #333;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .unmatched-sheet-addresses li {
+      padding: 3px 0;
+      overflow-wrap: anywhere;
+    }
+    .unmatched-address-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .unmatched-address-text {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .unmatched-diagnostic-toggle {
+      flex: 0 0 auto;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 4px 6px;
+      background: #fff;
+      color: #245d8d;
+      cursor: pointer;
+    }
+    .unmatched-diagnostic-toggle:hover,
+    .unmatched-diagnostic-toggle:focus-visible,
+    .unmatched-diagnostic-toggle[aria-expanded="true"] {
+      background: #eef6fc;
+      color: #123d63;
+    }
+    .unmatched-diagnostic-toggle:focus-visible {
+      outline: 2px solid #2c7bb6;
+      outline-offset: 2px;
+    }
+    .unmatched-diagnostic-panel {
+      margin-top: 5px;
+      padding: 8px;
+      border-left: 3px solid #7baed3;
+      background: #f4f7fa;
+      color: #333;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
 
     #app-update-alert {
       position: fixed;
@@ -1855,6 +1962,19 @@
 <!-- Status bar -->
 <div id="status-bar">Waiting for sheet configuration…</div>
 
+<!-- Unmatched locations details dialog -->
+<div id="unmatched-locations-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="unmatched-locations-title" aria-describedby="unmatched-locations-description">
+  <div id="unmatched-locations-dialog" class="modal-box unmatched-locations-modal-box" tabindex="-1">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <h2 id="unmatched-locations-title">Unmatched locations</h2>
+      <button type="button" id="unmatched-locations-close" class="modal-close-btn" title="Close dialog" aria-label="Close dialog">&times;</button>
+    </div>
+    <p id="unmatched-locations-description">These addresses could not be matched to map locations and were not plotted. They are grouped by sheet; click a linked sheet heading to open it in a new tab. Use the file and location icons next to each address to inspect its addresses.json lookup and Google Geocoding details.</p>
+    <div id="unmatched-locations-list" class="unmatched-locations-list"></div>
+    <button type="button" id="unmatched-locations-done" class="btn-secondary">Close</button>
+  </div>
+</div>
+
 <!-- Application update alert -->
 <div id="app-update-alert" class="hidden" role="alert" aria-live="assertive">
   <span>A newer version of the map is available. Reload to use it.</span>
@@ -2557,6 +2677,12 @@ const ALL_FA_ICONS = [
   const commitInfoDialog = commitInfoModal ? commitInfoModal.querySelector('.modal-box') : null;
   const commitInfoCloseBtn = document.getElementById('commit-info-close');
   const commitInfoDoneBtn = document.getElementById('commit-info-done');
+  const unmatchedLocationsModal = document.getElementById('unmatched-locations-modal');
+  const unmatchedLocationsDialog = document.getElementById('unmatched-locations-dialog');
+  const unmatchedLocationsList = document.getElementById('unmatched-locations-list');
+  const unmatchedLocationsCloseBtn = document.getElementById('unmatched-locations-close');
+  const unmatchedLocationsDoneBtn = document.getElementById('unmatched-locations-done');
+  let latestUnmatchedLocations = [];
   const buildDate = document.getElementById('build-date');
   const buildAge = document.getElementById('build-age');
   const sharedMapPublicModal = document.getElementById('shared-map-public-modal');
@@ -2574,6 +2700,172 @@ const ALL_FA_ICONS = [
   let managedModalOpenCount = 0;
   const closeCommitInfoModal = function () {
     closeManagedModal(commitInfoModal);
+  };
+
+  /**
+   * Creates an accessible icon button that reveals one unmatched-location diagnostic.
+   *
+   * @param {string} iconClass Font Awesome icon classes for the diagnostic type.
+   * @param {string} label Accessible name and tooltip for the button.
+   * @param {string} panelId Unique ID for the hidden diagnostic text.
+   * @param {string} panelText Plain-text diagnostic content.
+   * @returns {{button: HTMLButtonElement, panel: HTMLDivElement}} The toggle and its controlled diagnostic panel.
+   * @pre iconClass, label, panelId, and panelText are non-empty strings.
+   * @post Returns a button and hidden panel; activating the button toggles the panel and its expanded state.
+   * @sideEffects Creates DOM nodes and registers a click handler.
+   * @throws {TypeError} Throws when required display text or identifiers are invalid.
+   */
+  function createUnmatchedDiagnosticToggle(iconClass, label, panelId, panelText) {
+    if (![iconClass, label, panelId, panelText].every(value =>
+      typeof value === 'string' && value.trim()
+    )) {
+      throw new TypeError('Unmatched diagnostic buttons require an icon, label, panel ID, and content.');
+    }
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'unmatched-diagnostic-toggle';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-controls', panelId);
+    button.setAttribute('aria-expanded', 'false');
+    const icon = document.createElement('i');
+    icon.className = iconClass;
+    icon.setAttribute('aria-hidden', 'true');
+    button.appendChild(icon);
+
+    const panel = document.createElement('div');
+    panel.id = panelId;
+    panel.className = 'unmatched-diagnostic-panel';
+    panel.hidden = true;
+    panel.textContent = panelText;
+    button.addEventListener('click', function () {
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      button.setAttribute('aria-expanded', String(!expanded));
+      panel.hidden = expanded;
+    });
+    return { button, panel };
+  }
+
+  /**
+   * Opens a dialog listing the locations that could not be matched in the latest refresh.
+   *
+   * @pre The dialog elements exist and latestUnmatchedLocations contains validated entries from the latest completed refresh.
+   * @post Groups every unmatched address under its sheet heading and provides collapsible JSON and Google Geocoding diagnostics.
+   * @sideEffects Updates dialog DOM and opens the managed modal.
+   * @throws {Error} Throws if required dialog elements are missing.
+   */
+  function openUnmatchedLocationsModal() {
+    if (!unmatchedLocationsModal || !unmatchedLocationsDialog || !unmatchedLocationsList) {
+      throw new Error('The unmatched locations dialog is unavailable.');
+    }
+    unmatchedLocationsList.replaceChildren();
+    const sheetGroups = new Map();
+    let diagnosticIndex = 0; // Starts generated JSON and geocoding panel IDs at the first entry.
+    latestUnmatchedLocations.forEach(location => {
+      let addresses = sheetGroups.get(location.sheetId);
+      if (!addresses) {
+        const section = document.createElement('section');
+        section.className = 'unmatched-sheet-group';
+        const heading = document.createElement('h3');
+        heading.className = 'unmatched-sheet-heading';
+        if (location.sheetUrl) {
+          const sheetLink = document.createElement('a');
+          sheetLink.className = 'unmatched-sheet-link';
+          sheetLink.href = location.sheetUrl;
+          sheetLink.target = '_blank';
+          sheetLink.rel = 'noopener noreferrer';
+          sheetLink.title = 'Opens this sheet in a new tab';
+          sheetLink.setAttribute('aria-label', `${location.sheetName} (opens in a new tab)`);
+          sheetLink.appendChild(document.createTextNode(location.sheetName));
+          const linkIcon = document.createElement('i');
+          linkIcon.className = 'fa-solid fa-arrow-up-right-from-square';
+          linkIcon.setAttribute('aria-hidden', 'true');
+          sheetLink.appendChild(linkIcon);
+          heading.appendChild(sheetLink);
+        } else {
+          heading.textContent = location.sheetName;
+        }
+        addresses = document.createElement('ul');
+        addresses.className = 'unmatched-sheet-addresses';
+        section.append(heading, addresses);
+        unmatchedLocationsList.appendChild(section);
+        sheetGroups.set(location.sheetId, addresses);
+      }
+      const item = document.createElement('li');
+      item.className = 'unmatched-address-item';
+      const addressLine = document.createElement('div');
+      addressLine.className = 'unmatched-address-line';
+      const addressText = document.createElement('span');
+      addressText.className = 'unmatched-address-text';
+      addressText.textContent = location.address;
+
+      const jsonLookup = location.jsonLookup;
+      let jsonStatus;
+      if (!jsonLookup.checked) {
+        jsonStatus = 'Lookup not performed: addresses.json was not loaded.';
+      } else if (!jsonLookup.found) {
+        jsonStatus = 'Not found in addresses.json.';
+      } else {
+        jsonStatus = `Found in addresses.json (${jsonLookup.matchType || 'matched'} match).`;
+        if (jsonLookup.canonical) jsonStatus += `\nMatched address: ${jsonLookup.canonical}`;
+      }
+      const jsonDetails = createUnmatchedDiagnosticToggle(
+        'fa-solid fa-file-code',
+        `Show addresses.json lookup status for ${location.address}`,
+        `unmatched-json-diagnostic-${diagnosticIndex}`,
+        jsonStatus
+      );
+
+      const googleDetails = location.googleGeocoding;
+      const googleStatusLines = [];
+      if (googleDetails.requestSent) {
+        googleStatusLines.push(`Address sent to Google: ${googleDetails.requestAddress || '(unavailable)'}`);
+      } else if (googleDetails.fromCache && googleDetails.priorRequestRecorded) {
+        googleStatusLines.push(`Previous request address (not sent again this refresh): ${googleDetails.requestAddress}`);
+      } else if (googleDetails.requestAddress) {
+        googleStatusLines.push(`No request sent. Address prepared for Google: ${googleDetails.requestAddress}`);
+      } else {
+        googleStatusLines.push('No address was sent to Google.');
+      }
+      const responseLabel = googleDetails.fromCache
+        ? 'Cached Google response'
+        : googleDetails.requestSent
+          ? 'Google response'
+          : 'Geocoding outcome';
+      googleStatusLines.push(`${responseLabel}: ${googleDetails.responseStatus || 'Unavailable'}`);
+      if (googleDetails.resultCount !== null) {
+        googleStatusLines.push(`Results returned: ${googleDetails.resultCount}`);
+      }
+      if (googleDetails.responseAddress) {
+        googleStatusLines.push(`Formatted address: ${googleDetails.responseAddress}`);
+      }
+      if (googleDetails.responseCoordinates) {
+        googleStatusLines.push(
+          `Coordinates: ${googleDetails.responseCoordinates.lat}, ${googleDetails.responseCoordinates.lon}`
+        );
+      }
+      if (googleDetails.error) googleStatusLines.push(`Error: ${googleDetails.error}`);
+      const googleDiagnostic = createUnmatchedDiagnosticToggle(
+        'fa-solid fa-location-dot',
+        `Show Google geocoding request and response for ${location.address}`,
+        `unmatched-google-diagnostic-${diagnosticIndex}`,
+        googleStatusLines.join('\n')
+      );
+      diagnosticIndex++;
+
+      addressLine.append(addressText, jsonDetails.button, googleDiagnostic.button);
+      item.append(addressLine, jsonDetails.panel, googleDiagnostic.panel);
+      addresses.appendChild(item);
+    });
+    openManagedModal(unmatchedLocationsModal, {
+      dialogPanel: unmatchedLocationsDialog,
+      initialFocus: unmatchedLocationsCloseBtn || unmatchedLocationsDialog
+    });
+  }
+
+  const closeUnmatchedLocationsModal = function () {
+    closeManagedModal(unmatchedLocationsModal);
   };
 
   /**
@@ -2992,6 +3284,17 @@ const ALL_FA_ICONS = [
       }
     });
   }
+  if (unmatchedLocationsCloseBtn) {
+    unmatchedLocationsCloseBtn.addEventListener('click', closeUnmatchedLocationsModal);
+  }
+  if (unmatchedLocationsDoneBtn) {
+    unmatchedLocationsDoneBtn.addEventListener('click', closeUnmatchedLocationsModal);
+  }
+  if (unmatchedLocationsModal) {
+    unmatchedLocationsModal.addEventListener('click', function (e) {
+      if (e.target === unmatchedLocationsModal) closeUnmatchedLocationsModal();
+    });
+  }
   if (sharedMapPublicNoBtn) {
     sharedMapPublicNoBtn.addEventListener('click', function () {
       closeSharedMapPublicModal(false);
@@ -3021,6 +3324,12 @@ const ALL_FA_ICONS = [
     if (handledByShared) return;
     const handledByCommitInfo = handleManagedModalKeyboard(e, commitInfoModal, closeCommitInfoModal);
     if (handledByCommitInfo) return;
+    const handledByUnmatchedLocations = handleManagedModalKeyboard(
+      e,
+      unmatchedLocationsModal,
+      closeUnmatchedLocationsModal
+    );
+    if (handledByUnmatchedLocations) return;
     const handledByCategoryColorMapping = handleManagedModalKeyboard(
       e,
       document.getElementById('category-color-mapping-modal'),
@@ -3859,7 +4168,95 @@ const ALL_FA_ICONS = [
   const statusBar = document.getElementById('status-bar');
   const appUpdateAlert = document.getElementById('app-update-alert');
   const appUpdateReload = document.getElementById('app-update-reload');
-  function setStatus(msg) { statusBar.textContent = msg; }
+  /**
+   * Shows a plain status message and removes any unmatched-location action.
+   *
+   * @param {string} message Status text to show.
+   * @pre statusBar exists and message is a string.
+   * @post The status bar shows only the supplied message.
+   * @sideEffects Replaces status-bar content and removes unmatched-action styling.
+   */
+  function setStatus(message) {
+    statusBar.classList.remove('status-with-unmatched');
+    statusBar.textContent = message;
+  }
+
+  /**
+   * Displays a status message with a link to its unmatched sheet locations.
+   *
+   * @param {string} message Status text that precedes the unmatched count.
+   * @param {Array<object>} locations Unmatched addresses with sheet, JSON lookup, and Google Geocoding diagnostics.
+   * @pre message is a string and each location has validated address, sheet, and diagnostic fields.
+   * @post Shows the message and, when locations is non-empty, an accessible control for opening the complete location list.
+   * @sideEffects Replaces the status-bar contents and updates the locations available to the details dialog.
+   * @throws {Error} Throws if the status bar is unavailable or a location entry is invalid.
+   */
+  function setStatusWithUnmatchedLocations(message, locations) {
+    if (typeof message !== 'string' || !Array.isArray(locations)) {
+      throw new TypeError('A status message and unmatched locations are required.');
+    }
+    if (!statusBar) throw new Error('The status bar is unavailable.');
+    if (locations.some(location =>
+      !location || typeof location.address !== 'string' ||
+      typeof location.sheetId !== 'string' || typeof location.sheetName !== 'string' ||
+      (location.sheetUrl !== null &&
+        (typeof location.sheetUrl !== 'string' ||
+          !/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[\w-]+\/edit\?gid=\d+$/.test(location.sheetUrl))) ||
+      !location.jsonLookup || typeof location.jsonLookup.checked !== 'boolean' ||
+      typeof location.jsonLookup.found !== 'boolean' ||
+      (location.jsonLookup.matchType !== null && typeof location.jsonLookup.matchType !== 'string') ||
+      (location.jsonLookup.canonical !== null && typeof location.jsonLookup.canonical !== 'string') ||
+      !location.googleGeocoding ||
+      (location.googleGeocoding.requestAddress !== null &&
+        typeof location.googleGeocoding.requestAddress !== 'string') ||
+      typeof location.googleGeocoding.requestSent !== 'boolean' ||
+      typeof location.googleGeocoding.responseStatus !== 'string' ||
+      (location.googleGeocoding.resultCount !== null &&
+        (!Number.isInteger(location.googleGeocoding.resultCount) ||
+          location.googleGeocoding.resultCount < 0)) ||
+      (location.googleGeocoding.responseAddress !== null &&
+        typeof location.googleGeocoding.responseAddress !== 'string') ||
+      (location.googleGeocoding.responseCoordinates !== null &&
+        (!location.googleGeocoding.responseCoordinates ||
+          !Number.isFinite(location.googleGeocoding.responseCoordinates.lat) ||
+          !Number.isFinite(location.googleGeocoding.responseCoordinates.lon))) ||
+      (location.googleGeocoding.error !== null && typeof location.googleGeocoding.error !== 'string') ||
+      typeof location.googleGeocoding.fromCache !== 'boolean' ||
+      typeof location.googleGeocoding.priorRequestRecorded !== 'boolean'
+    )) {
+      throw new TypeError('Each unmatched location must include validated sheet, JSON, and geocoding details.');
+    }
+
+    latestUnmatchedLocations = locations;
+    statusBar.replaceChildren();
+    const statusMessage = document.createElement('span');
+    statusMessage.className = 'status-message';
+    statusMessage.textContent = message;
+    statusBar.appendChild(statusMessage);
+    if (locations.length === 0) return;
+
+    statusBar.classList.add('status-with-unmatched');
+    const unmatchedSeparator = document.createElement('span');
+    unmatchedSeparator.textContent = ',';
+    statusBar.appendChild(unmatchedSeparator);
+    const detailsButton = document.createElement('button');
+    detailsButton.type = 'button';
+    detailsButton.className = 'status-unmatched-link';
+    const locationLabel = locations.length === 1 ? 'unmatched location' : 'unmatched locations';
+    detailsButton.setAttribute('aria-label', `Show ${locations.length} ${locationLabel}`);
+    detailsButton.title = 'View unmatched locations';
+    detailsButton.appendChild(document.createTextNode(`${locations.length} ${locationLabel} `));
+    const infoIcon = document.createElement('i');
+    infoIcon.className = 'fa-solid fa-circle-info';
+    infoIcon.setAttribute('aria-hidden', 'true');
+    detailsButton.appendChild(infoIcon);
+    statusBar.appendChild(detailsButton);
+  }
+  statusBar.addEventListener('click', function (e) {
+    if (e.target instanceof Element && e.target.closest('.status-unmatched-link')) {
+      openUnmatchedLocationsModal();
+    }
+  });
 
   /**
    * check for a newer deployed application version.
@@ -6246,6 +6643,7 @@ const ALL_FA_ICONS = [
   let googleMapsLoadingPromise = null;
   let googleGeocoder = null;
   let googleGeocodeCache = null;
+  let googleGeocodeResponseCache = null;
 
   /**
    * load google geocode cache.
@@ -6298,6 +6696,70 @@ const ALL_FA_ICONS = [
       }
     } catch (err) {
       reportStorageDiagnostic('write geocode cache', err);
+    }
+  }
+
+  /**
+   * Loads prior Google Geocoding request/response details for cached results.
+   *
+   * @pre Browser storage may be unavailable or contain data from an older app version.
+   * @post Returns only diagnostic entries with validated request and response fields.
+   * @sideEffects Reads localStorage once and reports invalid or unavailable data.
+   * @throws {Error} Does not throw; storage failures are reported and an empty cache is returned.
+   */
+  function loadGoogleGeocodeResponseCache() {
+    if (googleGeocodeResponseCache) return googleGeocodeResponseCache;
+    try {
+      const stored = localStorage.getItem('pmc_google_geocode_response_cache');
+      const parsed = stored ? JSON.parse(stored) : {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        reportStorageDiagnostic('read geocode response cache (invalid payload)');
+        googleGeocodeResponseCache = {};
+      } else {
+        const validEntries = Object.entries(parsed).filter(([address, details]) =>
+          typeof address === 'string' &&
+          details && typeof details === 'object' && !Array.isArray(details) &&
+          typeof details.requestAddress === 'string' &&
+          typeof details.responseStatus === 'string' &&
+          (details.resultCount === null ||
+            (Number.isInteger(details.resultCount) && details.resultCount >= 0)) &&
+          (details.responseAddress === null || typeof details.responseAddress === 'string') &&
+          (details.responseCoordinates === null ||
+            (details.responseCoordinates &&
+              Number.isFinite(details.responseCoordinates.lat) &&
+              Number.isFinite(details.responseCoordinates.lon))) &&
+          (details.error === null || typeof details.error === 'string')
+        );
+        if (validEntries.length !== Object.keys(parsed).length) {
+          reportStorageDiagnostic('read geocode response cache (discarded invalid entries)');
+        }
+        googleGeocodeResponseCache = Object.fromEntries(validEntries);
+      }
+    } catch (err) {
+      reportStorageDiagnostic('read geocode response cache', err);
+      googleGeocodeResponseCache = {};
+    }
+    return googleGeocodeResponseCache;
+  }
+
+  /**
+   * Persists validated Google Geocoding request/response details.
+   *
+   * @pre googleGeocodeResponseCache is loaded and contains serializable diagnostic entries.
+   * @post Stores the diagnostic cache when browser storage is available.
+   * @sideEffects Writes localStorage and reports storage failures.
+   * @throws {Error} Does not throw; storage failures are reported.
+   */
+  function saveGoogleGeocodeResponseCache() {
+    try {
+      if (googleGeocodeResponseCache) {
+        localStorage.setItem(
+          'pmc_google_geocode_response_cache',
+          JSON.stringify(googleGeocodeResponseCache)
+        );
+      }
+    } catch (err) {
+      reportStorageDiagnostic('write geocode response cache', err);
     }
   }
 
@@ -6363,32 +6825,74 @@ const ALL_FA_ICONS = [
   /**
    * google geocode.
    *
-   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
-   * @post Returns validated external data or completes the requested synchronization/UI operation.
-   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
-   * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
+   * @param {string} address Original sheet address to geocode.
+   * @param {object} diagnostics Mutable trace object populated with the actual request and response details.
+   * @pre diagnostics is a mutable object; malformed or blank addresses are reported without a request.
+   * @returns {Promise<object|null>} Geocoded coordinates, or null when there is no match.
+   * @post Returns the matched coordinates or null and records why/how a Google request was or was not made.
+   * @sideEffects May call Google Maps, update both geocode caches, and log request errors.
+   * @throws {TypeError} Throws if diagnostics is not a mutable object; geocoding failures are recorded and return null.
    */
-  async function googleGeocode(address) {
-    if (!address || typeof address !== 'string' || !address.trim()) return null;
+  async function googleGeocode(address, diagnostics) {
+    if (!diagnostics || typeof diagnostics !== 'object' || Array.isArray(diagnostics)) {
+      throw new TypeError('Google geocoding diagnostics must be a mutable object.');
+    }
+    Object.assign(diagnostics, {
+      requestAddress: null,
+      requestSent: false,
+      responseStatus: 'Not requested',
+      resultCount: null,
+      responseAddress: null,
+      responseCoordinates: null,
+      error: null,
+      fromCache: false,
+      priorRequestRecorded: false
+    });
+    if (!address || typeof address !== 'string' || !address.trim()) {
+      diagnostics.responseStatus = 'Not requested: no valid address was provided.';
+      return null;
+    }
+
     const rawAddr = address.trim();
+    let queryAddress = rawAddr;
+    if (!/(pine mountain club|pmc|ca\b|california\b)/i.test(queryAddress)) {
+      queryAddress = `${rawAddr}, Pine Mountain Club, CA 93222`;
+    }
+    diagnostics.requestAddress = queryAddress;
+
     const cache = loadGoogleGeocodeCache();
+    const responseCache = loadGoogleGeocodeResponseCache();
     const cacheKey = rawAddr.toLowerCase();
 
     if (Object.prototype.hasOwnProperty.call(cache, cacheKey)) {
-      return cache[cacheKey]; // may be null (cached negative) or { lat, lon, canonical, matchType: 'google' }
+      diagnostics.fromCache = true;
+      const priorResponse = responseCache[cacheKey];
+      if (priorResponse) {
+        Object.assign(diagnostics, priorResponse);
+        diagnostics.requestSent = false;
+        diagnostics.fromCache = true;
+        diagnostics.priorRequestRecorded = true;
+      } else {
+        diagnostics.responseStatus = cache[cacheKey]
+          ? 'Cached result; original Google response details are unavailable.'
+          : 'Cached no-result; original Google response details are unavailable.';
+      }
+      return cache[cacheKey]; // may be null (cached negative) or a successful coordinate result
     }
 
-    if (!isGoogleGeocodingConfigured()) return null;
+    if (!isGoogleGeocodingConfigured()) {
+      diagnostics.responseStatus = 'Not sent: Google Geocoding is not configured.';
+      return null;
+    }
 
     try {
       const geocoder = await loadGoogleMapsApi();
-      if (!geocoder) return null;
-
-      let queryAddress = rawAddr;
-      if (!/(pine mountain club|pmc|ca\b|california\b)/i.test(queryAddress)) {
-        queryAddress = `${rawAddr}, Pine Mountain Club, CA 93222`;
+      if (!geocoder) {
+        diagnostics.responseStatus = 'Not sent: Google Maps did not provide a geocoder.';
+        return null;
       }
 
+      diagnostics.requestSent = true;
       const result = await new Promise(function (resolve) {
         geocoder.geocode(
           {
@@ -6396,14 +6900,42 @@ const ALL_FA_ICONS = [
             componentRestrictions: { country: 'US', administrativeArea: 'CA' }
           },
           function (results, status) {
-            if (status === 'OK' && results && results.length > 0) {
-              const loc = results[0].geometry.location;
-              const lat = typeof loc.lat === 'function' ? loc.lat() : loc.lat;
-              const lon = typeof loc.lng === 'function' ? loc.lng() : loc.lng;
-              const canonical = results[0].formatted_address || rawAddr;
+            diagnostics.responseStatus = typeof status === 'string' && status
+              ? status
+              : 'Google returned no response status.';
+            diagnostics.resultCount = Array.isArray(results) ? results.length : null;
+            const firstResult = Array.isArray(results) && results.length > 0 ? results[0] : null;
+            diagnostics.responseAddress = firstResult &&
+              typeof firstResult.formatted_address === 'string'
+              ? firstResult.formatted_address
+              : null;
+            if (status === 'OK' && firstResult) {
+              const loc = firstResult.geometry && firstResult.geometry.location;
+              if (!loc) {
+                diagnostics.error = 'Google returned a result without a location.';
+                resolve(null);
+                return;
+              }
+              let lat;
+              let lon;
+              try {
+                lat = typeof loc.lat === 'function' ? loc.lat() : loc.lat;
+                lon = typeof loc.lng === 'function' ? loc.lng() : loc.lng;
+              } catch (err) {
+                diagnostics.error = err instanceof Error ? err.message : String(err);
+                resolve(null);
+                return;
+              }
+              if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
+                diagnostics.error = 'Google returned invalid latitude or longitude values.';
+                resolve(null);
+                return;
+              }
+              diagnostics.responseCoordinates = { lat: Number(lat), lon: Number(lon) };
+              const canonical = diagnostics.responseAddress || rawAddr;
               resolve({
-                lat: Number(lat),
-                lon: Number(lon),
+                lat: diagnostics.responseCoordinates.lat,
+                lon: diagnostics.responseCoordinates.lon,
                 canonical,
                 matchType: 'google'
               });
@@ -6419,8 +6951,37 @@ const ALL_FA_ICONS = [
 
       cache[cacheKey] = result;
       saveGoogleGeocodeCache();
+      if (result === null) {
+        responseCache[cacheKey] = {
+          requestAddress: diagnostics.requestAddress,
+          responseStatus: diagnostics.responseStatus,
+          resultCount: diagnostics.resultCount,
+          responseAddress: diagnostics.responseAddress,
+          responseCoordinates: diagnostics.responseCoordinates,
+          error: diagnostics.error
+        };
+        saveGoogleGeocodeResponseCache();
+      } else if (Object.prototype.hasOwnProperty.call(responseCache, cacheKey)) {
+        delete responseCache[cacheKey];
+        saveGoogleGeocodeResponseCache();
+      }
       return result;
     } catch (err) {
+      diagnostics.responseStatus = diagnostics.requestSent
+        ? 'Google Geocoding request error.'
+        : 'Google Geocoder unavailable.';
+      diagnostics.error = err instanceof Error ? err.message : String(err);
+      if (diagnostics.requestSent) {
+        responseCache[cacheKey] = {
+          requestAddress: diagnostics.requestAddress,
+          responseStatus: diagnostics.responseStatus,
+          resultCount: diagnostics.resultCount,
+          responseAddress: diagnostics.responseAddress,
+          responseCoordinates: diagnostics.responseCoordinates,
+          error: diagnostics.error
+        };
+        saveGoogleGeocodeResponseCache();
+      }
       console.warn(`Google Geocoding error for "${rawAddr}":`, err);
       return null;
     }
@@ -6835,10 +7396,13 @@ const ALL_FA_ICONS = [
   /**
    * plot sheet rows.
    *
-   * @pre Arguments satisfy the documented shape and current application invariants hold.
-   * @post Returns the requested value or completes its state transition without weakening those invariants.
-   * @sideEffects May update application state or user-visible UI when required by the operation.
-   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   * @param {object} sheet Configured sheet, including its id, name, source URL, and column mapping.
+   * @param {Array<Array<*>>} rows Header row followed by sheet data rows.
+   * @param {Set<string>} [currentKeys] Optional set that receives keys for rows in this sheet.
+   * @pre The sheet has an address-column mapping and optional string source URL; rows are arrays and map/geocoding state is initialized.
+   * @post Plots geocoded incidents and returns counts plus unmatched addresses with their sheet, JSON lookup, and Google Geocoding diagnostics.
+   * @sideEffects Updates Leaflet markers, the currentKeys set, map alerts, and console diagnostics.
+   * @throws {Error} Rejects if a geocoding/network operation fails or required application state is unavailable.
    */
   async function plotSheetRows(sheet, rows, currentKeys) {
     if (rows.length > 0 && (!sheet.headers || sheet.headers.length !== rows[0].length)) {
@@ -6847,6 +7411,11 @@ const ALL_FA_ICONS = [
     ensureCategoryOptionsFromRows(sheet, rows);
 
     const addrCol   = sheet.columnMapping.address ?? 0;
+    const rawSheetUrl = typeof sheet.rawUrl === 'string' ? sheet.rawUrl.trim() : '';
+    const sheetDetails = parseGoogleSheetDetails(rawSheetUrl);
+    const sheetUrl = sheetDetails && /^https?:\/\/(?:docs|drive)\.google\.com\//i.test(rawSheetUrl)
+      ? `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetDetails.spreadsheetId)}/edit?gid=${sheetDetails.gid}`
+      : null;
     const statusCol = sheet.columnMapping.status;
     const labelCol  = sheet.columnMapping.label;
     const categoryCol = sheet.categoryEnabled === true ? sheet.columnMapping.category : null;
@@ -6855,7 +7424,7 @@ const ALL_FA_ICONS = [
     const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
     let sheetOpen = 0;
     let sheetClosed = 0;
-    let sheetUnmatched = 0;
+    const sheetUnmatchedLocations = [];
 
     for (let idx = 0; idx < dataRows.length; idx++) {
       const row = dataRows[idx];
@@ -6892,17 +7461,48 @@ const ALL_FA_ICONS = [
       if (!geo) {
         geo = decodeOpenLocationCode(address);
       }
+      let jsonLookup = {
+        checked: Boolean(geocoderIndex),
+        found: false,
+        matchType: null,
+        canonical: null
+      };
       if (!geo) {
-        geo = geocode(address);
+        const jsonMatch = geocode(address);
+        jsonLookup = {
+          checked: Boolean(geocoderIndex),
+          found: Boolean(jsonMatch),
+          matchType: jsonMatch ? jsonMatch.matchType : null,
+          canonical: jsonMatch ? jsonMatch.canonical : null
+        };
+        geo = jsonMatch;
       }
+      const googleGeocoding = {
+        requestAddress: null,
+        requestSent: false,
+        responseStatus: 'Google fallback was not reached.',
+        resultCount: null,
+        responseAddress: null,
+        responseCoordinates: null,
+        error: null,
+        fromCache: false,
+        priorRequestRecorded: false
+      };
       if (!geo) {
-        geo = await googleGeocode(address);
+        geo = await googleGeocode(address, googleGeocoding);
       }
 
       const lat = geo ? geo.lat : null;
       const lon = geo ? geo.lon : null;
       if (!geo) {
-        sheetUnmatched++;
+        sheetUnmatchedLocations.push({
+          address,
+          sheetId: sheet.id,
+          sheetName: sheet.name,
+          sheetUrl,
+          jsonLookup,
+          googleGeocoding
+        });
         console.warn(`[${sheet.name}] Could not plot address: "${address}"`);
       }
 
@@ -6973,7 +7573,7 @@ const ALL_FA_ICONS = [
     return {
       open: sheetOpen,
       closed: sheetClosed,
-      unmatched: sheetUnmatched,
+      unmatchedLocations: sheetUnmatchedLocations,
       count: dataRows.length
     };
   }
@@ -7010,10 +7610,10 @@ const ALL_FA_ICONS = [
       updateMapAlerts();
 
       const now = new Date().toLocaleTimeString();
-      const unmatchedNote = stats.unmatched > 0 ? `, ${stats.unmatched} unmatched` : '';
-      setStatus(
+      setStatusWithUnmatchedLocations(
         `Refreshed "${sheet.name}" at ${now} — ${stats.count} incident(s): ` +
-        `${stats.open} open, ${stats.closed} closed${unmatchedNote}`
+        `${stats.open} open, ${stats.closed} closed`,
+        stats.unmatchedLocations
       );
       syncSharedMapAfterLocalChange('sheet-refresh');
     } catch (err) {
@@ -7038,8 +7638,8 @@ const ALL_FA_ICONS = [
       setStatus('Fetching data…');
       let totalOpen = 0;
       let totalClosed = 0;
-      let totalUnmatched = 0;
       let totalIncidents = 0;
+      const totalUnmatchedLocations = [];
       const currentKeys = new Set();
 
       for (const sheet of validSheets) {
@@ -7049,7 +7649,7 @@ const ALL_FA_ICONS = [
           const stats = await plotSheetRows(sheet, rows, currentKeys);
           totalOpen += stats.open;
           totalClosed += stats.closed;
-          totalUnmatched += stats.unmatched;
+          totalUnmatchedLocations.push(...stats.unmatchedLocations);
           totalIncidents += stats.count;
         } catch (sheetErr) {
           console.error(`Error fetching sheet "${sheet.name}":`, sheetErr);
@@ -7067,16 +7667,17 @@ const ALL_FA_ICONS = [
       updateMapAlerts();
 
       const now = new Date().toLocaleTimeString();
-      const unmatchedNote = totalUnmatched > 0 ? `, ${totalUnmatched} unmatched` : '';
       if (validSheets.length > 1) {
-        setStatus(
+        setStatusWithUnmatchedLocations(
           `Last update: ${now} — ${totalIncidents} incident(s) across ${validSheets.length} sheets: ` +
-          `${totalOpen} open, ${totalClosed} closed${unmatchedNote}`
+          `${totalOpen} open, ${totalClosed} closed`,
+          totalUnmatchedLocations
         );
       } else {
-        setStatus(
+        setStatusWithUnmatchedLocations(
           `Last update: ${now} — ${totalIncidents} incident(s): ` +
-          `${totalOpen} open, ${totalClosed} closed${unmatchedNote}`
+          `${totalOpen} open, ${totalClosed} closed`,
+          totalUnmatchedLocations
         );
       }
       syncSharedMapAfterLocalChange('sheet-refresh');
