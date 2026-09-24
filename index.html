@@ -30,7 +30,14 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; }
-    #map { width: 100vw; height: 100vh; }
+    #map-layout {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #map { width: 100%; flex: 1 1 auto; min-height: 0; }
 
     /* ── Modal overlay ───────────────────────────────────────── */
     .modal-overlay {
@@ -1245,12 +1252,52 @@
       border: 1px solid #1d874b;
     }
 
+    /* ── Shared map access mode ──────────────────────────────── */
+    #shared-map-mode-banner {
+      display: flex;
+      flex: 0 0 52px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      width: 100%;
+      height: 52px;
+      padding: 6px 16px;
+      color: #fff;
+      font-size: 0.88rem;
+      line-height: 1.35;
+      text-align: center;
+    }
+    #shared-map-mode-banner.shared-map-mode-editor {
+      background: #14532d;
+      border-bottom: 2px solid #0f3d22;
+    }
+    #shared-map-mode-banner.shared-map-mode-read-only {
+      background: #7c2d12;
+      border-bottom: 2px solid #5c1f0c;
+    }
+    #shared-map-mode-title {
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    @media (max-width: 680px) {
+      #shared-map-mode-banner {
+        flex-basis: 92px;
+        height: 92px;
+        padding: 8px 12px;
+      }
+    }
+
     /* ── Toolbar ─────────────────────────────────────────────── */
     #toolbar {
       position: fixed;
       top: 10px;
       left: 50px;
       z-index: 500;
+    }
+    body.shared-map-active #toolbar { top: 62px; }
+    @media (max-width: 680px) {
+      body.shared-map-active #toolbar { top: 102px; }
     }
     .toolbar-menu {
       position: relative;
@@ -1947,8 +1994,14 @@
   </div>
 </div>
 
-<!-- Map container -->
-<div id="map"></div>
+<!-- Map container and shared access mode -->
+<div id="map-layout">
+  <div id="shared-map-mode-banner" class="hidden" role="status" aria-live="polite">
+    <strong id="shared-map-mode-title"></strong>
+    <span id="shared-map-mode-description"></span>
+  </div>
+  <div id="map"></div>
+</div>
 
 <!-- Toolbar -->
 <div id="toolbar">
@@ -1968,10 +2021,10 @@
           <button class="toolbar-btn" id="btn-create-shared-map" title="Create a shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Create Shared Map</button>
           <button class="toolbar-btn" id="btn-open-shared-map" title="Open a shared map file from Google Drive"><i class="fa-brands fa-google-drive"></i> Open Shared Map</button>
           <button class="toolbar-btn" id="btn-match-source-map" title="Match the shared source map basemap and extent"><i class="fa-solid fa-map"></i> Match Source Map</button>
-          <button class="toolbar-btn" id="btn-copy-viewer-url" title="Copy read-only viewer URL"><i class="fa-solid fa-link"></i> Copy Viewer URL</button>
+          <button class="toolbar-btn" id="btn-copy-viewer-url" title="Copy read-only link; viewers receive updates but cannot edit"><i class="fa-solid fa-link"></i> Copy Viewer URL</button>
           <button class="toolbar-btn" id="btn-open-drive-file" title="Open the shared map file in Google Drive"><i class="fa-brands fa-google-drive"></i> Open in Drive</button>
           <button class="toolbar-btn" id="btn-copy-drive-url" title="Copy the shared map Google Drive URL"><i class="fa-solid fa-copy"></i> Copy Drive URL</button>
-          <button class="toolbar-btn" id="btn-open-editor-url" title="Open URL for editing mode"><i class="fa-solid fa-pen-to-square"></i> Open Editor URL</button>
+          <button class="toolbar-btn" id="btn-open-editor-url" title="Open editor-mode URL; Google Drive editor permission is required to edit"><i class="fa-solid fa-pen-to-square"></i> Open Editor URL</button>
           <select class="toolbar-select" id="select-refresh-interval" title="Configure auto-refresh interval">
             <option value="0">Auto-refresh: Off</option>
             <option value="15000">Auto-refresh: 15s</option>
@@ -4489,18 +4542,46 @@ const ALL_FA_ICONS = [
    */
   function updateSharedMapStatusLabel() {
     const statusTextEl = document.getElementById('shared-map-status-text');
+    const modeBanner = document.getElementById('shared-map-mode-banner');
+    const modeTitle = document.getElementById('shared-map-mode-title');
+    const modeDescription = document.getElementById('shared-map-mode-description');
     if (!statusTextEl) return;
     if (!sharedMapState.fileId) {
       statusTextEl.textContent = 'Shared map: Off';
+      statusTextEl.title = 'No shared map is connected.';
+      document.body.classList.remove('shared-map-active');
+      if (modeBanner && !modeBanner.classList.contains('hidden')) {
+        modeBanner.classList.add('hidden');
+        map.invalidateSize({ pan: false });
+      }
       return;
     }
-    const roleText = mapIsReadOnly ? 'View-only' : 'Editor';
+    const roleText = mapIsReadOnly ? 'Read-only' : 'Editor';
+    document.body.classList.add('shared-map-active');
+    let bannerLayoutChanged = false;
+    if (modeBanner && modeTitle && modeDescription) {
+      const nextTitle = mapIsReadOnly ? 'READ-ONLY MODE' : 'EDITOR MODE';
+      const nextDescription = mapIsReadOnly
+        ? 'You will receive shared-map updates, but you cannot change or save map contents.'
+        : 'You can change map contents, and your edits sync to Google Drive.';
+      bannerLayoutChanged = modeBanner.classList.contains('hidden') ||
+        modeTitle.textContent !== nextTitle ||
+        modeDescription.textContent !== nextDescription;
+      modeBanner.classList.remove('hidden', 'shared-map-mode-editor', 'shared-map-mode-read-only');
+      modeBanner.classList.add(mapIsReadOnly ? 'shared-map-mode-read-only' : 'shared-map-mode-editor');
+      modeTitle.textContent = nextTitle;
+      modeDescription.textContent = nextDescription;
+    }
+    statusTextEl.title = mapIsReadOnly
+      ? 'READ-ONLY MODE: shared-map updates are received, but map contents cannot be changed or saved.'
+      : 'EDITOR MODE: you can change map contents and your edits sync to Google Drive.';
     const activeVersion = sharedMapState.lastSeenVersion || sharedMapState.lastVersion;
     const versionText = activeVersion
       ? `v${activeVersion}`
       : 'unversioned';
     const nameText = sharedMapState.fileName || sharedMapState.fileId;
     statusTextEl.textContent = `Shared map: ${roleText} (${versionText}) — ${nameText}`;
+    if (bannerLayoutChanged) map.invalidateSize({ pan: false });
   }
 
   /**
@@ -10576,7 +10657,7 @@ const ALL_FA_ICONS = [
       const viewerUrl = buildSharedMapUrl(sharedMapState.fileId, true);
       copyTextToClipboard(viewerUrl)
         .then(function () {
-          setStatus('Viewer URL copied to clipboard.');
+          setStatus('Read-only viewer link copied. Viewers receive shared-map updates but cannot change or save map contents.');
         })
         .catch(function () {
           setStatus('Could not copy viewer URL.');
@@ -10592,6 +10673,7 @@ const ALL_FA_ICONS = [
         return;
       }
       window.open(buildSharedMapUrl(sharedMapState.fileId, false), '_blank', 'noopener');
+      setStatus('Editor-mode URL opened. Editing still requires Google Drive Editor permission.');
     });
   }
 

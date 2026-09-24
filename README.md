@@ -45,7 +45,10 @@ publicly accessible Google Sheet.
   can edit vs. view afterward.
 * **Viewer, editor, and Drive URLs** — copy a read-only viewer link, open an
   editor link, open the backing Google Drive file, or copy its Drive URL from
-  the toolbar. Viewers can watch layer, feature, and map-state changes.
+  the toolbar. A full-width, centered banner above the map identifies the
+  current role: editors can change map contents and sync edits to Drive;
+  read-only viewers receive shared-map updates but cannot change or save map
+  contents. Editor links still require Google Drive Editor permission.
 * **Shared map polling sync** — shared map state is refreshed from Google Drive
   on a polling interval (near-real-time), not via push/realtime backend.
 * **Portable map files** — save the current sheet configuration and loaded incident
@@ -182,12 +185,18 @@ setup dialog or via the toolbar:
     * You can still use normal Google Drive sharing controls to manage
       editor/viewer access (including for existing shared map files opened with
       **Open Shared Map**).
-    * Click **Copy Viewer URL** and send that URL to viewers.
+    * Click **Copy Viewer URL** and send that read-only link to viewers. The
+      full-width banner above the map shows whether your current session is in
+      **EDITOR MODE** or **READ-ONLY MODE**; viewers receive updates but cannot
+      change or save map contents.
     * Opening a shared-map URL skips the startup Google Sheets dialog while the
       map loads.
     * Click **Open in Drive** to open the shared file in Google Drive, or
       **Copy Drive URL** to share the Drive link directly.
-    * Use **Open Editor URL** when opening the map in edit mode.
+    * Use **Open Editor URL** to open the map without forcing viewer mode.
+      Editing still requires Google Drive Editor permission, and the banner
+      above the map identifies whether the current session can edit or is
+      read-only.
     * The **Google Drive** submenu contains the shared-map controls, including
       **Match Source Map** to jump back to the shared map's current basemap
       and extent.
