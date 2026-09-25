@@ -119,12 +119,12 @@ private sheets, sign in with Google from the setup dialog or toolbar first.
 Columns are detected from the first row header, or you can map any columns in the
 setup dialog or via the toolbar:
 
-| Column (Address)                | Column (Status)   | Column (Label - optional)      |
+| Column (Location)               | Column (Status)   | Column (Label - optional)      |
 |---------------------------------|-------------------|--------------------------------|
 | 1234 Nesthorn Drive             | open              | Structure fire                 |
 | 56 Mil Potrero Highway          | closed            | Medical assist                 |
 
-* **Address Column** (required) — full street address, e.g. `1234 Nesthorn Drive`.
+* **Location Column** (required) — full street address, e.g. `1234 Nesthorn Drive`.
 * **Status Column** (optional) — select the column containing each row's status.
   Configure one or more comma-separated **Closed status values** in the sheet
   configuration; matching is case-insensitive and defaults to `closed`. Any
@@ -139,7 +139,7 @@ setup dialog or via the toolbar:
    * **Blank Map** starts with no Google Sheets so you can build the map from scratch.
    * **Earthquake**, **Evacuation**, and **Snow Emergency** preload starter sheet settings and icons.
 3. Paste your **Google Sheet URL** into any preloaded sheet, or click **+ Add Another Sheet** to add your own.
-   The app auto-detects sheet columns and selects matching Address, Status, and Label columns for each sheet.
+   The app auto-detects sheet columns and selects matching Location, Status, and Label columns for each sheet.
 4. Click a sheet's colored icon to open the appearance dialog, then choose or
    adjust the incident icon and color.
    Optionally select a **Category** column. When signed in with Google, the app reads that
@@ -246,7 +246,7 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
            "closedStatusValues": ["closed"],
            "closedColor": "#7F8C8D",
            "categoryEnabled": false,
-           "headers": ["Address", "Status", "Label"],
+           "headers": ["Location", "Status", "Label"],
            "icon": { "fa": "fa-solid fa-house-crack", "label": "Earthquake" },
            "color": "#D97706",
            "categoryOptions": []
