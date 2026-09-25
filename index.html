@@ -403,9 +403,8 @@
     }
     .category-color-mapping-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 10px;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
       padding: 8px;
       border: 1px solid #d0d7de;
       border-radius: 6px;
@@ -419,38 +418,8 @@
       font-size: 0.84rem;
       font-weight: 600;
     }
-    .category-color-mapping-row input[type="color"] {
-      width: 42px;
-      height: 30px;
-      padding: 1px;
-      border: 1px solid #aeb8c2;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .category-color-ramp {
-      grid-column: 1 / -1;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      min-width: 0;
-    }
-    .category-color-ramp-btn {
-      width: 24px;
-      height: 24px;
-      flex: 0 0 24px;
-      border: 2px solid transparent;
-      border-radius: 4px;
-      cursor: pointer;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-    }
-    .category-color-ramp-btn:hover,
-    .category-color-ramp-btn:focus-visible {
-      border-color: #2c7bb6;
-      outline: none;
-    }
-    .category-color-ramp-btn.active {
-      border-color: #222;
-      box-shadow: 0 0 0 2px #fff inset, 0 1px 3px rgba(0,0,0,0.3);
+    .category-color-mapping-row .color-picker-control {
+      gap: 6px;
     }
     .category-color-mapping-add {
       display: flex;
@@ -845,32 +814,52 @@
     }
     .custom-color-row {
       display: flex;
-      align-items: center;
-      gap: 8px;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    .color-hex-field {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+      color: #444;
+      font-size: 0.78rem;
+      font-weight: 600;
     }
     .color-picker-btn-wrapper {
       position: relative;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
+      gap: 8px;
+      min-width: 128px;
+      height: 36px;
+      padding: 0 10px;
       border-radius: 6px;
-      border: 2px solid #ccc;
+      border: 1px solid #ccc;
       cursor: pointer;
       overflow: hidden;
       box-shadow: 0 1px 3px rgba(0,0,0,0.15);
       transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
       flex-shrink: 0;
-      background: #e74c3c;
+      background: #f1f3f5;
+      color: #333;
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
     }
     .color-picker-btn-wrapper:hover {
       border-color: #2c7bb6;
-      transform: scale(1.05);
+      transform: scale(1.02);
     }
     .color-picker-btn-wrapper:focus-within {
       border-color: #2c7bb6;
       box-shadow: 0 0 0 2px rgba(44, 123, 182, 0.3);
+    }
+    .color-picker-btn-wrapper.disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
     }
     .custom-color-input {
       position: absolute;
@@ -884,27 +873,21 @@
       padding: 0;
       margin: 0;
     }
-    .custom-color-input::-webkit-color-swatch-wrapper {
-      padding: 0;
-    }
-    .custom-color-input::-webkit-color-swatch {
-      border: none;
-    }
-    .custom-color-input::-moz-color-swatch {
-      border: none;
-    }
-    .color-picker-icon-overlay {
-      pointer-events: none;
-      color: rgba(255, 255, 255, 0.9);
-      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7));
-      font-size: 0.75rem;
+    .color-picker-preview {
+      width: 18px;
+      height: 18px;
+      border: 1px solid rgba(0,0,0,0.25);
+      border-radius: 4px;
+      flex: 0 0 18px;
     }
     .color-hex-input {
-      width: 88px;
-      padding: 5px 8px;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      padding: 7px 10px;
       border: 1px solid #ccc;
       border-radius: 4px;
-      font-size: 0.82rem;
+      font-size: 0.95rem;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       text-transform: uppercase;
       color: #333;
@@ -918,6 +901,12 @@
     }
     .color-hex-input.invalid {
       border-color: #e74c3c;
+    }
+    .color-picker-help {
+      margin: -2px 0 0;
+      color: #666;
+      font-size: 0.76rem;
+      line-height: 1.35;
     }
     .color-palette-presets {
       display: flex;
@@ -1764,7 +1753,7 @@
       <h2 id="category-color-mapping-title" style="margin-bottom: 0;">Category color mappings</h2>
       <button type="button" id="category-color-mapping-close" class="modal-close-btn" title="Close modal" aria-label="Close modal">&times;</button>
     </div>
-    <p id="category-color-mapping-description">Choose a column and map its values to marker colors for this category.</p>
+    <p id="category-color-mapping-description">Choose a column and assign its values marker colors. Unmapped values use the category's icon color.</p>
     <label class="field-label" for="category-color-mapping-column">Value column</label>
     <select id="category-color-mapping-column" class="select-input"></select>
     <div id="category-color-mapping-status" class="category-detect-status"></div>
@@ -7891,16 +7880,24 @@ const ALL_FA_ICONS = [
   /**
    * build color picker.
    *
-   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
-   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
-   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
-   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   * @pre `container` is a DOM element, `onSelect` is a callback, and options may set `disabled`, `showHelp`, `colorName`, and `presetColors`.
+   * @post Replaces the container with hex, preset, and full-picker controls; valid selections call `onSelect` with a normalized hex color.
+   * @sideEffects Updates the container DOM and calls `onSelect` after valid user selections.
+   * @throws {Error} Throws/rejects when required DOM APIs are unavailable; invalid hex input is marked and not sent to `onSelect`.
    */
   function buildColorPicker(container, currentColor, onSelect, options = {}) {
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.className = 'color-picker-control';
     const disabled = options.disabled === true;
+    const showHelp = options.showHelp !== false;
+    const colorName = typeof options.colorName === 'string' && options.colorName.trim()
+      ? options.colorName.trim()
+      : '';
+    const requestedPresetColors = Array.isArray(options.presetColors)
+      ? options.presetColors.map(normalizeHexColor).filter(Boolean)
+      : COLOR_PALETTE;
+    const presetColors = requestedPresetColors.length > 0 ? requestedPresetColors : COLOR_PALETTE;
 
     let activeColor = normalizeHexColor(currentColor) || '#E74C3C';
 
@@ -7909,22 +7906,27 @@ const ALL_FA_ICONS = [
 
     const pickerBtn = document.createElement('label');
     pickerBtn.className = 'color-picker-btn-wrapper';
-    pickerBtn.title = 'Click to open color picker';
-    pickerBtn.style.backgroundColor = activeColor;
+    pickerBtn.classList.toggle('disabled', disabled);
+    pickerBtn.title = colorName ? `Open the full color picker for ${colorName}` : 'Open the full color picker';
 
     const customInput = document.createElement('input');
     customInput.type = 'color';
     customInput.className = 'custom-color-input';
     customInput.value = activeColor.toLowerCase();
-    customInput.title = 'Choose custom color';
-    customInput.setAttribute('aria-label', 'Custom color picker');
+    customInput.title = pickerBtn.title;
+    customInput.setAttribute('aria-label', pickerBtn.title);
     customInput.disabled = disabled;
 
-    const iconOverlay = document.createElement('i');
-    iconOverlay.className = 'fa-solid fa-eye-dropper color-picker-icon-overlay';
+    const colorPreview = document.createElement('span');
+    colorPreview.className = 'color-picker-preview';
+    colorPreview.style.backgroundColor = activeColor;
+
+    const pickerText = document.createElement('span');
+    pickerText.textContent = 'More colors';
 
     pickerBtn.appendChild(customInput);
-    pickerBtn.appendChild(iconOverlay);
+    pickerBtn.appendChild(colorPreview);
+    pickerBtn.appendChild(pickerText);
 
     const hexInput = document.createElement('input');
     hexInput.type = 'text';
@@ -7933,23 +7935,34 @@ const ALL_FA_ICONS = [
     hexInput.maxLength = 7;
     hexInput.placeholder = '#E74C3C';
     hexInput.spellcheck = false;
-    hexInput.setAttribute('aria-label', 'Hex color code');
-    hexInput.title = 'Enter hex color code (e.g. #3498DB)';
+    hexInput.setAttribute('aria-label', colorName ? `Hex color code for ${colorName}` : 'Hex color code');
+    hexInput.title = 'Enter a hex color code (e.g. #3498DB)';
     hexInput.disabled = disabled;
 
+    const hexLabel = document.createElement('label');
+    hexLabel.className = 'color-hex-field';
+    const hexLabelText = document.createElement('span');
+    hexLabelText.textContent = 'Hex color';
+    hexLabel.appendChild(hexLabelText);
+    hexLabel.appendChild(hexInput);
+
+    customRow.appendChild(hexLabel);
     customRow.appendChild(pickerBtn);
-    customRow.appendChild(hexInput);
+
+    const pickerHelp = document.createElement('p');
+    pickerHelp.className = 'color-picker-help';
+    pickerHelp.textContent = 'Paste a hex code, select a quick color below, or choose More colors to open the full picker.';
 
     const presetsContainer = document.createElement('div');
     presetsContainer.className = 'color-palette-presets';
     presetsContainer.setAttribute('role', 'radiogroup');
-    presetsContainer.setAttribute('aria-label', 'Color presets');
+    presetsContainer.setAttribute('aria-label', colorName ? `Quick color presets for ${colorName}` : 'Quick color presets');
 
     const swatchButtons = [];
 
     function updateActiveState(colorHex) {
       activeColor = colorHex;
-      pickerBtn.style.backgroundColor = colorHex;
+      colorPreview.style.backgroundColor = colorHex;
       customInput.value = colorHex.toLowerCase();
       hexInput.value = colorHex;
       hexInput.classList.remove('invalid');
@@ -7965,7 +7978,7 @@ const ALL_FA_ICONS = [
       });
     }
 
-    COLOR_PALETTE.forEach(color => {
+    presetColors.forEach(color => {
       const swatch = document.createElement('button');
       swatch.type = 'button';
       swatch.className = 'color-swatch' + (color.toLowerCase() === activeColor.toLowerCase() ? ' active' : '');
@@ -8000,7 +8013,7 @@ const ALL_FA_ICONS = [
         if (norm) {
           hexInput.classList.remove('invalid');
           activeColor = norm;
-          pickerBtn.style.backgroundColor = norm;
+          colorPreview.style.backgroundColor = norm;
           customInput.value = norm.toLowerCase();
           swatchButtons.forEach(({ btn, color }) => {
             if (color.toLowerCase() === norm.toLowerCase()) {
@@ -8029,6 +8042,7 @@ const ALL_FA_ICONS = [
     }
 
     wrapper.appendChild(customRow);
+    if (showHelp) wrapper.appendChild(pickerHelp);
     wrapper.appendChild(presetsContainer);
     container.appendChild(wrapper);
   }
@@ -8180,22 +8194,24 @@ const ALL_FA_ICONS = [
   }
 
   /**
-   * get incident style.
+   * Chooses the icon and color for an incident using its category and severity settings.
    *
-   * @pre Arguments satisfy the documented shape and current application invariants hold.
-   * @post Returns the requested value or completes its state transition without weakening those invariants.
-   * @sideEffects May update application state or user-visible UI when required by the operation.
-   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   * @pre `sheet`, category, mapping, and severity values match the normalized incident data shape.
+   * @post A mapped value uses its assigned color; a value without one uses its category color when a mapping column is selected.
+   * @invariant Severity styling remains active for categories without a separate value-color mapping.
    */
   function getIncidentStyle(sheet, categoryValue, mappingValue, severityValue) {
     const categoryStyle = getCategoryStyle(sheet, categoryValue);
     if (categoryStyle) {
       const mappedColor = categoryMappedColor(categoryStyle, mappingValue);
+      const categoryColor = normalizeHexColor(categoryStyle.color) || categoryStyle.color;
+      const hasMappingColumn = Number.isInteger(categoryStyle.colorMappingColumn);
       return {
         icon: categoryStyle.icon,
         color: mappedColor ||
-          severityColor(sheet, severityValue, normalizeHexColor(categoryStyle.color) || categoryStyle.color) ||
-          categoryStyle.color
+          (hasMappingColumn
+            ? categoryColor
+            : severityColor(sheet, severityValue, categoryColor) || categoryColor)
       };
     }
     return { icon: sheet.icon, color: severityColor(sheet, severityValue) || sheet.color };
@@ -8647,6 +8663,13 @@ const ALL_FA_ICONS = [
 
   }
 
+  /**
+   * Renders editable colors for each mapped category value.
+   *
+   * @pre `option` is the active category with an optional array of value/color mappings.
+   * @post Each value has hex, preset, and full-picker controls; values without a valid color display the category color.
+   * @sideEffects Replaces the mapping list DOM and initializes missing mapping colors from the category color.
+   */
   function renderCategoryColorMappings(option) {
     if (!categoryColorMappingList || !option) return;
     renderCategoryColorSchemeControls(option);
@@ -8659,57 +8682,30 @@ const ALL_FA_ICONS = [
       categoryColorMappingList.appendChild(empty);
       return;
     }
-    mappings.forEach((mapping, mappingIndex) => {
+    mappings.forEach(mapping => {
       const row = document.createElement('div');
       row.className = 'category-color-mapping-row';
       const label = document.createElement('label');
       label.textContent = mapping.value;
       label.title = mapping.value;
-      const isMonochromatic = option.colorMappingScheme !== 'palette';
-      const normalizedMappingColor = normalizeHexColor(mapping.color);
-      if (isMonochromatic) {
-        const ramp = getMonochromaticRampColors(option);
-        const fallbackColor = getCategoryColorSchemeColor(option, mappingIndex, mappings.length);
-        const selectedColor = ramp.includes(normalizedMappingColor) ? normalizedMappingColor : fallbackColor;
-        mapping.color = selectedColor;
-        const rampPicker = document.createElement('div');
-        rampPicker.className = 'category-color-ramp';
-        rampPicker.setAttribute('role', 'group');
-        rampPicker.setAttribute('aria-label', `Ramp colors for ${mapping.value}`);
-        ramp.forEach((color, index) => {
-          const colorButton = document.createElement('button');
-          colorButton.type = 'button';
-          colorButton.className = 'category-color-ramp-btn';
-          colorButton.style.backgroundColor = color;
-          colorButton.title = `Shade ${index + 1}: ${color}`;
-          colorButton.setAttribute('aria-label', `Shade ${index + 1} for ${mapping.value}`);
-          colorButton.setAttribute('aria-pressed', String(color === selectedColor));
-          if (color === selectedColor) colorButton.classList.add('active');
-          colorButton.addEventListener('click', function () {
-            mapping.color = color;
-            rampPicker.querySelectorAll('.category-color-ramp-btn').forEach(button => {
-              const selected = button === colorButton;
-              button.classList.toggle('active', selected);
-              button.setAttribute('aria-pressed', String(selected));
-            });
-            refreshSheetMarkerStyles(activeCategoryColorMappingSheet);
-          });
-          rampPicker.appendChild(colorButton);
-        });
-        row.appendChild(label);
-        row.appendChild(rampPicker);
-      } else {
-        const colorInput = document.createElement('input');
-        colorInput.type = 'color';
-        colorInput.value = normalizedMappingColor || option.color;
-        colorInput.setAttribute('aria-label', `Color for ${mapping.value}`);
-        colorInput.addEventListener('input', function () {
-          mapping.color = colorInput.value;
+      const mappingColorPicker = document.createElement('div');
+      const initialColor = normalizeHexColor(mapping.color) ||
+        normalizeHexColor(option.color) || COLOR_PALETTE[0];
+      mapping.color = initialColor;
+      buildColorPicker(mappingColorPicker, initialColor, function (color) {
+        mapping.color = color;
+        if (activeCategoryColorMappingSheet) {
           refreshSheetMarkerStyles(activeCategoryColorMappingSheet);
-        });
-        row.appendChild(label);
-        row.appendChild(colorInput);
-      }
+        }
+      }, {
+        showHelp: false,
+        colorName: mapping.value,
+        presetColors: option.colorMappingScheme === 'palette'
+          ? COLOR_PALETTE
+          : getMonochromaticRampColors(option)
+      });
+      row.appendChild(label);
+      row.appendChild(mappingColorPicker);
       categoryColorMappingList.appendChild(row);
     });
   }
@@ -8777,7 +8773,7 @@ const ALL_FA_ICONS = [
     if (categoryColorMappingTitle) categoryColorMappingTitle.textContent = `Colors for "${option.value}"`;
     if (categoryColorMappingDescription) {
       categoryColorMappingDescription.textContent =
-        'Choose the column whose values should control this category’s marker color. Existing values are preloaded; add future values below.';
+        'Choose the value column, then enter a hex color, choose a quick color, or select More colors for each value. Values without an assigned color use this category’s icon color.';
     }
     populateSelect(categoryColorMappingColumn, sheet.headers, option.colorMappingColumn, false, '(Select value column)');
     if (categoryColorMappingStatus) categoryColorMappingStatus.textContent = '';
