@@ -5375,11 +5375,14 @@ const ALL_FA_ICONS = [
       throw new Error(`Custom feature "${feature.id}" has an unsupported geometry type.`);
     }
     const positions = feature.coordinates.map(toPosition);
-    if (positions.length < 2) {
-      throw new Error(`Custom feature "${feature.id}" does not have enough coordinates.`);
-    }
     if (feature.type === 'line') {
+      if (positions.length < 2) {
+        throw new Error(`Custom feature "${feature.id}" does not have enough coordinates.`);
+      }
       return { type: 'LineString', coordinates: positions };
+    }
+    if (positions.length < 3) {
+      throw new Error(`Custom feature "${feature.id}" does not have enough coordinates.`);
     }
     const firstPosition = positions[0];
     const lastPosition = positions[positions.length - 1];
