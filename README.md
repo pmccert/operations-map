@@ -73,6 +73,12 @@ publicly accessible Google Sheet.
 * **Custom map features** — draw points, lines, and polygons on the map with a custom
   color, FontAwesome icon, and label. An optional description is stored locally in
   the browser for reference but is not displayed on the map.
+* **FlatGeobuf export** — download the loaded sheet incidents, custom features, and
+  GeoJSON overlays as one `.fgb` vector file. Each feature includes layer identity,
+  directly accessible namespaced source fields, and a `metadata_json` property
+  containing its complete sheet row, source attributes, or custom-feature details.
+  The export runs in the browser and needs no backend; raster tile layers and
+  incidents without coordinates are not included.
 * **Commit metadata indicator** — displays the active commit ID and commit date/time in the lower-left corner of the map for version tracking.
 * **Coordinate copying** — right-click anywhere on the map to view the latitude/longitude pair and copy it to the clipboard.
 * **Basemap switcher** — choose from selectable tile sources via the top-right control:
@@ -174,7 +180,15 @@ setup dialog or via the toolbar:
     **Load Map File** in another browser to restore it; the imported snapshot is
     displayed first and then normal sheet refresh resumes.
     The current map settings are also remembered in this browser across page
-    reloads.
+    reloads. Use **Export FlatGeobuf** to download a `.fgb` snapshot of all
+    currently loaded vector features, including hidden sheet incidents and
+    custom features. Each record has `layer_name`, `layer_id`, `feature_type`,
+    and `metadata_json` properties. Source columns/attributes are also available
+    as `source__<layer_id>__<field_name>` properties (sheet columns use
+    `sheet_field_<column_index>__<header>` to preserve duplicate headers);
+    `metadata_json` preserves the complete source values. Raster tile layers
+    (including the basemaps and landslide map) and rows that could not be
+    plotted because they have no coordinates are excluded.
 14. To collaborate through Google Drive:
     * Click **Create Shared Map** to create a map-state JSON file in your Drive, or
       **Open Shared Map** to open an existing Drive file by file ID/URL.

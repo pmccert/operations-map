@@ -2002,6 +2002,7 @@
       <button class="toolbar-btn" id="btn-custom-features"><i class="fa-solid fa-draw-polygon"></i> Custom Features</button>
       <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
       <button class="toolbar-btn" id="btn-export-map" title="Save map configuration and loaded data to a file"><i class="fa-solid fa-download"></i> Save Map File</button>
+      <button class="toolbar-btn" id="btn-export-flatgeobuf" title="Download loaded vector features and their metadata as a FlatGeobuf file"><i class="fa-solid fa-earth-americas"></i> Export FlatGeobuf</button>
       <button class="toolbar-btn" id="btn-import-map" title="Load map configuration and data from a file"><i class="fa-solid fa-upload"></i> Load Map File</button>
       <input class="toolbar-file-input" id="map-file-input" type="file" accept="application/json,.json" />
       <details class="toolbar-submenu" id="google-drive-submenu">
@@ -2099,6 +2100,7 @@
   crossorigin=""
 ></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/flatgeobuf@4.4.0/dist/flatgeobuf-geojson.min.js" crossorigin="anonymous"></script>
 
 <script>
 (function () {
@@ -5336,6 +5338,342 @@ const ALL_FA_ICONS = [
         rows: Array.isArray(sheet.lastRows) ? sheet.lastRows : []
       }))
     };
+  }
+
+  /**
+   * Convert a saved custom feature from Leaflet's latitude/longitude order to GeoJSON order.
+   *
+   * @param {object} feature Validated saved custom feature with point, line, or polygon coordinates.
+   * @pre `feature` has a supported type and finite latitude/longitude coordinates in the application's saved-feature format.
+   * @post Returns a WGS84 GeoJSON geometry with longitude before latitude and a closed polygon ring.
+   * @sideEffects None.
+   * @throws {Error} If the feature type or coordinates are invalid.
+   */
+  function customFeatureToGeoJSONGeometry(feature) {
+    const toPosition = coordinate => {
+      if (!Array.isArray(coordinate) || coordinate.length !== 2 ||
+          !Number.isFinite(coordinate[0]) || !Number.isFinite(coordinate[1])) {
+        throw new Error(`Custom feature "${feature.id}" has invalid coordinates.`);
+      }
+      return [coordinate[1], coordinate[0]];
+    };
+    if (feature.type === 'point') {
+      return { type: 'Point', coordinates: toPosition(feature.coordinates) };
+    }
+    if (feature.type !== 'line' && feature.type !== 'polygon') {
+      throw new Error(`Custom feature "${feature.id}" has an unsupported geometry type.`);
+    }
+    const positions = feature.coordinates.map(toPosition);
+    if (feature.type === 'line') {
+      if (positions.length < 2) {
+        throw new Error(`Custom feature "${feature.id}" does not have enough coordinates.`);
+      }
+      return { type: 'LineString', coordinates: positions };
+    }
+    if (positions.length < 3) {
+      throw new Error(`Custom feature "${feature.id}" does not have enough coordinates.`);
+    }
+    const firstPosition = positions[0];
+    const lastPosition = positions[positions.length - 1];
+    if (firstPosition[0] !== lastPosition[0] || firstPosition[1] !== lastPosition[1]) {
+      positions.push(firstPosition.slice());
+    }
+    return { type: 'Polygon', coordinates: [positions] };
+  }
+
+  /**
+   * Create one consistently shaped FlatGeobuf feature while retaining its complete source metadata.
+   *
+   * @param {object} geometry Valid GeoJSON geometry.
+   * @param {object} metadata Export metadata to preserve as JSON.
+   * @param {object} properties Standard layer, feature, and source fields.
+   * @param {object} sourceAttributes Namespaced source fields with scalar values.
+   * @pre Geometry and metadata are valid JSON values; all standard property values are strings.
+   * @post Returns a GeoJSON feature with standard properties, source fields, and complete metadata in `metadata_json`.
+   * @sideEffects None.
+   * @throws {Error} If metadata cannot be serialized or the geometry is missing.
+   */
+  function createFlatGeobufFeature(geometry, metadata, properties, sourceAttributes) {
+    if (!geometry || typeof geometry.type !== 'string' ||
+        (geometry.type === 'GeometryCollection'
+          ? !Array.isArray(geometry.geometries)
+          : !Array.isArray(geometry.coordinates))) {
+      throw new Error(`Feature "${properties.feature_id}" has no exportable geometry.`);
+    }
+    const metadataJson = JSON.stringify(metadata);
+    if (typeof metadataJson !== 'string') {
+      throw new Error(`Metadata for feature "${properties.feature_id}" could not be serialized.`);
+    }
+    return {
+      type: 'Feature',
+      id: properties.feature_id,
+      geometry,
+      properties: {
+        ...sourceAttributes,
+        layer_name: properties.layer_name,
+        layer_id: properties.layer_id,
+        feature_id: properties.feature_id,
+        feature_type: properties.feature_type,
+        label: properties.label,
+        status: properties.status,
+        source_url: properties.source_url,
+        metadata_json: metadataJson
+      }
+    };
+  }
+
+  /**
+   * Prefix source attribute names by layer and convert values to FlatGeobuf-safe strings.
+   *
+   * @param {string} layerId Stable identity for the source layer.
+   * @param {object} attributes Original source attributes keyed by source field name.
+   * @pre `layerId` is a string and `attributes` is a plain JSON-compatible object.
+   * @post Returns namespaced properties that preserve every non-null scalar or JSON-encode structured values.
+   * @sideEffects None.
+   * @throws {Error} If a structured attribute cannot be serialized.
+   */
+  function prefixFlatGeobufAttributes(layerId, attributes) {
+    return Object.fromEntries(Object.entries(attributes).map(([name, value]) => {
+      let normalizedValue = '';
+      if (value !== undefined && value !== null) {
+        normalizedValue = typeof value === 'string' ? value : JSON.stringify(value);
+        if (typeof normalizedValue !== 'string') {
+          throw new Error(`Source attribute "${name}" could not be serialized.`);
+        }
+      }
+      return [`source__${layerId}__${name}`, normalizedValue];
+    }));
+  }
+
+  /**
+   * Collect all loaded vector features from the incident map, custom features, and GeoJSON overlays.
+   *
+   * @pre The map, sheet state, marker state, custom features, and third-party layer configuration are initialized.
+   * @post Returns a WGS84 GeoJSON FeatureCollection with layer identity and complete per-feature metadata; unmatched incidents are counted but omitted because they have no coordinates.
+   * @sideEffects None.
+   * @throws {Error} If a loaded vector feature is malformed or cannot be represented as GeoJSON.
+   */
+  function buildMapFlatGeobufFeatureCollection() {
+    const features = [];
+    const exportedIncidentCounts = new Map();
+    Object.entries(incidentMarkers).forEach(([key, marker]) => {
+      const incident = marker._incident;
+      const sheet = sheets.find(candidate => candidate.id === marker._sheetId);
+      if (!incident || !sheet) return;
+      if (!Number.isFinite(incident.lat) || !Number.isFinite(incident.lon)) {
+        return;
+      }
+      exportedIncidentCounts.set(sheet.id, (exportedIncidentCounts.get(sheet.id) || 0) + 1);
+      const row = Array.isArray(marker._row) ? marker._row : [];
+      const rawFields = row.map((value, index) => ({
+        name: (sheet.headers && sheet.headers[index]) || `Column ${colLetter(index)}`,
+        value: value === undefined || value === null ? '' : String(value)
+      }));
+      const sheetDetails = parseGoogleSheetDetails(sheet.rawUrl || '');
+      const sourceUrl = sheetDetails
+        ? `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetDetails.spreadsheetId)}/edit?gid=${sheetDetails.gid}`
+        : '';
+      const status = incident.isOpen ? 'Open' : 'Closed';
+      features.push(createFlatGeobufFeature(
+        { type: 'Point', coordinates: [incident.lon, incident.lat] },
+        {
+          source: 'google-sheet',
+          sheet: {
+            id: sheet.id,
+            name: sheet.name,
+            url: sourceUrl,
+            columnMapping: sheet.columnMapping
+          },
+          fields: rawFields,
+          incident: {
+            address: incident.address,
+            canonicalAddress: incident.canonical,
+            matchType: incident.matchType,
+            editDistance: incident.editDist,
+            label: incident.label,
+            status,
+            category: incident.categoryValue,
+            colorMappingValue: marker._colorMappingValue || '',
+            severity: marker._severityValue || ''
+          }
+        },
+        {
+          layer_name: sheet.name,
+          layer_id: sheet.id,
+          feature_id: key,
+          feature_type: 'sheet-incident',
+          label: incident.label || '',
+          status,
+          source_url: sourceUrl
+        },
+        prefixFlatGeobufAttributes(sheet.id, Object.fromEntries(
+          rawFields.map((field, index) => [`sheet_field_${index}__${field.name}`, field.value])
+        ))
+      ));
+    });
+
+    customFeatures.forEach(feature => {
+      const geometry = customFeatureToGeoJSONGeometry(feature);
+      const status = feature.type === 'point' && feature.closed === true ? 'Closed' : '';
+      features.push(createFlatGeobufFeature(
+        geometry,
+        { source: 'custom-feature', ...feature },
+        {
+          layer_name: 'Custom Features',
+          layer_id: 'custom-features',
+          feature_id: feature.id,
+          feature_type: `custom-${feature.type}`,
+          label: feature.label || '',
+          status,
+          source_url: ''
+        },
+        prefixFlatGeobufAttributes('custom-features', {
+          id: feature.id,
+          type: feature.type,
+          description: feature.description || '',
+          color: feature.color,
+          closed: feature.closed === true,
+          icon: feature.icon
+        })
+      ));
+    });
+
+    Object.entries(thirdPartyLayers).forEach(([layerName, config]) => {
+      if (!(config.layer instanceof L.GeoJSON)) return;
+      const geoJson = config.layer.toGeoJSON();
+      const sourceFeatures = geoJson.type === 'FeatureCollection'
+        ? geoJson.features
+        : geoJson.type === 'Feature'
+          ? [geoJson]
+          : null;
+      if (!Array.isArray(sourceFeatures)) {
+        throw new Error(`The "${layerName}" overlay did not produce valid GeoJSON.`);
+      }
+      sourceFeatures.forEach((sourceFeature, index) => {
+        if (!sourceFeature || !sourceFeature.geometry) {
+          throw new Error(`Feature ${index + 1} in "${layerName}" has no geometry.`);
+        }
+        const sourceProperties = sourceFeature.properties || {};
+        if (typeof sourceProperties !== 'object' || Array.isArray(sourceProperties)) {
+          throw new Error(`Feature ${index + 1} in "${layerName}" has invalid properties.`);
+        }
+        const label = fireProperty(sourceProperties, [
+          'IncidentName',
+          'poly_IncidentName',
+          'name',
+          'Name',
+          'OBJECTID'
+        ]) || layerName;
+        const featureId = sourceFeature.id === undefined || sourceFeature.id === null
+          ? `${config.id}-${index + 1}`
+          : String(sourceFeature.id);
+        features.push(createFlatGeobufFeature(
+          sourceFeature.geometry,
+          {
+            source: 'third-party-overlay',
+            sourceLayer: layerName,
+            sourceFeatureId: sourceFeature.id ?? null,
+            sourceProperties
+          },
+          {
+            layer_name: layerName,
+            layer_id: config.id,
+            feature_id: featureId,
+            feature_type: 'third-party-feature',
+            label,
+            status: '',
+            source_url: config.infoUrl || ''
+          },
+          prefixFlatGeobufAttributes(config.id, sourceProperties)
+        ));
+      });
+    });
+
+    if (features.length === 0) {
+      throw new Error('There are no loaded vector features to export.');
+    }
+    const propertyNames = Array.from(new Set(
+      features.flatMap(feature => Object.keys(feature.properties))
+    ));
+    features.forEach(feature => {
+      propertyNames.forEach(name => {
+        if (!Object.prototype.hasOwnProperty.call(feature.properties, name)) {
+          feature.properties[name] = '';
+        }
+      });
+    });
+    const unmatchedIncidentCount = sheets.reduce((total, sheet) => {
+      const rows = Array.isArray(sheet.lastRows) ? sheet.lastRows : [];
+      const addressColumn = Number.isInteger(sheet.columnMapping && sheet.columnMapping.address)
+        ? sheet.columnMapping.address
+        : 0;
+      const rowCount = rows.slice(1).filter(row =>
+        Array.isArray(row) && String(row[addressColumn] || '').trim() !== ''
+      ).length;
+      return total + Math.max(0, rowCount - (exportedIncidentCounts.get(sheet.id) || 0));
+    }, 0);
+    return {
+      collection: { type: 'FeatureCollection', features },
+      featureCount: features.length,
+      unmatchedIncidentCount
+    };
+  }
+
+  /**
+   * Downloads binary content under the given filename.
+   *
+   * @param {string} filename Safe filename to present to the browser.
+   * @param {Uint8Array} bytes Serialized FlatGeobuf bytes.
+   * @pre `filename` is non-empty and `bytes` is a non-empty Uint8Array.
+   * @post Starts a browser download of the supplied bytes.
+   * @sideEffects Creates and revokes an object URL and clicks a temporary download link.
+   * @throws {Error} If the filename or byte data is invalid.
+   */
+  function downloadBinaryFile(filename, bytes) {
+    if (typeof filename !== 'string' || !filename.trim() ||
+        !(bytes instanceof Uint8Array) || bytes.length === 0) {
+      throw new Error('A filename and non-empty binary payload are required.');
+    }
+    const blob = new Blob([bytes], { type: 'application/vnd.flatgeobuf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  /**
+   * Serializes the current vector map contents to FlatGeobuf and downloads the file.
+   *
+   * @pre The FlatGeobuf browser library and map state are initialized.
+   * @post Downloads a `.fgb` snapshot and reports its feature count, or presents the failure in the map status bar.
+   * @sideEffects Performs serialization and initiates a browser download.
+   */
+  function exportFlatGeobuf() {
+    const button = document.getElementById('btn-export-flatgeobuf');
+    if (button) button.disabled = true;
+    try {
+      if (!window.flatgeobuf || typeof window.flatgeobuf.serialize !== 'function') {
+        throw new Error('The FlatGeobuf library did not load. Reload the app and try again.');
+      }
+      const { collection, featureCount, unmatchedIncidentCount } = buildMapFlatGeobufFeatureCollection();
+      const bytes = window.flatgeobuf.serialize(collection);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      downloadBinaryFile(`pmc-cert-map-${timestamp}.fgb`, bytes);
+      const unmatchedNotice = unmatchedIncidentCount > 0
+        ? ` ${unmatchedIncidentCount} incident(s) without coordinates were omitted.`
+        : '';
+      setStatus(`FlatGeobuf export downloaded with ${featureCount} feature(s).${unmatchedNotice}`);
+    } catch (error) {
+      console.error('Failed to export FlatGeobuf data.', error);
+      const message = error instanceof Error ? error.message : 'Unknown error.';
+      setStatus(`Could not export FlatGeobuf data: ${message}`);
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   /**
@@ -10571,6 +10909,11 @@ const ALL_FA_ICONS = [
   const btnExportMap = document.getElementById('btn-export-map');
   if (btnExportMap) {
     btnExportMap.addEventListener('click', exportMapSnapshot);
+  }
+
+  const btnExportFlatGeobuf = document.getElementById('btn-export-flatgeobuf');
+  if (btnExportFlatGeobuf) {
+    btnExportFlatGeobuf.addEventListener('click', exportFlatGeobuf);
   }
 
   const btnImportMap = document.getElementById('btn-import-map');
