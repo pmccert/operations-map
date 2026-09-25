@@ -6500,7 +6500,7 @@ const ALL_FA_ICONS = [
       if (statusIdx === -1 && (norm.includes('status') || norm.includes('state') || norm === 'open' || norm === 'closed' || norm.includes('condition') || norm.includes('stage'))) {
         statusIdx = i;
       }
-      if (labelIdx === -1 && (norm.includes('label') || norm.includes('desc') || norm.includes('title') || norm.includes('detail') || norm.includes('note') || norm.includes('type') || norm.includes('incident') || norm.includes('summary') || norm.includes('comment') || norm.includes('call'))) {
+      if (labelIdx === -1 && (norm.includes('label') || norm.includes('desc') || norm.includes('title') || norm.includes('detail') || norm.includes('note') || norm.includes('type') || norm.includes('incident') || norm.includes('summary') || norm.includes('comment') || norm.includes('call') || norm.includes('name') || norm === 'team')) {
         labelIdx = i;
       }
     });
@@ -8812,21 +8812,38 @@ const ALL_FA_ICONS = [
   }
 
   /**
-   * update category options.
+   * Merge observed category values into existing category styles.
    *
-   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
-   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
-   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
-   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   * @pre `sheet` is a configured sheet and `values` is an array of category values.
+   * @post Existing configured values and styles remain in order; new non-empty,
+   *       case-insensitively distinct values are appended with default styles.
+   * @sideEffects Replaces `sheet.categoryOptions` with the merged options.
    */
   function updateCategoryOptions(sheet, values) {
     const previous = Array.isArray(sheet.categoryOptions) ? sheet.categoryOptions : [];
     const previousByValue = new Map(previous.map(option => [option.value.toLowerCase(), option]));
-    sheet.categoryOptions = values.map((value, index) => {
+    const mergedValues = [];
+    const seenValues = new Set();
+    previous.forEach(option => {
+      const value = String(option.value || '').trim();
+      const normalizedValue = value.toLowerCase();
+      if (value && !seenValues.has(normalizedValue)) {
+        seenValues.add(normalizedValue);
+        mergedValues.push(value);
+      }
+    });
+    values.forEach(value => {
       const trimmedValue = String(value).trim();
-      const existing = previousByValue.get(trimmedValue.toLowerCase());
+      const normalizedValue = trimmedValue.toLowerCase();
+      if (trimmedValue && !seenValues.has(normalizedValue)) {
+        seenValues.add(normalizedValue);
+        mergedValues.push(trimmedValue);
+      }
+    });
+    sheet.categoryOptions = mergedValues.map((value, index) => {
+      const existing = previousByValue.get(value.toLowerCase());
       return existing || {
-        value: trimmedValue,
+        value,
         icon: ICON_OPTIONS[index % ICON_OPTIONS.length],
         color: COLOR_PALETTE[index % COLOR_PALETTE.length],
         visible: true,
@@ -9685,6 +9702,7 @@ const ALL_FA_ICONS = [
       values = getUniqueColumnValues(rows, categoryColumn);
     }
 
+    if (sheet.columnMapping.category !== categoryColumn) return;
     updateCategoryOptions(sheet, values);
     renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
     updateLegend();
@@ -9912,6 +9930,8 @@ const ALL_FA_ICONS = [
     categorySelect.addEventListener('change', function () {
       const val = parseInt(categorySelect.value, 10);
       sheet.columnMapping.category = val >= 0 ? val : null;
+      sheet.categoryOptions = [];
+      renderCategoryStyles(card.querySelector('.category-style-container'), sheet, null, { disabled: mapIsReadOnly });
       inspectCategoryOptions(sheet, card);
     });
     categoryEnabledInput.addEventListener('change', function () {

@@ -15,7 +15,8 @@ publicly accessible Google Sheet.
 * **Startup disaster modes** — begin with a **Blank Map** or choose a predefined
   disaster preset such as **Earthquake**, **Evacuation**, or **Snow Emergency**.
   `assets/disaster-modes.json` is the single source of truth for these presets
-  and can prefill sheet names, icons, colours, and other startup settings.
+  and can prefill sheet names, URLs, icons, category values and colours, and
+  other startup settings.
 * **Configurable column mapping per sheet** — automatically detects and allows you to select
   which sheet columns contain the incident address, open/closed status, and label/description for each sheet.
   Change column mapping at any time in the **Manage Sheets** dialog.
@@ -143,8 +144,10 @@ setup dialog or via the toolbar:
    `index.html` from that server URL.
 2. Choose a **startup disaster mode**:
    * **Blank Map** starts with no Google Sheets so you can build the map from scratch.
-   * **Earthquake**, **Evacuation**, and **Snow Emergency** preload starter sheet settings and icons.
-3. Paste your **Google Sheet URL** into any preloaded sheet, or click **+ Add Another Sheet** to add your own.
+   * **Earthquake**, **Evacuation**, and **Snow Emergency** each preload the
+     **Incidents**, **Traffic**, and **Field Teams** sheets, with their category
+     columns and colors configured.
+3. Review or edit a preloaded **Google Sheet URL**, or click **+ Add Another Sheet** to add your own.
    The app auto-detects sheet columns and selects matching Location, Status, and Label columns for each sheet.
 4. Click a sheet's colored icon to open the appearance dialog, then choose or
    adjust the incident icon and color.
@@ -278,6 +281,10 @@ Notes:
 * `icon.fa` must be a valid Font Awesome class string.
 * `preset.sheets` may be an empty array for a true blank-map startup.
 * `rawUrl` is optional, so presets can provide sheet styling before a Google Sheet is attached.
+* `columnMapping.category` is a zero-based sheet column index or `null`;
+  `categoryEnabled` turns on category styling. `categoryOptions` can preload
+  `{ "value", "icon", "color" }` settings for known values, which are retained
+  when category values are read from the sheet.
 * `closedStatusValues` is an optional array of case-insensitive status values that mark
   rows as closed; omitted values default to `["closed"]`.
 * `closedColor` is an optional hex color for closed incident markers; omitted values
