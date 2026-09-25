@@ -9437,7 +9437,7 @@ const ALL_FA_ICONS = [
       </div>
       <div class="column-mapping-grid">
         <div>
-          <label class="sub-field-label">Address *</label>
+          <label class="sub-field-label">Location *</label>
           <select class="select-input col-address-select"></select>
         </div>
         <div>
@@ -9739,7 +9739,7 @@ const ALL_FA_ICONS = [
         await tryDetectHeadersForSheet(s);
       }
       if (s.columnMapping.address === null || s.columnMapping.address === undefined || isNaN(s.columnMapping.address) || s.columnMapping.address < 0) {
-        showError(`Please select a valid Address Column for "${s.name}".`);
+        showError(`Please select a valid Location Column for "${s.name}".`);
         submitBtn.disabled = false;
         submitBtn.textContent = hasLoadedMap ? 'Save & Load Map' : 'Load Map';
         return;

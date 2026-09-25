@@ -34,14 +34,14 @@ The application operates without a dedicated backend server, resolving incident 
 
 * **FR-1.4: Automatic Column Detection**
   * Upon entering a Google Sheet URL, the application shall probe and parse the header row (first line) to detect column indices automatically using keyword heuristics for each sheet:
-    * **Address Column (Required):** Matched if header contains `address`, `addr`, `location`, `street`, or `residence`.
+    * **Location Column (Required):** Matched if header contains `address`, `addr`, `location`, `street`, or `residence`.
     * **Status Column (Optional):** Matched if header contains `status`, `state`, `open`, `closed`, `condition`, or `stage`.
     * **Label Column (Optional):** Matched if header contains `label`, `desc`, `title`, `detail`, `note`, `type`, `incident`, `summary`, `comment`, or `call`.
-  * Fallbacks if keywords do not match: Column A (`0`) for Address, Column B (`1`) for Status (if present), Column C (`2`) for Label (if present).
+  * Fallbacks if keywords do not match: Column A (`0`) for Location, Column B (`1`) for Status (if present), Column C (`2`) for Label (if present).
 
 * **FR-1.5: Configurable Column Mapping per Sheet**
-  * Users shall be able to manually select and override the Address, Status, and Label columns individually for each configured sheet in the startup/configuration dialog and at runtime via the **Manage Sheets** dialog.
-  * **Address Column:** Required; must reference a valid column.
+  * Users shall be able to manually select and override the Location, Status, and Label columns individually for each configured sheet in the startup/configuration dialog and at runtime via the **Manage Sheets** dialog.
+  * **Location Column:** Required; must reference a valid column.
   * **Status Column:** Optional; can be mapped to a specific column or set to `(None — Always Open)`.
   * **Label Column:** Optional; can be mapped to a specific column or set to `(None — Default #)`.
 
@@ -323,7 +323,7 @@ The application operates without a dedicated backend server, resolving incident 
             },
             "closedStatusValues": ["closed"],
             "closedColor": "#7F8C8D",
-            "headers": ["Address", "Status", "Label"],
+            "headers": ["Location", "Status", "Label"],
             "icon": {
               "fa": "fa-solid fa-house-crack",
               "label": "Earthquake"
