@@ -9606,7 +9606,7 @@ const ALL_FA_ICONS = [
             const existingColumnMapping = sheet.columnMapping && typeof sheet.columnMapping === 'object'
               ? sheet.columnMapping
               : {};
-            const detectedColumnMapping = autoDetectColumns(sheet.headers);
+            const detectedColumnMapping = autoDetectColumns(headers);
             sheet.headers = headers;
             sheet.columnMapping = {
               address: Number.isInteger(existingColumnMapping.address)
