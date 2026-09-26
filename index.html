@@ -9558,9 +9558,13 @@ const ALL_FA_ICONS = [
   /**
    * try detect headers for sheet.
    *
-   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
-   * @post Returns validated external data or completes the requested synchronization/UI operation.
-   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @pre `sheet` includes `{ id, name, rawUrl, columnMapping }` where `columnMapping` may include
+   *      `address` (required index), optional `status`/`label`/`category`/`severity` indexes, or
+   *      `null` for optional fields.
+   * @post When CSV headers are detected, `sheet.headers` is replaced and `sheet.columnMapping`
+   *       preserves valid prior mappings when possible. Optional fields explicitly set to `null`
+   *       remain `null`; missing or invalid prior indexes fall back to auto-detected mappings.
+   * @sideEffects May perform network I/O, update sheet column mappings, and refresh setup-card UI state.
    * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
    */
   async function tryDetectHeadersForSheet(sheet, cardEl) {
@@ -9614,21 +9618,22 @@ const ALL_FA_ICONS = [
               ? sheet.columnMapping
               : {};
             const detectedColumnMapping = autoDetectColumns(headers);
+            const hasValidHeaderIndex = (value) => Number.isInteger(value) && value >= 0 && value < headers.length;
             sheet.headers = headers;
             sheet.columnMapping = {
-              address: Number.isInteger(existingColumnMapping.address)
+              address: hasValidHeaderIndex(existingColumnMapping.address)
                 ? existingColumnMapping.address
                 : detectedColumnMapping.address,
-              status: (existingColumnMapping.status === null || Number.isInteger(existingColumnMapping.status))
+              status: (existingColumnMapping.status === null || hasValidHeaderIndex(existingColumnMapping.status))
                 ? existingColumnMapping.status
                 : detectedColumnMapping.status,
-              label: (existingColumnMapping.label === null || Number.isInteger(existingColumnMapping.label))
+              label: (existingColumnMapping.label === null || hasValidHeaderIndex(existingColumnMapping.label))
                 ? existingColumnMapping.label
                 : detectedColumnMapping.label,
-              category: (existingColumnMapping.category === null || Number.isInteger(existingColumnMapping.category))
+              category: (existingColumnMapping.category === null || hasValidHeaderIndex(existingColumnMapping.category))
                 ? existingColumnMapping.category
                 : detectedColumnMapping.category,
-              severity: (existingColumnMapping.severity === null || Number.isInteger(existingColumnMapping.severity))
+              severity: (existingColumnMapping.severity === null || hasValidHeaderIndex(existingColumnMapping.severity))
                 ? existingColumnMapping.severity
                 : detectedColumnMapping.severity
             };
