@@ -8814,10 +8814,17 @@ const ALL_FA_ICONS = [
   /**
    * Merge observed category values into existing category styles.
    *
-   * @pre `sheet` is a configured sheet and `values` is an array of category values.
-   * @post Existing configured values and styles remain in order; new non-empty,
-   *       case-insensitively distinct values are appended with default styles.
-   * @sideEffects Replaces `sheet.categoryOptions` with the merged options.
+   * @pre `sheet.categoryOptions` is an array of option objects or omitted. Each option object
+   *      may include `{ value, icon, color, visible, colorMappingColumn, colorMappings,
+   *      colorMappingScheme, colorMappingBaseColor }`; only `value` is required to preserve
+   *      an existing option. `values` is an array-like list of observed category values.
+   * @post `sheet.categoryOptions` is replaced with one option per non-empty category value.
+   *       Existing options are kept in their original order and reused as-is when their
+   *       `value` matches case-insensitively (first match wins). Observed values that are not
+   *       already present are appended in first-seen order with default icon/color settings.
+   * @invariant Matching is case-insensitive; duplicates from existing options and observed
+   *            values collapse to a single option keyed by lowercase trimmed value.
+   * @sideEffects Replaces `sheet.categoryOptions` with the merged options array.
    */
   function updateCategoryOptions(sheet, values) {
     const previous = Array.isArray(sheet.categoryOptions) ? sheet.categoryOptions : [];
