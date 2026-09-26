@@ -9714,7 +9714,10 @@ const ALL_FA_ICONS = [
       values = getUniqueColumnValues(rows, categoryColumn);
     }
 
-    if (sheet.columnMapping.category !== categoryColumn) return;
+    if (sheet.columnMapping.category !== categoryColumn) {
+      await inspectCategoryOptions(sheet, card, fallbackRows);
+      return;
+    }
     updateCategoryOptions(sheet, values);
     renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
     updateLegend();
