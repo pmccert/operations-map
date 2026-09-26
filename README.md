@@ -258,7 +258,11 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
            "categoryEnabled": true,
            "icon": { "fa": "fa-solid fa-triangle-exclamation", "label": "Incidents" },
            "color": "#B51A00",
-           "categoryOptions": [{ "value": "Severe", "icon": { "fa": "fa-solid fa-triangle-exclamation", "label": "Severe" }, "color": "#B51A00" }]
+           "categoryOptions": [
+             { "value": "Severe", "icon": { "fa": "fa-solid fa-triangle-exclamation", "label": "Severe" }, "color": "#B51A00" },
+             { "value": "Intermediate", "icon": { "fa": "fa-solid fa-circle-exclamation", "label": "Intermediate" }, "color": "#F06200" },
+             { "value": "Minor", "icon": { "fa": "fa-solid fa-circle-info", "label": "Minor" }, "color": "#E4A804" }
+           ]
          },
          {
            "name": "Traffic",
@@ -267,7 +271,11 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
            "categoryEnabled": true,
            "icon": { "fa": "fa-solid fa-car-side", "label": "Traffic" },
            "color": "#00B5E9",
-           "categoryOptions": [{ "value": "Gridlock", "icon": { "fa": "fa-solid fa-car-burst", "label": "Gridlock" }, "color": "#34495E" }]
+           "categoryOptions": [
+             { "value": "Free Flowing", "icon": { "fa": "fa-solid fa-car-side", "label": "Free Flowing" }, "color": "#00B5E9" },
+             { "value": "Slowdown", "icon": { "fa": "fa-solid fa-traffic-light", "label": "Slowdown" }, "color": "#0072BE" },
+             { "value": "Gridlock", "icon": { "fa": "fa-solid fa-car-burst", "label": "Gridlock" }, "color": "#34495E" }
+           ]
          },
          {
            "name": "Field Teams",
@@ -276,7 +284,12 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
            "categoryEnabled": true,
            "icon": { "fa": "fa-solid fa-people-group", "label": "Field Teams" },
            "color": "#609331",
-           "categoryOptions": [{ "value": "Responding", "icon": { "fa": "fa-solid fa-truck-medical", "label": "Responding" }, "color": "#316002" }]
+           "categoryOptions": [
+             { "value": "Deployed", "icon": { "fa": "fa-solid fa-people-group", "label": "Deployed" }, "color": "#609331" },
+             { "value": "Responding", "icon": { "fa": "fa-solid fa-truck-medical", "label": "Responding" }, "color": "#316002" },
+             { "value": "Recalled", "icon": { "fa": "fa-solid fa-person-walking-arrow-right", "label": "Recalled" }, "color": "#C9DF00" },
+             { "value": "Idle", "icon": { "fa": "fa-regular fa-clock", "label": "Idle" }, "color": "#D1D5BC" }
+           ]
          }
        ]
      }
