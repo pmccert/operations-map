@@ -8825,14 +8825,24 @@ const ALL_FA_ICONS = [
    * @invariant Matching is case-insensitive; duplicates from existing options and observed
    *            values collapse to a single option keyed by lowercase trimmed value.
    * @sideEffects Replaces `sheet.categoryOptions` with the merged options array.
+   * @throws {Error} Does not throw for malformed optional option/value inputs; invalid or
+   *                 empty values are normalized and skipped.
    */
   function updateCategoryOptions(sheet, values) {
     const previous = Array.isArray(sheet.categoryOptions) ? sheet.categoryOptions : [];
-    const previousByValue = new Map(previous.map(option => [option.value.toLowerCase(), option]));
+    const previousByValue = new Map();
+    previous.forEach(option => {
+      const value = option && option.value !== undefined ? String(option.value).trim() : '';
+      if (!value) return;
+      const normalizedValue = value.toLowerCase();
+      if (!previousByValue.has(normalizedValue)) {
+        previousByValue.set(normalizedValue, option);
+      }
+    });
     const mergedValues = [];
     const seenValues = new Set();
     previous.forEach(option => {
-      const value = String(option.value || '').trim();
+      const value = option && option.value !== undefined ? String(option.value).trim() : '';
       const normalizedValue = value.toLowerCase();
       if (value && !seenValues.has(normalizedValue)) {
         seenValues.add(normalizedValue);
