@@ -240,7 +240,7 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
     {
      "id": "earthquake",
      "label": "Earthquake",
-     "description": "Preload a sheet template for quake response incidents.",
+     "description": "Preload incident, traffic, and field team sheets for earthquake response.",
      "icon": { "fa": "fa-solid fa-house-crack", "label": "Earthquake" },
      "preset": {
        "geocoder": {
@@ -252,21 +252,31 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
        "mapView": { "lat": 34.857, "lng": -119.155, "zoom": 13 },
        "sheets": [
          {
-           "name": "Earthquake Incidents",
-           "rawUrl": "",
-           "columnMapping": {
-             "address": 0,
-             "status": 1,
-             "label": 2,
-             "category": null
-           },
-           "closedStatusValues": ["closed"],
-           "closedColor": "#7F8C8D",
-           "categoryEnabled": false,
-           "headers": ["Location", "Status", "Label"],
-           "icon": { "fa": "fa-solid fa-house-crack", "label": "Earthquake" },
-           "color": "#D97706",
-           "categoryOptions": []
+           "name": "Incidents",
+           "rawUrl": "https://docs.google.com/spreadsheets/d/1p16mHGA-vOk-s1Kn5sR8a5ReGLPuQvJiAHuNvsTuW60/edit?usp=share_link",
+           "columnMapping": { "address": 4, "status": 7, "label": 3, "category": 6 },
+           "categoryEnabled": true,
+           "icon": { "fa": "fa-solid fa-triangle-exclamation", "label": "Incidents" },
+           "color": "#B51A00",
+           "categoryOptions": [{ "value": "Severe", "icon": { "fa": "fa-solid fa-triangle-exclamation", "label": "Severe" }, "color": "#B51A00" }]
+         },
+         {
+           "name": "Traffic",
+           "rawUrl": "https://docs.google.com/spreadsheets/d/1RJNZNICTt98bAIcGlrDb_P5vstcEuVPd9-veMdqwSkQ/edit?usp=share_link",
+           "columnMapping": { "address": 3, "status": 7, "label": 6, "category": 1 },
+           "categoryEnabled": true,
+           "icon": { "fa": "fa-solid fa-car-side", "label": "Traffic" },
+           "color": "#00B5E9",
+           "categoryOptions": [{ "value": "Gridlock", "icon": { "fa": "fa-solid fa-car-burst", "label": "Gridlock" }, "color": "#34495E" }]
+         },
+         {
+           "name": "Field Teams",
+           "rawUrl": "https://docs.google.com/spreadsheets/d/1ukw7CJ3bsQPbokmoH2jYBG6_oIM6PQMomHP69sSqBh8/edit?usp=share_link",
+           "columnMapping": { "address": 3, "status": 7, "label": 0, "category": 7 },
+           "categoryEnabled": true,
+           "icon": { "fa": "fa-solid fa-people-group", "label": "Field Teams" },
+           "color": "#609331",
+           "categoryOptions": [{ "value": "Responding", "icon": { "fa": "fa-solid fa-truck-medical", "label": "Responding" }, "color": "#316002" }]
          }
        ]
      }

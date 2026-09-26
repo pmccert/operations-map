@@ -9603,16 +9603,28 @@ const ALL_FA_ICONS = [
         if (rows.length > 0 && rows[0].length > 0) {
           const headers = cleanHeaders(rows[0]);
           if (headers.length > 0) {
-            const existingCategoryColumn = sheet.columnMapping && sheet.columnMapping.category;
-            const existingSeverityColumn = sheet.columnMapping && sheet.columnMapping.severity;
+            const existingColumnMapping = sheet.columnMapping && typeof sheet.columnMapping === 'object'
+              ? sheet.columnMapping
+              : {};
+            const detectedColumnMapping = autoDetectColumns(sheet.headers);
             sheet.headers = headers;
-            sheet.columnMapping = autoDetectColumns(sheet.headers);
-            sheet.columnMapping.category = Number.isInteger(existingCategoryColumn)
-              ? existingCategoryColumn
-              : null;
-            sheet.columnMapping.severity = Number.isInteger(existingSeverityColumn)
-              ? existingSeverityColumn
-              : null;
+            sheet.columnMapping = {
+              address: Number.isInteger(existingColumnMapping.address)
+                ? existingColumnMapping.address
+                : detectedColumnMapping.address,
+              status: (existingColumnMapping.status === null || Number.isInteger(existingColumnMapping.status))
+                ? existingColumnMapping.status
+                : detectedColumnMapping.status,
+              label: (existingColumnMapping.label === null || Number.isInteger(existingColumnMapping.label))
+                ? existingColumnMapping.label
+                : detectedColumnMapping.label,
+              category: (existingColumnMapping.category === null || Number.isInteger(existingColumnMapping.category))
+                ? existingColumnMapping.category
+                : detectedColumnMapping.category,
+              severity: (existingColumnMapping.severity === null || Number.isInteger(existingColumnMapping.severity))
+                ? existingColumnMapping.severity
+                : detectedColumnMapping.severity
+            };
             if (addrSelect) populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
             if (statusSelect) populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
             if (labelSelect) populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
