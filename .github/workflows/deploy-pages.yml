@@ -73,18 +73,28 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Inject commit info into index.html
+      - name: Inject build metadata and Google Geocoding key into index.html
+        env:
+          GOOGLE_GEOCODING_API_KEY: ${{ secrets.GOOGLE_GEOCODING_API_KEY }}
         run: |
           export COMMIT_HASH=$(git rev-parse --short HEAD)
           export COMMIT_TIME=$(git log -1 --format="%cd" --date=iso)
           export BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           python3 -c "
-          import os, re
+          import json, os, re
           h = os.environ['COMMIT_HASH']
           t = os.environ['COMMIT_TIME']
           b = os.environ['BUILD_TIME']
           with open('index.html', 'r', encoding='utf-8') as f:
               content = f.read()
+          key_placeholder = \"const GOOGLE_GEOCODING_API_KEY = '__GOOGLE_GEOCODING_API_KEY__';\"
+          if key_placeholder not in content:
+              raise SystemExit('Google Geocoding API key placeholder was not found in index.html')
+          api_key = os.environ.get('GOOGLE_GEOCODING_API_KEY', '')
+          content = content.replace(
+              key_placeholder,
+              'const GOOGLE_GEOCODING_API_KEY = ' + json.dumps(api_key) + ';'
+          )
           content = re.sub(r'<a\s+([^>]*?)href=\"https://github\.com/phargogh/pmccert-map-data-from-google-sheet/commit/[^\"]*\"([^>]*)>[^<]*</a>',
                            fr'<a \1href=\"https://github.com/phargogh/pmccert-map-data-from-google-sheet/commit/{h}\"\2>{h}</a>',
                            content)
