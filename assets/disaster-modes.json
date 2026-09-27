@@ -17,7 +17,7 @@
     {
       "id": "earthquake",
       "label": "Earthquake",
-      "description": "Preload a sheet template for quake response incidents.",
+      "description": "Preload incident, traffic, and field team sheets for earthquake response.",
       "icon": {
         "fa": "fa-solid fa-house-crack",
         "label": "Earthquake"
@@ -25,12 +25,138 @@
       "preset": {
         "sheets": [
           {
-            "name": "Earthquake Incidents",
-            "icon": {
-              "fa": "fa-solid fa-house-crack",
-              "label": "Earthquake"
+            "name": "Incidents",
+            "rawUrl": "https://docs.google.com/spreadsheets/d/1p16mHGA-vOk-s1Kn5sR8a5ReGLPuQvJiAHuNvsTuW60/edit?usp=share_link",
+            "columnMapping": {
+              "address": 4,
+              "status": 7,
+              "label": 3,
+              "category": 6
             },
-            "color": "#D97706"
+            "categoryEnabled": true,
+            "categoryOptions": [
+              {
+                "value": "Severe",
+                "icon": {
+                  "fa": "fa-solid fa-triangle-exclamation",
+                  "label": "Severe"
+                },
+                "color": "#B51A00"
+              },
+              {
+                "value": "Intermediate",
+                "icon": {
+                  "fa": "fa-solid fa-circle-exclamation",
+                  "label": "Intermediate"
+                },
+                "color": "#F06200"
+              },
+              {
+                "value": "Minor",
+                "icon": {
+                  "fa": "fa-solid fa-circle-info",
+                  "label": "Minor"
+                },
+                "color": "#E4A804"
+              }
+            ],
+            "icon": {
+              "fa": "fa-solid fa-triangle-exclamation",
+              "label": "Incidents"
+            },
+            "color": "#B51A00"
+          },
+          {
+            "name": "Traffic",
+            "rawUrl": "https://docs.google.com/spreadsheets/d/1RJNZNICTt98bAIcGlrDb_P5vstcEuVPd9-veMdqwSkQ/edit?usp=share_link",
+            "columnMapping": {
+              "address": 3,
+              "status": 7,
+              "label": 6,
+              "category": 1
+            },
+            "categoryEnabled": true,
+            "categoryOptions": [
+              {
+                "value": "Free Flowing",
+                "icon": {
+                  "fa": "fa-solid fa-car-side",
+                  "label": "Free Flowing"
+                },
+                "color": "#00B5E9"
+              },
+              {
+                "value": "Slowdown",
+                "icon": {
+                  "fa": "fa-solid fa-traffic-light",
+                  "label": "Slowdown"
+                },
+                "color": "#0072BE"
+              },
+              {
+                "value": "Gridlock",
+                "icon": {
+                  "fa": "fa-solid fa-car-burst",
+                  "label": "Gridlock"
+                },
+                "color": "#34495E"
+              }
+            ],
+            "icon": {
+              "fa": "fa-solid fa-car-side",
+              "label": "Traffic"
+            },
+            "color": "#00B5E9"
+          },
+          {
+            "name": "Field Teams",
+            "rawUrl": "https://docs.google.com/spreadsheets/d/1ukw7CJ3bsQPbokmoH2jYBG6_oIM6PQMomHP69sSqBh8/edit?usp=share_link",
+            "columnMapping": {
+              "address": 3,
+              "status": 7,
+              "label": 0,
+              "category": 7
+            },
+            "categoryEnabled": true,
+            "categoryOptions": [
+              {
+                "value": "Deployed",
+                "icon": {
+                  "fa": "fa-solid fa-people-group",
+                  "label": "Deployed"
+                },
+                "color": "#609331"
+              },
+              {
+                "value": "Responding",
+                "icon": {
+                  "fa": "fa-solid fa-truck-medical",
+                  "label": "Responding"
+                },
+                "color": "#316002"
+              },
+              {
+                "value": "Recalled",
+                "icon": {
+                  "fa": "fa-solid fa-person-walking-arrow-right",
+                  "label": "Recalled"
+                },
+                "color": "#C9DF00"
+              },
+              {
+                "value": "Idle",
+                "icon": {
+                  "fa": "fa-regular fa-clock",
+                  "label": "Idle"
+                },
+                "color": "#D1D5BC"
+              }
+            ],
+            "icon": {
+              "fa": "fa-solid fa-people-group",
+              "label": "Field Teams"
+            },
+            "color": "#609331"
           }
         ]
       }
@@ -38,7 +164,7 @@
     {
       "id": "evacuation",
       "label": "Evacuation",
-      "description": "Preload an evacuation tracking sheet template.",
+      "description": "Preload incident, traffic, and field team sheets for evacuation response.",
       "icon": {
         "fa": "fa-solid fa-person-walking-arrow-right",
         "label": "Evacuation"
@@ -46,12 +172,138 @@
       "preset": {
         "sheets": [
           {
-            "name": "Evacuation Incidents",
-            "icon": {
-              "fa": "fa-solid fa-person-walking-arrow-right",
-              "label": "Evacuation"
+            "name": "Incidents",
+            "rawUrl": "https://docs.google.com/spreadsheets/d/1p16mHGA-vOk-s1Kn5sR8a5ReGLPuQvJiAHuNvsTuW60/edit?usp=share_link",
+            "columnMapping": {
+              "address": 4,
+              "status": 7,
+              "label": 3,
+              "category": 6
             },
-            "color": "#DC2626"
+            "categoryEnabled": true,
+            "categoryOptions": [
+              {
+                "value": "Severe",
+                "icon": {
+                  "fa": "fa-solid fa-triangle-exclamation",
+                  "label": "Severe"
+                },
+                "color": "#B51A00"
+              },
+              {
+                "value": "Intermediate",
+                "icon": {
+                  "fa": "fa-solid fa-circle-exclamation",
+                  "label": "Intermediate"
+                },
+                "color": "#F06200"
+              },
+              {
+                "value": "Minor",
+                "icon": {
+                  "fa": "fa-solid fa-circle-info",
+                  "label": "Minor"
+                },
+                "color": "#E4A804"
+              }
+            ],
+            "icon": {
+              "fa": "fa-solid fa-triangle-exclamation",
+              "label": "Incidents"
+            },
+            "color": "#B51A00"
+          },
+          {
+            "name": "Traffic",
+            "rawUrl": "https://docs.google.com/spreadsheets/d/1RJNZNICTt98bAIcGlrDb_P5vstcEuVPd9-veMdqwSkQ/edit?usp=share_link",
+            "columnMapping": {
+              "address": 3,
+              "status": 7,
+              "label": 6,
+              "category": 1
+            },
+            "categoryEnabled": true,
+            "categoryOptions": [
+              {
+                "value": "Free Flowing",
+                "icon": {
+                  "fa": "fa-solid fa-car-side",
+                  "label": "Free Flowing"
+                },
+                "color": "#00B5E9"
+              },
+              {
+                "value": "Slowdown",
+                "icon": {
+                  "fa": "fa-solid fa-traffic-light",
+                  "label": "Slowdown"
+                },
+                "color": "#0072BE"
+              },
+              {
+                "value": "Gridlock",
+                "icon": {
+                  "fa": "fa-solid fa-car-burst",
+                  "label": "Gridlock"
+                },
+                "color": "#34495E"
+              }
+            ],
+            "icon": {
+              "fa": "fa-solid fa-car-side",
+              "label": "Traffic"
+            },
+            "color": "#00B5E9"
+          },
+          {
+            "name": "Field Teams",
+            "rawUrl": "https://docs.google.com/spreadsheets/d/1ukw7CJ3bsQPbokmoH2jYBG6_oIM6PQMomHP69sSqBh8/edit?usp=share_link",
+            "columnMapping": {
+              "address": 3,
+              "status": 7,
+              "label": 0,
+              "category": 7
+            },
+            "categoryEnabled": true,
+            "categoryOptions": [
+              {
+                "value": "Deployed",
+                "icon": {
+                  "fa": "fa-solid fa-people-group",
+                  "label": "Deployed"
+                },
+                "color": "#609331"
+              },
+              {
+                "value": "Responding",
+                "icon": {
+                  "fa": "fa-solid fa-truck-medical",
+                  "label": "Responding"
+                },
+                "color": "#316002"
+              },
+              {
+                "value": "Recalled",
+                "icon": {
+                  "fa": "fa-solid fa-person-walking-arrow-right",
+                  "label": "Recalled"
+                },
+                "color": "#C9DF00"
+              },
+              {
+                "value": "Idle",
+                "icon": {
+                  "fa": "fa-regular fa-clock",
+                  "label": "Idle"
+                },
+                "color": "#D1D5BC"
+              }
+            ],
+            "icon": {
+              "fa": "fa-solid fa-people-group",
+              "label": "Field Teams"
+            },
+            "color": "#609331"
           }
         ]
       }
@@ -59,7 +311,7 @@
     {
       "id": "snow-emergency",
       "label": "Snow Emergency",
-      "description": "Preload a snow emergency sheet template for winter operations.",
+      "description": "Preload incident, traffic, and field team sheets for snow emergency operations.",
       "icon": {
         "fa": "fa-solid fa-snowflake",
         "label": "Snow Emergency"
@@ -67,12 +319,138 @@
       "preset": {
         "sheets": [
           {
-            "name": "Snow Emergency Incidents",
-            "icon": {
-              "fa": "fa-solid fa-snowflake",
-              "label": "Snow Emergency"
+            "name": "Incidents",
+            "rawUrl": "https://docs.google.com/spreadsheets/d/1p16mHGA-vOk-s1Kn5sR8a5ReGLPuQvJiAHuNvsTuW60/edit?usp=share_link",
+            "columnMapping": {
+              "address": 4,
+              "status": 7,
+              "label": 3,
+              "category": 6
             },
-            "color": "#2563EB"
+            "categoryEnabled": true,
+            "categoryOptions": [
+              {
+                "value": "Severe",
+                "icon": {
+                  "fa": "fa-solid fa-triangle-exclamation",
+                  "label": "Severe"
+                },
+                "color": "#B51A00"
+              },
+              {
+                "value": "Intermediate",
+                "icon": {
+                  "fa": "fa-solid fa-circle-exclamation",
+                  "label": "Intermediate"
+                },
+                "color": "#F06200"
+              },
+              {
+                "value": "Minor",
+                "icon": {
+                  "fa": "fa-solid fa-circle-info",
+                  "label": "Minor"
+                },
+                "color": "#E4A804"
+              }
+            ],
+            "icon": {
+              "fa": "fa-solid fa-triangle-exclamation",
+              "label": "Incidents"
+            },
+            "color": "#B51A00"
+          },
+          {
+            "name": "Traffic",
+            "rawUrl": "https://docs.google.com/spreadsheets/d/1RJNZNICTt98bAIcGlrDb_P5vstcEuVPd9-veMdqwSkQ/edit?usp=share_link",
+            "columnMapping": {
+              "address": 3,
+              "status": 7,
+              "label": 6,
+              "category": 1
+            },
+            "categoryEnabled": true,
+            "categoryOptions": [
+              {
+                "value": "Free Flowing",
+                "icon": {
+                  "fa": "fa-solid fa-car-side",
+                  "label": "Free Flowing"
+                },
+                "color": "#00B5E9"
+              },
+              {
+                "value": "Slowdown",
+                "icon": {
+                  "fa": "fa-solid fa-traffic-light",
+                  "label": "Slowdown"
+                },
+                "color": "#0072BE"
+              },
+              {
+                "value": "Gridlock",
+                "icon": {
+                  "fa": "fa-solid fa-car-burst",
+                  "label": "Gridlock"
+                },
+                "color": "#34495E"
+              }
+            ],
+            "icon": {
+              "fa": "fa-solid fa-car-side",
+              "label": "Traffic"
+            },
+            "color": "#00B5E9"
+          },
+          {
+            "name": "Field Teams",
+            "rawUrl": "https://docs.google.com/spreadsheets/d/1ukw7CJ3bsQPbokmoH2jYBG6_oIM6PQMomHP69sSqBh8/edit?usp=share_link",
+            "columnMapping": {
+              "address": 3,
+              "status": 7,
+              "label": 0,
+              "category": 7
+            },
+            "categoryEnabled": true,
+            "categoryOptions": [
+              {
+                "value": "Deployed",
+                "icon": {
+                  "fa": "fa-solid fa-people-group",
+                  "label": "Deployed"
+                },
+                "color": "#609331"
+              },
+              {
+                "value": "Responding",
+                "icon": {
+                  "fa": "fa-solid fa-truck-medical",
+                  "label": "Responding"
+                },
+                "color": "#316002"
+              },
+              {
+                "value": "Recalled",
+                "icon": {
+                  "fa": "fa-solid fa-person-walking-arrow-right",
+                  "label": "Recalled"
+                },
+                "color": "#C9DF00"
+              },
+              {
+                "value": "Idle",
+                "icon": {
+                  "fa": "fa-regular fa-clock",
+                  "label": "Idle"
+                },
+                "color": "#D1D5BC"
+              }
+            ],
+            "icon": {
+              "fa": "fa-solid fa-people-group",
+              "label": "Field Teams"
+            },
+            "color": "#609331"
           }
         ]
       }

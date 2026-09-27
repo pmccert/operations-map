@@ -6500,7 +6500,7 @@ const ALL_FA_ICONS = [
       if (statusIdx === -1 && (norm.includes('status') || norm.includes('state') || norm === 'open' || norm === 'closed' || norm.includes('condition') || norm.includes('stage'))) {
         statusIdx = i;
       }
-      if (labelIdx === -1 && (norm.includes('label') || norm.includes('desc') || norm.includes('title') || norm.includes('detail') || norm.includes('note') || norm.includes('type') || norm.includes('incident') || norm.includes('summary') || norm.includes('comment') || norm.includes('call'))) {
+      if (labelIdx === -1 && (norm.includes('label') || norm.includes('desc') || norm.includes('title') || norm.includes('detail') || norm.includes('note') || norm.includes('type') || norm.includes('incident') || norm.includes('summary') || norm.includes('comment') || norm.includes('call') || norm.includes('name') || norm === 'team')) {
         labelIdx = i;
       }
     });
@@ -8812,21 +8812,59 @@ const ALL_FA_ICONS = [
   }
 
   /**
-   * update category options.
+   * Merge observed category values into existing category styles.
    *
-   * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
-   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
-   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
-   * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
+   * @pre `sheet.categoryOptions` is an array of option objects or omitted. Each option object
+   *      may include `{ value, icon, color, visible, colorMappingColumn, colorMappings,
+   *      colorMappingScheme, colorMappingBaseColor }`; only `value` is required to preserve
+   *      an existing option. `values` is an array-like list of observed category values.
+   * @post `sheet.categoryOptions` is replaced with one option per non-empty category value.
+   *       Existing options are kept in their original order and reused as-is when their
+   *       `value` matches case-insensitively (first match wins). Observed values that are not
+   *       already present are appended in first-seen order with default icon/color settings.
+   * @invariant Matching is case-insensitive; duplicates from existing options and observed
+   *            values collapse to a single option keyed by lowercase trimmed value.
+   * @sideEffects Replaces `sheet.categoryOptions` with the merged options array.
+   * @throws {Error} Does not throw for malformed optional option/value inputs; invalid or
+   *                 empty values are normalized and skipped.
+   * @param {Object} sheet Sheet configuration object whose `categoryOptions` array is merged.
+   * @param {Array<*>} values Observed category values from dropdown metadata or sheet rows.
+   * @returns {void}
    */
   function updateCategoryOptions(sheet, values) {
     const previous = Array.isArray(sheet.categoryOptions) ? sheet.categoryOptions : [];
-    const previousByValue = new Map(previous.map(option => [option.value.toLowerCase(), option]));
-    sheet.categoryOptions = values.map((value, index) => {
+    const observedValues = Array.from(values || []);
+    const previousByValue = new Map();
+    previous.forEach(option => {
+      const value = option && option.value !== undefined ? String(option.value).trim() : '';
+      if (!value) return;
+      const normalizedValue = value.toLowerCase();
+      if (!previousByValue.has(normalizedValue)) {
+        previousByValue.set(normalizedValue, option);
+      }
+    });
+    const mergedValues = [];
+    const seenValues = new Set();
+    previous.forEach(option => {
+      const value = option && option.value !== undefined ? String(option.value).trim() : '';
+      const normalizedValue = value.toLowerCase();
+      if (value && !seenValues.has(normalizedValue)) {
+        seenValues.add(normalizedValue);
+        mergedValues.push(value);
+      }
+    });
+    observedValues.forEach(value => {
       const trimmedValue = String(value).trim();
-      const existing = previousByValue.get(trimmedValue.toLowerCase());
+      const normalizedValue = trimmedValue.toLowerCase();
+      if (trimmedValue && !seenValues.has(normalizedValue)) {
+        seenValues.add(normalizedValue);
+        mergedValues.push(trimmedValue);
+      }
+    });
+    sheet.categoryOptions = mergedValues.map((value, index) => {
+      const existing = previousByValue.get(value.toLowerCase());
       return existing || {
-        value: trimmedValue,
+        value,
         icon: ICON_OPTIONS[index % ICON_OPTIONS.length],
         color: COLOR_PALETTE[index % COLOR_PALETTE.length],
         visible: true,
@@ -9534,9 +9572,13 @@ const ALL_FA_ICONS = [
   /**
    * try detect headers for sheet.
    *
-   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
-   * @post Returns validated external data or completes the requested synchronization/UI operation.
-   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @pre `sheet` includes `{ id, name, rawUrl, columnMapping }` where `columnMapping` may include
+   *      `address` (required index), optional `status`/`label`/`category`/`severity` indexes, or
+   *      `null` for optional fields.
+   * @post When CSV headers are detected, `sheet.headers` is replaced and `sheet.columnMapping`
+   *       preserves valid prior mappings when possible. Optional fields explicitly set to `null`
+   *       remain `null`; missing or invalid prior indexes fall back to auto-detected mappings.
+   * @sideEffects May perform network I/O, update sheet column mappings, and refresh setup-card UI state.
    * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
    */
   async function tryDetectHeadersForSheet(sheet, cardEl) {
@@ -9586,16 +9628,55 @@ const ALL_FA_ICONS = [
         if (rows.length > 0 && rows[0].length > 0) {
           const headers = cleanHeaders(rows[0]);
           if (headers.length > 0) {
-            const existingCategoryColumn = sheet.columnMapping && sheet.columnMapping.category;
-            const existingSeverityColumn = sheet.columnMapping && sheet.columnMapping.severity;
+            const existingColumnMapping = sheet.columnMapping && typeof sheet.columnMapping === 'object'
+              ? sheet.columnMapping
+              : {};
+            const previousHeaders = Array.isArray(sheet.headers) ? sheet.headers : [];
+            const detectedColumnMapping = autoDetectColumns(headers);
+            const hasValidHeaderIndex = (value) => Number.isInteger(value) && value >= 0 && value < headers.length;
+            const normalizeHeader = (value) => String(value === null || value === undefined ? '' : value).trim().toLowerCase();
+            const countHeaderMatches = (headersToCount, normalizedHeaderName) => headersToCount.reduce((count, header) => (
+              normalizeHeader(header) === normalizedHeaderName ? count + 1 : count
+            ), 0);
+            const resolvePreservedMapping = (value, { allowNull = false } = {}) => {
+              if (allowNull && value === null) return null;
+              if (!Number.isInteger(value) || value < 0) return undefined;
+              if (value < previousHeaders.length) {
+                const previousHeaderName = normalizeHeader(previousHeaders[value]);
+                if (previousHeaderName) {
+                  const previousHeaderCount = countHeaderMatches(previousHeaders, previousHeaderName);
+                  const newHeaderCount = countHeaderMatches(headers, previousHeaderName);
+                  if (previousHeaderCount === 1 && newHeaderCount === 1) {
+                    const matchedIndex = headers.findIndex((header) => normalizeHeader(header) === previousHeaderName);
+                    if (matchedIndex >= 0) return matchedIndex;
+                  }
+                }
+              }
+              return hasValidHeaderIndex(value) ? value : undefined;
+            };
             sheet.headers = headers;
-            sheet.columnMapping = autoDetectColumns(sheet.headers);
-            sheet.columnMapping.category = Number.isInteger(existingCategoryColumn)
-              ? existingCategoryColumn
-              : null;
-            sheet.columnMapping.severity = Number.isInteger(existingSeverityColumn)
-              ? existingSeverityColumn
-              : null;
+            const preservedAddress = resolvePreservedMapping(existingColumnMapping.address);
+            const preservedStatus = resolvePreservedMapping(existingColumnMapping.status, { allowNull: true });
+            const preservedLabel = resolvePreservedMapping(existingColumnMapping.label, { allowNull: true });
+            const preservedCategory = resolvePreservedMapping(existingColumnMapping.category, { allowNull: true });
+            const preservedSeverity = resolvePreservedMapping(existingColumnMapping.severity, { allowNull: true });
+            sheet.columnMapping = {
+              address: preservedAddress !== undefined
+                ? preservedAddress
+                : detectedColumnMapping.address,
+              status: preservedStatus !== undefined
+                ? preservedStatus
+                : detectedColumnMapping.status,
+              label: preservedLabel !== undefined
+                ? preservedLabel
+                : detectedColumnMapping.label,
+              category: preservedCategory !== undefined
+                ? preservedCategory
+                : detectedColumnMapping.category,
+              severity: preservedSeverity !== undefined
+                ? preservedSeverity
+                : detectedColumnMapping.severity
+            };
             if (addrSelect) populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
             if (statusSelect) populateSelect(statusSelect, sheet.headers, sheet.columnMapping.status, false, '(None — Always Open)');
             if (labelSelect) populateSelect(labelSelect, sheet.headers, sheet.columnMapping.label, false, '(None — Default #)');
@@ -9644,11 +9725,13 @@ const ALL_FA_ICONS = [
    * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
    * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
    */
-  async function inspectCategoryOptions(sheet, cardEl, fallbackRows) {
+  async function inspectCategoryOptions(sheet, cardEl, fallbackRows, expectedCategoryColumn) {
     const card = cardEl || document.querySelector(`.sheet-card[data-sheet-id="${sheet.id}"]`);
     const statusEl = card ? card.querySelector('.category-detect-status') : null;
     const stylesEl = card ? card.querySelector('.category-style-container') : null;
-    const categoryColumn = sheet.columnMapping && sheet.columnMapping.category;
+    const categoryColumn = expectedCategoryColumn === undefined
+      ? sheet.columnMapping && sheet.columnMapping.category
+      : expectedCategoryColumn;
     if (categoryColumn === null || categoryColumn === undefined || categoryColumn < 0) {
       sheet.categoryOptions = [];
       renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
@@ -9685,6 +9768,7 @@ const ALL_FA_ICONS = [
       values = getUniqueColumnValues(rows, categoryColumn);
     }
 
+    if (sheet.columnMapping.category !== categoryColumn) return;
     updateCategoryOptions(sheet, values);
     renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
     updateLegend();
