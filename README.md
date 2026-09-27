@@ -138,6 +138,9 @@ setup dialog or via the toolbar:
   other value is treated as open. The status column can be set to none (always open).
 * **Label Column** (optional) — free-text description shown in the marker popup.
 
+Opening a marker shows its plotted coordinates, the original address from the
+sheet, and all row field values.
+
 ### 3. Load the map
 
 1. Serve this repository over HTTP (for example, `python -m http.server`) and open
