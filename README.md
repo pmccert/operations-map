@@ -318,6 +318,7 @@ Notes:
 ### 4. (Optional) Configure Google Geocoding Fallback
 
 To automatically resolve addresses missing from `addresses.json`:
-1. Obtain a Google Maps JavaScript / Geocoding API key in Google Cloud Console.
-2. Add it as a GitHub Actions repository secret named `GOOGLE_GEOCODING_API_KEY` (Repository Settings → Secrets and variables → Actions).
-3. The GitHub Actions deployment workflow will inject the API key during the build step when deploying to GitHub Pages.
+1. Create a browser API key in Google Cloud Console, enable the Maps JavaScript API and Geocoding API, and configure billing.
+2. Restrict the key to your GitHub Pages site's HTTP referrers. The key is included in the deployed client-side app, so it must be treated as public.
+3. Add it as a GitHub Actions repository secret named `GOOGLE_GEOCODING_API_KEY` (Repository Settings → Secrets and variables → Actions).
+4. The GitHub Actions deployment workflow injects the key when deploying to GitHub Pages. Without the secret, Google fallback remains disabled.
