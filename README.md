@@ -253,7 +253,7 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
        "sheets": [
          {
            "name": "Incidents",
-           "rawUrl": "https://docs.google.com/spreadsheets/d/1p16mHGA-vOk-s1Kn5sR8a5ReGLPuQvJiAHuNvsTuW60/edit?usp=share_link",
+           "rawUrl": "",
            "columnMapping": { "address": 4, "status": 7, "label": 3, "category": 6 },
            "categoryEnabled": true,
            "icon": { "fa": "fa-solid fa-triangle-exclamation", "label": "Incidents" },
@@ -266,7 +266,7 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
          },
          {
            "name": "Traffic",
-           "rawUrl": "https://docs.google.com/spreadsheets/d/1RJNZNICTt98bAIcGlrDb_P5vstcEuVPd9-veMdqwSkQ/edit?usp=share_link",
+           "rawUrl": "",
            "columnMapping": { "address": 3, "status": 7, "label": 6, "category": 1 },
            "categoryEnabled": true,
            "icon": { "fa": "fa-solid fa-car-side", "label": "Traffic" },
@@ -279,7 +279,7 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
          },
          {
            "name": "Field Teams",
-           "rawUrl": "https://docs.google.com/spreadsheets/d/1ukw7CJ3bsQPbokmoH2jYBG6_oIM6PQMomHP69sSqBh8/edit?usp=share_link",
+           "rawUrl": "",
            "columnMapping": { "address": 3, "status": 7, "label": 0, "category": 7 },
            "categoryEnabled": true,
            "icon": { "fa": "fa-solid fa-people-group", "label": "Field Teams" },

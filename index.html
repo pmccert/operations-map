@@ -9967,7 +9967,6 @@ const ALL_FA_ICONS = [
     categorySelect.addEventListener('change', function () {
       const val = parseInt(categorySelect.value, 10);
       sheet.columnMapping.category = val >= 0 ? val : null;
-      sheet.categoryOptions = [];
       renderCategoryStyles(card.querySelector('.category-style-container'), sheet, null, { disabled: mapIsReadOnly });
       inspectCategoryOptions(sheet, card);
     });
