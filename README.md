@@ -304,7 +304,6 @@ Notes:
 * `icon.fa` must be a valid Font Awesome class string.
 * `preset.sheets` may be an empty array for a true blank-map startup.
 * `rawUrl` is optional, so presets can provide sheet styling before a Google Sheet is attached.
-  The built-in presets in `assets/disaster-modes.json` may still include preconfigured sheet URLs.
 * `columnMapping.category` is a zero-based sheet column index or `null`;
   `categoryEnabled` turns on category styling. `categoryOptions` can preload
   `{ "value", "icon", "color" }` settings for known values, which are retained

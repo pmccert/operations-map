@@ -9627,24 +9627,43 @@ const ALL_FA_ICONS = [
             const existingColumnMapping = sheet.columnMapping && typeof sheet.columnMapping === 'object'
               ? sheet.columnMapping
               : {};
+            const previousHeaders = Array.isArray(sheet.headers) ? sheet.headers : [];
             const detectedColumnMapping = autoDetectColumns(headers);
             const hasValidHeaderIndex = (value) => Number.isInteger(value) && value >= 0 && value < headers.length;
+            const normalizeHeader = (value) => String(value === null || value === undefined ? '' : value).trim().toLowerCase();
+            const resolvePreservedMapping = (value, { allowNull = false } = {}) => {
+              if (allowNull && value === null) return null;
+              if (!Number.isInteger(value) || value < 0) return undefined;
+              if (value < previousHeaders.length) {
+                const previousHeaderName = normalizeHeader(previousHeaders[value]);
+                if (previousHeaderName) {
+                  const matchedIndex = headers.findIndex((header) => normalizeHeader(header) === previousHeaderName);
+                  if (matchedIndex >= 0) return matchedIndex;
+                }
+              }
+              return hasValidHeaderIndex(value) ? value : undefined;
+            };
             sheet.headers = headers;
+            const preservedAddress = resolvePreservedMapping(existingColumnMapping.address);
+            const preservedStatus = resolvePreservedMapping(existingColumnMapping.status, { allowNull: true });
+            const preservedLabel = resolvePreservedMapping(existingColumnMapping.label, { allowNull: true });
+            const preservedCategory = resolvePreservedMapping(existingColumnMapping.category, { allowNull: true });
+            const preservedSeverity = resolvePreservedMapping(existingColumnMapping.severity, { allowNull: true });
             sheet.columnMapping = {
-              address: hasValidHeaderIndex(existingColumnMapping.address)
-                ? existingColumnMapping.address
+              address: preservedAddress !== undefined
+                ? preservedAddress
                 : detectedColumnMapping.address,
-              status: (existingColumnMapping.status === null || hasValidHeaderIndex(existingColumnMapping.status))
-                ? existingColumnMapping.status
+              status: preservedStatus !== undefined
+                ? preservedStatus
                 : detectedColumnMapping.status,
-              label: (existingColumnMapping.label === null || hasValidHeaderIndex(existingColumnMapping.label))
-                ? existingColumnMapping.label
+              label: preservedLabel !== undefined
+                ? preservedLabel
                 : detectedColumnMapping.label,
-              category: (existingColumnMapping.category === null || hasValidHeaderIndex(existingColumnMapping.category))
-                ? existingColumnMapping.category
+              category: preservedCategory !== undefined
+                ? preservedCategory
                 : detectedColumnMapping.category,
-              severity: (existingColumnMapping.severity === null || hasValidHeaderIndex(existingColumnMapping.severity))
-                ? existingColumnMapping.severity
+              severity: preservedSeverity !== undefined
+                ? preservedSeverity
                 : detectedColumnMapping.severity
             };
             if (addrSelect) populateSelect(addrSelect, sheet.headers, sheet.columnMapping.address, true, null);
