@@ -8833,6 +8833,7 @@ const ALL_FA_ICONS = [
    */
   function updateCategoryOptions(sheet, values) {
     const previous = Array.isArray(sheet.categoryOptions) ? sheet.categoryOptions : [];
+    const observedValues = Array.from(values || []);
     const previousByValue = new Map();
     previous.forEach(option => {
       const value = option && option.value !== undefined ? String(option.value).trim() : '';
@@ -8852,7 +8853,7 @@ const ALL_FA_ICONS = [
         mergedValues.push(value);
       }
     });
-    values.forEach(value => {
+    observedValues.forEach(value => {
       const trimmedValue = String(value).trim();
       const normalizedValue = trimmedValue.toLowerCase();
       if (trimmedValue && !seenValues.has(normalizedValue)) {
@@ -9634,14 +9635,21 @@ const ALL_FA_ICONS = [
             const detectedColumnMapping = autoDetectColumns(headers);
             const hasValidHeaderIndex = (value) => Number.isInteger(value) && value >= 0 && value < headers.length;
             const normalizeHeader = (value) => String(value === null || value === undefined ? '' : value).trim().toLowerCase();
+            const countHeaderMatches = (headersToCount, normalizedHeaderName) => headersToCount.reduce((count, header) => (
+              normalizeHeader(header) === normalizedHeaderName ? count + 1 : count
+            ), 0);
             const resolvePreservedMapping = (value, { allowNull = false } = {}) => {
               if (allowNull && value === null) return null;
               if (!Number.isInteger(value) || value < 0) return undefined;
               if (value < previousHeaders.length) {
                 const previousHeaderName = normalizeHeader(previousHeaders[value]);
                 if (previousHeaderName) {
-                  const matchedIndex = headers.findIndex((header) => normalizeHeader(header) === previousHeaderName);
-                  if (matchedIndex >= 0) return matchedIndex;
+                  const previousHeaderCount = countHeaderMatches(previousHeaders, previousHeaderName);
+                  const newHeaderCount = countHeaderMatches(headers, previousHeaderName);
+                  if (previousHeaderCount === 1 && newHeaderCount === 1) {
+                    const matchedIndex = headers.findIndex((header) => normalizeHeader(header) === previousHeaderName);
+                    if (matchedIndex >= 0) return matchedIndex;
+                  }
                 }
               }
               return hasValidHeaderIndex(value) ? value : undefined;
