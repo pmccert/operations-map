@@ -8827,6 +8827,9 @@ const ALL_FA_ICONS = [
    * @sideEffects Replaces `sheet.categoryOptions` with the merged options array.
    * @throws {Error} Does not throw for malformed optional option/value inputs; invalid or
    *                 empty values are normalized and skipped.
+   * @param {Object} sheet Sheet configuration object whose `categoryOptions` array is merged.
+   * @param {Array<*>} values Observed category values from dropdown metadata or sheet rows.
+   * @returns {void}
    */
   function updateCategoryOptions(sheet, values) {
     const previous = Array.isArray(sheet.categoryOptions) ? sheet.categoryOptions : [];
@@ -9714,11 +9717,13 @@ const ALL_FA_ICONS = [
    * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
    * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
    */
-  async function inspectCategoryOptions(sheet, cardEl, fallbackRows) {
+  async function inspectCategoryOptions(sheet, cardEl, fallbackRows, expectedCategoryColumn) {
     const card = cardEl || document.querySelector(`.sheet-card[data-sheet-id="${sheet.id}"]`);
     const statusEl = card ? card.querySelector('.category-detect-status') : null;
     const stylesEl = card ? card.querySelector('.category-style-container') : null;
-    const categoryColumn = sheet.columnMapping && sheet.columnMapping.category;
+    const categoryColumn = expectedCategoryColumn === undefined
+      ? sheet.columnMapping && sheet.columnMapping.category
+      : expectedCategoryColumn;
     if (categoryColumn === null || categoryColumn === undefined || categoryColumn < 0) {
       sheet.categoryOptions = [];
       renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
@@ -9755,10 +9760,7 @@ const ALL_FA_ICONS = [
       values = getUniqueColumnValues(rows, categoryColumn);
     }
 
-    if (sheet.columnMapping.category !== categoryColumn) {
-      await inspectCategoryOptions(sheet, card, fallbackRows);
-      return;
-    }
+    if (sheet.columnMapping.category !== categoryColumn) return;
     updateCategoryOptions(sheet, values);
     renderCategoryStyles(stylesEl, sheet, null, { disabled: mapIsReadOnly });
     updateLegend();
