@@ -7721,14 +7721,20 @@ const ALL_FA_ICONS = [
   }
 
   /**
-   * popup html.
+   * Builds the HTML shown when a Google Sheets incident marker is opened.
    *
-   * @pre Arguments satisfy the documented shape and current application invariants hold.
-   * @post Returns the requested value or completes its state transition without weakening those invariants.
-   * @sideEffects May update application state or user-visible UI when required by the operation.
-   * @throws {Error} Throws/rejects on invalid required input; recoverable failures are reported explicitly.
+   * @param {object} incident Plotted incident with its original sheet address, fields, and optional coordinates.
+   * @param {object} sheet Sheet display configuration containing its name and colors.
+   * @pre `incident.address` and `sheet.name` are strings, and `incident.fields` is an array.
+   * @post Returns escaped popup HTML containing the resolved location, original sheet address, coordinates when available, and every row field.
+   * @sideEffects None.
+   * @throws {TypeError} Throws if the incident, sheet, or required display data is missing or malformed.
    */
   function popupHtml(incident, sheet) {
+    if (!incident || typeof incident.address !== 'string' || !Array.isArray(incident.fields) ||
+        !sheet || typeof sheet.name !== 'string') {
+      throw new TypeError('Incident popups require an original address, a fields array, and a sheet name.');
+    }
     const statusLabel = incident.isOpen ? 'Open' : 'Closed';
     const badgeBg = incident.isOpen ? sheet.color : sheet.closedColor;
     const fieldsHtml = incident.fields.map(field =>
@@ -7765,6 +7771,7 @@ const ALL_FA_ICONS = [
         <strong>${escHtml(incident.label || 'Incident #' + (incident.index + 1))}</strong><br>
         <span class="badge" style="background-color: ${badgeBg};">${statusLabel}</span><br>
         ${locationLine}
+        <br><small><strong>Original address:</strong> ${escHtml(incident.address)}</small>
         ${incident.lat != null ? `<br><small>Lat: ${incident.lat.toFixed(5)}, Lon: ${incident.lon.toFixed(5)}</small>` : ''}
         <table class="incident-fields" aria-label="Spreadsheet fields">
           <tbody>${fieldsHtml}</tbody>
