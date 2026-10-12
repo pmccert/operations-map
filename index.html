@@ -1675,6 +1675,21 @@
       outline: 2px solid #1f6f9f;
       outline-offset: 1px;
     }
+    .leaflet-tooltip.genasys-zone-label {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      color: #2b1b1b;
+      font-size: 11px; /* Keep zone names readable without overpowering map detail. */
+      font-weight: 700;
+      padding: 0; /* Remove the default tooltip box spacing. */
+      text-align: center;
+      text-shadow: -1px 0 #fff, 1px 0 #fff, 0 -1px #fff, 0 1px #fff; /* Add a thin halo for contrast without a label background. */
+      white-space: nowrap;
+    }
+    .leaflet-tooltip.genasys-zone-label::before {
+      display: none;
+    }
     .map-legend .legend-color-swatch {
       width: 12px;
       height: 12px;
@@ -2716,6 +2731,16 @@ const ALL_FA_ICONS = [
       legendItems: [
         { label: '100 Year Flood Zone', color: '#5d00af', colorName: 'purple' }
       ]
+    },
+    'Genasys Protect Zones': {
+      id: 'genasys-protect-zones',
+      layer: createGenasysProtectZonesLayer(),
+      activated: false,
+      clearOnDisable: true,
+      showInLegend: false,
+      icon: 'fa-solid fa-person-walking-arrow-right',
+      color: '#c0392b',
+      infoUrl: 'https://protect.genasys.com/en'
     }
   };
   const thirdPartyOverlayLayers = Object.fromEntries(
@@ -2729,6 +2754,9 @@ const ALL_FA_ICONS = [
   let mapLayersControl = null;
   let mapLayersControlAttached = false;
   const incidentLayerGroups = {};
+  let genasysZonesRequestId = 0; // Initial token for discarding stale zone responses.
+  let genasysZonesLoadedBounds = null;
+  let genasysZonesPendingBounds = null;
 
   baseLayers['OpenStreetMap'].addTo(map);
   mapLayersControl = L.control.layers({}, thirdPartyOverlayLayers, { position: 'topright', collapsed: false });
@@ -3734,6 +3762,11 @@ const ALL_FA_ICONS = [
     const layerName = Object.keys(thirdPartyLayers).find(name => thirdPartyLayers[name].layer === e.layer);
     if (layerName) {
       thirdPartyLayers[layerName].activated = false;
+      if (layerName === 'Genasys Protect Zones') {
+        genasysZonesRequestId += 1;
+        genasysZonesLoadedBounds = null;
+        genasysZonesPendingBounds = null;
+      }
       if (thirdPartyLayers[layerName].clearOnDisable) {
         clearThirdPartyLayer(thirdPartyLayers[layerName].layer);
       }
@@ -3747,7 +3780,16 @@ const ALL_FA_ICONS = [
     updateMapAlerts();
   });
 
-  map.on('moveend', persistAppState);
+  map.on('moveend', function () {
+    persistAppState();
+    const genasysZonesLayer = thirdPartyLayers['Genasys Protect Zones'].layer;
+    if (map.hasLayer(genasysZonesLayer)) {
+      loadGenasysProtectZones().catch(err => {
+        console.error('Error loading Genasys Protect Zones:', err);
+        setStatus(`Error loading Genasys Protect Zones: ${err.message}`);
+      });
+    }
+  });
 
   updateMapAlerts();
 
@@ -4982,7 +5024,8 @@ const ALL_FA_ICONS = [
   const THIRD_PARTY_ENDPOINTS = {
     fires: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?where=1%3D1&geometry=-119.7%2C34.4%2C-118.6%2C35.3&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&outFields=*&outSR=4326&f=geojson',
     firePerimeters: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_YearToDate/FeatureServer/0/query?where=1%3D1&geometry=-119.7%2C34.4%2C-118.6%2C35.3&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&outFields=*&outSR=4326&f=geojson',
-    awarenessZone: 'https://dpsgeo.carto.com/api/v2/sql?api_key=N2szY6xjxnwJuPTc7zcV5Q&format=geojson&q=SELECT%20*%20FROM%20kc26_az%20WHERE%20haz_az%20=%20%27Yes%27'
+    awarenessZone: 'https://dpsgeo.carto.com/api/v2/sql?api_key=N2szY6xjxnwJuPTc7zcV5Q&format=geojson&q=SELECT%20*%20FROM%20kc26_az%20WHERE%20haz_az%20=%20%27Yes%27',
+    genasysZones: 'https://cdngeospatialcei.zonehaven.com/geoserver/zonehavenv2/wfs'
   };
 
   /**
@@ -5004,6 +5047,49 @@ const ALL_FA_ICONS = [
       },
       onEachFeature: function (_feature, featureLayer) {
         featureLayer.bindPopup('<strong>100 Year Flood Zone</strong>');
+      }
+    });
+  }
+
+  /**
+   * Create an empty, outline-only Genasys Protect zones layer with permanent labels.
+   * @pre Leaflet, the zone-property helper, and the browser DOM are available.
+   * @post Returns an empty GeoJSON layer styled with unfilled boundaries and readable zone labels.
+   * @sideEffects Creates a Leaflet layer but does not add it to the map.
+   */
+  function createGenasysProtectZonesLayer() {
+    return L.geoJSON(null, {
+      attribution: 'Evacuation zone data © <a href="https://protect.genasys.com/en" target="_blank" rel="noopener noreferrer">Genasys Protect</a>',
+      style: function (feature) {
+        if (feature.geometry &&
+            (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')) {
+          return {
+            color: '#c0392b',
+            weight: 2, // Use a 2-pixel stroke so boundaries remain visible over basemaps.
+            fill: false
+          };
+        }
+        return { opacity: 0, fillOpacity: 0 };
+      },
+      pointToLayer: function (_feature, latlng) {
+        return L.circleMarker(latlng, {
+          radius: 0, // Invisible point geometry anchors its zone-ID tooltip.
+          opacity: 0,
+          fillOpacity: 0,
+          interactive: false
+        });
+      },
+      onEachFeature: function (feature, featureLayer) {
+        if (!feature.geometry || feature.geometry.type !== 'Point') return;
+        const zoneLabel = fireProperty(feature.properties || {}, ['zone_id']);
+        if (!zoneLabel) return;
+        const labelElement = document.createElement('span');
+        labelElement.textContent = zoneLabel;
+        featureLayer.bindTooltip(labelElement, {
+          permanent: true,
+          direction: 'center',
+          className: 'genasys-zone-label'
+        });
       }
     });
   }
@@ -5202,6 +5288,161 @@ const ALL_FA_ICONS = [
   }
 
   /**
+   * Request a Genasys GeoJSON collection in a sandboxed, unique-origin frame.
+   * @param {string} typeName A fixed Genasys WFS feature type.
+   * @param {L.LatLngBounds} bounds Geographic bounds to request.
+   * @param {number} requestId Current request generation, used to make the callback unique.
+   * @pre The feature type and bounds are valid and the provider endpoint is configured.
+   * @post Resolves with the provider response without changing map state.
+   * @sideEffects Loads and removes a sandboxed frame that runs the provider script and posts its response.
+   * @throws {Error} If the provider script fails, omits its callback, or exceeds the request timeout.
+   */
+  function requestGenasysGeoJson(typeName, bounds, requestId) {
+    const callbackName = `pmcGenasys${typeName.split(':').pop()}Callback${requestId}`;
+    const requestUrl = new URL(THIRD_PARTY_ENDPOINTS.genasysZones);
+    requestUrl.search = new URLSearchParams({
+      service: 'WFS',
+      version: '2.0.0',
+      request: 'GetFeature',
+      typeNames: typeName,
+      outputFormat: 'text/javascript',
+      format_options: `callback:${callbackName}`,
+      srsName: 'EPSG:4326',
+      bbox: [
+        bounds.getWest(),
+        bounds.getSouth(),
+        bounds.getEast(),
+        bounds.getNorth(),
+        'EPSG:4326'
+      ].join(',')
+    }).toString();
+
+    return new Promise((resolve, reject) => {
+      const iframe = document.createElement('iframe');
+      const messageToken = `${callbackName}-${Date.now()}-${Math.random()}`;
+      const timeoutMs = 15000; // Bound stalled provider requests so viewport loading can retry.
+      let timeoutId;
+      let settled = false;
+      let handleMessage;
+      const cleanup = () => {
+        window.removeEventListener('message', handleMessage);
+        window.clearTimeout(timeoutId);
+        iframe.remove();
+      };
+      const finish = (error, data) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (error) reject(error);
+        else resolve(data);
+      };
+      handleMessage = event => {
+        if (event.source !== iframe.contentWindow || event.origin !== 'null' ||
+            !event.data || event.data.token !== messageToken) {
+          return;
+        }
+        if (event.data.kind === 'error') {
+          finish(new Error('Genasys Protect zone data request failed.'));
+        } else if (event.data.kind === 'response') {
+          finish(null, event.data.data);
+        }
+      };
+      iframe.setAttribute('sandbox', 'allow-scripts');
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.hidden = true;
+      iframe.onerror = () => finish(new Error('Genasys Protect zone data request failed.'));
+      window.addEventListener('message', handleMessage);
+      timeoutId = window.setTimeout(() => {
+        finish(new Error('Genasys Protect zone data request timed out.'));
+      }, timeoutMs);
+      iframe.srcdoc = `<!doctype html>
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdngeospatialcei.zonehaven.com; connect-src 'none'; img-src 'none'; style-src 'none'; base-uri 'none'; form-action 'none'">
+        <script>
+          (() => {
+            const callbackName = ${JSON.stringify(callbackName)};
+            const token = ${JSON.stringify(messageToken)};
+            let callbackCalled = false;
+            const reportError = () => parent.postMessage({ kind: 'error', token }, '*');
+            window[callbackName] = data => {
+              if (callbackCalled) return;
+              callbackCalled = true;
+              try {
+                parent.postMessage({ kind: 'response', token, data }, '*');
+              } catch (_err) {
+                reportError();
+              }
+            };
+            const script = document.createElement('script');
+            script.src = ${JSON.stringify(requestUrl.toString()).replace(/</g, '\\u003c')};
+            script.onload = () => {
+              if (!callbackCalled) reportError();
+            };
+            script.onerror = reportError;
+            document.head.appendChild(script);
+          })();
+        <${'/'}script>`;
+      document.body.appendChild(iframe);
+    });
+  }
+
+  /**
+   * Load Genasys Protect polygons and zone IDs for the visible map area.
+   * @returns {Promise<boolean>} Resolves true when current viewport data is applied; resolves false when no update was needed or the request became stale.
+   * @pre The Genasys layer, map, and configured provider endpoint are initialized.
+   * @post Replaces layer data with validated polygons and zone-ID points covering a padded viewport; stale or disabled requests are ignored.
+   * @sideEffects Loads provider scripts in isolated sandboxed frames and updates zone-layer data and request bounds.
+   * @throws {Error} If a provider request fails or does not return valid GeoJSON.
+   */
+  async function loadGenasysProtectZones() {
+    const layer = thirdPartyLayers['Genasys Protect Zones'].layer;
+    if (!map.hasLayer(layer)) return false;
+
+    const visibleBounds = map.getBounds();
+    if ((genasysZonesLoadedBounds && genasysZonesLoadedBounds.contains(visibleBounds)) ||
+        (genasysZonesPendingBounds && genasysZonesPendingBounds.contains(visibleBounds))) {
+      return false;
+    }
+
+    const requestBounds = visibleBounds.pad(0.25); // Prefetch a 25% margin around the view to reduce pan reloads.
+    const requestId = ++genasysZonesRequestId;
+    genasysZonesPendingBounds = requestBounds;
+    let polygonData;
+    let labelData;
+    try {
+      [polygonData, labelData] = await Promise.all([
+        requestGenasysGeoJson('zonehavenv2:evacuation_zone', requestBounds, requestId),
+        requestGenasysGeoJson('zonehavenv2:evacuation_zone_id', requestBounds, requestId)
+      ]);
+    } catch (err) {
+      if (requestId !== genasysZonesRequestId || !map.hasLayer(layer)) return false;
+      genasysZonesPendingBounds = null;
+      throw err;
+    }
+
+    if (requestId !== genasysZonesRequestId || !map.hasLayer(layer)) return false;
+    if (!polygonData || polygonData.type !== 'FeatureCollection' ||
+        !Array.isArray(polygonData.features) ||
+        polygonData.features.some(feature => !feature || feature.type !== 'Feature' ||
+          !feature.geometry || !['Polygon', 'MultiPolygon'].includes(feature.geometry.type)) ||
+        !labelData || labelData.type !== 'FeatureCollection' ||
+        !Array.isArray(labelData.features) ||
+        labelData.features.some(feature => !feature || feature.type !== 'Feature' ||
+          !feature.geometry || feature.geometry.type !== 'Point')) {
+      genasysZonesPendingBounds = null;
+      throw new Error('Genasys Protect zone source did not return valid GeoJSON.');
+    }
+
+    genasysZonesPendingBounds = null;
+    clearThirdPartyLayer(layer);
+    layer.addData({
+      type: 'FeatureCollection',
+      features: [...polygonData.features, ...labelData.features]
+    });
+    genasysZonesLoadedBounds = requestBounds;
+    return true;
+  }
+
+  /**
    * load third party layer.
    *
    * @pre Storage or external data may be unavailable; the fallback path remains valid.
@@ -5218,6 +5459,8 @@ const ALL_FA_ICONS = [
         await loadFirePerimeters();
       } else if (layerName === '100 Year Flood Zone') {
         await loadAwarenessZone();
+      } else if (layerName === 'Genasys Protect Zones') {
+        if (!await loadGenasysProtectZones()) return;
       }
       setStatus(`${layerName} loaded.`);
     } catch (err) {
@@ -6408,7 +6651,7 @@ const ALL_FA_ICONS = [
     });
     let thirdPartyItemsHtml = '';
     Object.entries(thirdPartyLayers).forEach(([layerName, config]) => {
-      if (!config.activated || !map.hasLayer(config.layer)) return;
+      if (!config.activated || !map.hasLayer(config.layer) || config.showInLegend === false) return;
       const legendItems = Array.isArray(config.legendItems) ? config.legendItems : [];
       const hasLegendItems = legendItems.length > 0;
       const rampId = `legend-ramp-${config.id}`;
