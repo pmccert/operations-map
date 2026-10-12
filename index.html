@@ -5288,14 +5288,14 @@ const ALL_FA_ICONS = [
   }
 
   /**
-   * Request a Genasys GeoJSON collection through the provider's JSONP endpoint.
+   * Request a Genasys GeoJSON collection in a sandboxed, unique-origin frame.
    * @param {string} typeName A fixed Genasys WFS feature type.
    * @param {L.LatLngBounds} bounds Geographic bounds to request.
    * @param {number} requestId Current request generation, used to make the callback unique.
    * @pre The feature type and bounds are valid and the provider endpoint is configured.
    * @post Resolves with the provider response without changing map state.
-   * @sideEffects Loads and removes a cross-origin JSONP script and temporary global callback.
-   * @throws {Error} If the provider script cannot be loaded.
+   * @sideEffects Loads and removes a sandboxed frame that runs the provider script and posts its response.
+   * @throws {Error} If the provider script fails, omits its callback, or exceeds the request timeout.
    */
   function requestGenasysGeoJson(typeName, bounds, requestId) {
     const callbackName = `pmcGenasys${typeName.split(':').pop()}Callback${requestId}`;
@@ -5318,31 +5318,79 @@ const ALL_FA_ICONS = [
     }).toString();
 
     return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
+      const iframe = document.createElement('iframe');
+      const messageToken = `${callbackName}-${Date.now()}-${Math.random()}`;
+      const timeoutMs = 15000; // Bound stalled provider requests so viewport loading can retry.
+      let timeoutId;
+      let settled = false;
+      let handleMessage;
       const cleanup = () => {
-        delete window[callbackName];
-        script.remove();
+        window.removeEventListener('message', handleMessage);
+        window.clearTimeout(timeoutId);
+        iframe.remove();
       };
-      window[callbackName] = function (data) {
+      const finish = (error, data) => {
+        if (settled) return;
+        settled = true;
         cleanup();
-        resolve(data);
+        if (error) reject(error);
+        else resolve(data);
       };
-      script.onerror = function () {
-        cleanup();
-        reject(new Error('Genasys Protect zone data request failed.'));
+      handleMessage = event => {
+        if (event.source !== iframe.contentWindow || event.origin !== 'null' ||
+            !event.data || event.data.token !== messageToken) {
+          return;
+        }
+        if (event.data.kind === 'error') {
+          finish(new Error('Genasys Protect zone data request failed.'));
+        } else if (event.data.kind === 'response') {
+          finish(null, event.data.data);
+        }
       };
-      script.async = true;
-      script.src = requestUrl.toString();
-      document.head.appendChild(script);
+      iframe.setAttribute('sandbox', 'allow-scripts');
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.hidden = true;
+      iframe.onerror = () => finish(new Error('Genasys Protect zone data request failed.'));
+      window.addEventListener('message', handleMessage);
+      timeoutId = window.setTimeout(() => {
+        finish(new Error('Genasys Protect zone data request timed out.'));
+      }, timeoutMs);
+      iframe.srcdoc = `<!doctype html>
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdngeospatialcei.zonehaven.com; connect-src 'none'; img-src 'none'; style-src 'none'; base-uri 'none'; form-action 'none'">
+        <script>
+          (() => {
+            const callbackName = ${JSON.stringify(callbackName)};
+            const token = ${JSON.stringify(messageToken)};
+            let callbackCalled = false;
+            const reportError = () => parent.postMessage({ kind: 'error', token }, '*');
+            window[callbackName] = data => {
+              if (callbackCalled) return;
+              callbackCalled = true;
+              try {
+                parent.postMessage({ kind: 'response', token, data }, '*');
+              } catch (_err) {
+                reportError();
+              }
+            };
+            const script = document.createElement('script');
+            script.src = ${JSON.stringify(requestUrl.toString()).replace(/</g, '\\u003c')};
+            script.onload = () => {
+              if (!callbackCalled) reportError();
+            };
+            script.onerror = reportError;
+            document.head.appendChild(script);
+          })();
+        <${'/'}script>`;
+      document.body.appendChild(iframe);
     });
   }
 
   /**
    * Load Genasys Protect polygons and zone IDs for the visible map area.
-   * @returns {boolean} True when the current viewport's data was applied; false when no update was needed or the request became stale.
+   * @returns {Promise<boolean>} Resolves true when current viewport data is applied; resolves false when no update was needed or the request became stale.
    * @pre The Genasys layer, map, and configured provider endpoint are initialized.
    * @post Replaces layer data with validated polygons and zone-ID points covering a padded viewport; stale or disabled requests are ignored.
-   * @sideEffects Loads trusted cross-origin JSONP scripts and updates zone-layer data and request bounds.
+   * @sideEffects Loads provider scripts in isolated sandboxed frames and updates zone-layer data and request bounds.
    * @throws {Error} If a provider request fails or does not return valid GeoJSON.
    */
   async function loadGenasysProtectZones() {
@@ -5366,7 +5414,8 @@ const ALL_FA_ICONS = [
         requestGenasysGeoJson('zonehavenv2:evacuation_zone_id', requestBounds, requestId)
       ]);
     } catch (err) {
-      if (requestId === genasysZonesRequestId) genasysZonesPendingBounds = null;
+      if (requestId !== genasysZonesRequestId || !map.hasLayer(layer)) return false;
+      genasysZonesPendingBounds = null;
       throw err;
     }
 
