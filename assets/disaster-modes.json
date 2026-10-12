@@ -130,7 +130,7 @@
               {
                 "value": "Responding",
                 "icon": {
-                  "fa": "fa-solid fa-truck-medical",
+                  "fa": "fa-solid fa-people-group",
                   "label": "Responding"
                 },
                 "color": "#316002"
@@ -138,7 +138,7 @@
               {
                 "value": "Recalled",
                 "icon": {
-                  "fa": "fa-solid fa-person-walking-arrow-right",
+                  "fa": "fa-solid fa-people-group",
                   "label": "Recalled"
                 },
                 "color": "#C9DF00"
@@ -146,7 +146,7 @@
               {
                 "value": "Idle",
                 "icon": {
-                  "fa": "fa-regular fa-clock",
+                  "fa": "fa-solid fa-people-group",
                   "label": "Idle"
                 },
                 "color": "#D1D5BC"
@@ -277,7 +277,7 @@
               {
                 "value": "Responding",
                 "icon": {
-                  "fa": "fa-solid fa-truck-medical",
+                  "fa": "fa-solid fa-people-group",
                   "label": "Responding"
                 },
                 "color": "#316002"
@@ -285,7 +285,7 @@
               {
                 "value": "Recalled",
                 "icon": {
-                  "fa": "fa-solid fa-person-walking-arrow-right",
+                  "fa": "fa-solid fa-people-group",
                   "label": "Recalled"
                 },
                 "color": "#C9DF00"
@@ -293,7 +293,7 @@
               {
                 "value": "Idle",
                 "icon": {
-                  "fa": "fa-regular fa-clock",
+                  "fa": "fa-solid fa-people-group",
                   "label": "Idle"
                 },
                 "color": "#D1D5BC"
@@ -424,7 +424,7 @@
               {
                 "value": "Responding",
                 "icon": {
-                  "fa": "fa-solid fa-truck-medical",
+                  "fa": "fa-solid fa-people-group",
                   "label": "Responding"
                 },
                 "color": "#316002"
@@ -432,7 +432,7 @@
               {
                 "value": "Recalled",
                 "icon": {
-                  "fa": "fa-solid fa-person-walking-arrow-right",
+                  "fa": "fa-solid fa-people-group",
                   "label": "Recalled"
                 },
                 "color": "#C9DF00"
@@ -440,7 +440,7 @@
               {
                 "value": "Idle",
                 "icon": {
-                  "fa": "fa-regular fa-clock",
+                  "fa": "fa-solid fa-people-group",
                   "label": "Idle"
                 },
                 "color": "#D1D5BC"
