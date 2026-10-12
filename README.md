@@ -290,9 +290,9 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
            "color": "#609331",
            "categoryOptions": [
              { "value": "Deployed", "icon": { "fa": "fa-solid fa-people-group", "label": "Deployed" }, "color": "#609331" },
-             { "value": "Responding", "icon": { "fa": "fa-solid fa-truck-medical", "label": "Responding" }, "color": "#316002" },
-             { "value": "Recalled", "icon": { "fa": "fa-solid fa-person-walking-arrow-right", "label": "Recalled" }, "color": "#C9DF00" },
-             { "value": "Idle", "icon": { "fa": "fa-regular fa-clock", "label": "Idle" }, "color": "#D1D5BC" }
+             { "value": "Responding", "icon": { "fa": "fa-solid fa-people-group", "label": "Responding" }, "color": "#316002" },
+             { "value": "Recalled", "icon": { "fa": "fa-solid fa-people-group", "label": "Recalled" }, "color": "#C9DF00" },
+             { "value": "Idle", "icon": { "fa": "fa-solid fa-people-group", "label": "Idle" }, "color": "#D1D5BC" }
            ]
          }
        ]
