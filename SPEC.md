@@ -134,8 +134,8 @@ The application operates without a dedicated backend server, resolving incident 
 * **FR-4.2: Open vs. Closed Status Evaluation**
   * Incident status shall be determined from the mapped Status column (case-insensitive) of each sheet.
   * Each sheet shall allow one or more configured closed status values; any
-    case-insensitive match designates a **Closed** incident. The default value is
-    `closed` for backward compatibility.
+    case-insensitive match designates a **Closed** incident. Blank or omitted
+    settings default to `closed, complete`; explicit configurations are preserved.
   * Any other value (or if the Status column is unmapped/none) designates an **Open** incident.
 
 * **FR-4.3: Visual Distinction by Status & Sheet Styling**
@@ -321,7 +321,7 @@ The application operates without a dedicated backend server, resolving incident 
               "label": 2,
               "category": null
             },
-            "closedStatusValues": ["closed"],
+            "closedStatusValues": ["closed", "complete"],
             "closedColor": "#7F8C8D",
             "headers": ["Location", "Status", "Label"],
             "icon": {
@@ -344,8 +344,8 @@ The application operates without a dedicated backend server, resolving incident 
 * `preset.geocoder`, `preset.baseLayer`, `preset.enabledThirdPartyLayers`, and `preset.mapView` are optional; omitted values fall back to normal application defaults.
 * `preset.sheets[].rawUrl` is optional so a preset can define sheet styling before a Google Sheet URL is attached.
 * `preset.sheets[].closedStatusValues` is an optional array of case-insensitive
-  status values that designate closed incidents; omitted values default to
-  `["closed"]`.
+  status values that designate closed incidents; blank or omitted values default to
+  `["closed", "complete"]`.
 * `preset.sheets[].closedColor` is an optional hex color for closed incident
   markers; omitted values default to `"#7F8C8D"`. Closed incidents always use
   the sheet's configured icon.

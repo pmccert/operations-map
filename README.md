@@ -134,7 +134,8 @@ setup dialog or via the toolbar:
 * **Location Column** (required) — full street address, e.g. `1234 Nesthorn Drive`.
 * **Status Column** (optional) — select the column containing each row's status.
   Configure one or more comma-separated **Closed status values** in the sheet
-  configuration; matching is case-insensitive and defaults to `closed`. Any
+  configuration; matching is case-insensitive and defaults to `closed, complete`.
+  Blank or omitted settings use these defaults; explicitly configured values are preserved. Any
   other value is treated as open. The status column can be set to none (always open).
 * **Label Column** (optional) — free-text description shown in the marker popup.
 
@@ -312,7 +313,7 @@ Notes:
   `{ "value", "icon", "color" }` settings for known values, which are retained
   when category values are read from the sheet.
 * `closedStatusValues` is an optional array of case-insensitive status values that mark
-  rows as closed; omitted values default to `["closed"]`.
+  rows as closed; blank or omitted values default to `["closed", "complete"]`.
 * `closedColor` is an optional hex color for closed incident markers; omitted values
   default to `"#7F8C8D"`. Closed incidents always use the sheet's configured icon.
 * `geocoder`, `baseLayer`, `enabledThirdPartyLayers`, and `mapView` are optional preset runtime fields used when a mode is selected. If omitted, the app keeps its current map/geocoder values.
