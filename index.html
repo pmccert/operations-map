@@ -4043,7 +4043,7 @@ const ALL_FA_ICONS = [
    * normalize closed status values.
    *
    * @param {string[]|string|undefined} value Status values configured as closed, or a comma/newline-separated string.
-   * @returns {string[]} Unique, trimmed, lower-case status values; legacy or blank configurations default to `closed`.
+   * @returns {string[]} Unique, trimmed, lower-case status values; missing or blank configurations default to `closed` and `complete`.
    * @sideEffects None.
    */
   function normalizeClosedStatusValues(value) {
@@ -4051,14 +4051,14 @@ const ALL_FA_ICONS = [
       ? value
       : typeof value === 'string'
         ? value.split(/[,\n]/)
-        : ['closed'];
+        : [];
     const normalized = Array.from(new Set(
       values
         .filter(status => typeof status === 'string')
         .map(status => status.trim().toLowerCase())
         .filter(Boolean)
     ));
-    return normalized.length > 0 ? normalized : ['closed'];
+    return normalized.length > 0 ? normalized : ['closed', 'complete'];
   }
 
   /**
@@ -4085,7 +4085,7 @@ const ALL_FA_ICONS = [
         category: null,
         severity: null
       },
-      closedStatusValues: ['closed'],
+      closedStatusValues: normalizeClosedStatusValues(),
       closedColor: '#7F8C8D',
       headers: null,
       icon: ICON_OPTIONS[idx],
@@ -9880,11 +9880,11 @@ const ALL_FA_ICONS = [
           class="text-input closed-status-values-input"
           type="text"
           value="${escHtml(sheet.closedStatusValues.join(', '))}"
-          placeholder="closed, complete, resolved"
+          placeholder="${normalizeClosedStatusValues().join(', ')}"
           autocomplete="off"
         />
         <div class="category-options-note">
-          Comma-separated, case-insensitive values. Blank restores the default value <code>closed</code>.
+          Comma-separated, case-insensitive values. Blank restores the default values <code>${normalizeClosedStatusValues().join(', ')}</code>.
         </div>
       </div>
       <div class="category-options-section">
