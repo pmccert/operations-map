@@ -268,8 +268,8 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
            "color": "#B51A00",
            "categoryOptions": [
              { "value": "Severe", "icon": { "fa": "fa-solid fa-triangle-exclamation", "label": "Severe" }, "color": "#B51A00" },
-             { "value": "Intermediate", "icon": { "fa": "fa-solid fa-circle-exclamation", "label": "Intermediate" }, "color": "#F06200" },
-             { "value": "Minor", "icon": { "fa": "fa-solid fa-circle-info", "label": "Minor" }, "color": "#E4A804" }
+             { "value": "Intermediate", "icon": { "fa": "fa-solid fa-triangle-exclamation", "label": "Intermediate" }, "color": "#F06200" },
+             { "value": "Minor", "icon": { "fa": "fa-solid fa-triangle-exclamation", "label": "Minor" }, "color": "#E4A804" }
            ]
          },
          {
@@ -281,8 +281,8 @@ The app loads `assets/disaster-modes.json` at startup. The file shape is:
            "color": "#00B5E9",
            "categoryOptions": [
              { "value": "Free Flowing", "icon": { "fa": "fa-solid fa-car-side", "label": "Free Flowing" }, "color": "#00B5E9" },
-             { "value": "Slowdown", "icon": { "fa": "fa-solid fa-traffic-light", "label": "Slowdown" }, "color": "#0072BE" },
-             { "value": "Gridlock", "icon": { "fa": "fa-solid fa-car-burst", "label": "Gridlock" }, "color": "#34495E" }
+             { "value": "Slowdown", "icon": { "fa": "fa-solid fa-car-side", "label": "Slowdown" }, "color": "#0072BE" },
+             { "value": "Gridlock", "icon": { "fa": "fa-solid fa-car-side", "label": "Gridlock" }, "color": "#34495E" }
            ]
          },
          {
