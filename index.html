@@ -9434,12 +9434,13 @@ const ALL_FA_ICONS = [
   /**
    * Loads the preset Incidents sheet and initializes the mobile field-team workflow.
    *
-   * @pre Disaster modes are loaded and normalized; the field-team page markup and map are initialized.
+   * @param {object|null} addressesData Validated local address lookup, or null if unavailable.
+   * @pre Disaster modes are loaded and normalized; the field-team page markup and map are initialized; `addressesData` is validated when provided.
    * @post The first preset containing an Incidents sheet feeds a read-only team selector, incident list, map, and refresh timer.
    * @sideEffects Fetches the preset sheet and geocoder data, plots incidents, installs page controls, and starts polling.
    * @throws {Error} If no preset Incidents sheet exists or required route markup is unavailable.
    */
-  async function initializeFieldTeamPage() {
+  async function initializeFieldTeamPage(addressesData) {
     if (!fieldTeamTeamSelect || !fieldTeamListButton || !fieldTeamMapButton ||
         !fieldTeamRefreshButton || !fieldTeamStatus || !fieldTeamIncidentList ||
         !fieldTeamDetailsBackdrop || !fieldTeamDetailsDialog || !fieldTeamDetailsTitle ||
@@ -9462,11 +9463,10 @@ const ALL_FA_ICONS = [
     selectedDisasterModeId = sourceMode.id;
     sheets = [normalizePresetSheet(incidentPreset, 0)];
     fieldTeamSheetId = sheets[0].id;
-    if (localAddressesData && !geocoderIndex) {
-      geocoderIndex = buildGeocoderIndex(localAddressesData);
+    if (addressesData && !geocoderIndex) {
+      geocoderIndex = buildGeocoderIndex(addressesData);
     }
     hasLoadedMap = true;
-    sheetModal.classList.add('hidden');
     fieldTeamTeamSelect.addEventListener('change', function () {
       fieldTeamSelectedTeam = fieldTeamTeamSelect.value;
       const hasUnassignedIncidents = fieldTeamIncidents.some(incident => incident.fieldTeams.length === 0);
@@ -11648,7 +11648,7 @@ const ALL_FA_ICONS = [
     })
     .then(checkLocalAddresses)
     .then(function () {
-      if (fieldTeamMode) return initializeFieldTeamPage();
+      if (fieldTeamMode) return initializeFieldTeamPage(localAddressesData);
       if (shouldAutoLoadSavedMapState) {
         return handleSubmit();
       }
