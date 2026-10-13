@@ -7565,38 +7565,47 @@ const ALL_FA_ICONS = [
   // ── CSV parsing ───────────────────────────────────────────────────────────────
 
   /**
-   * parse csv.
+   * Parses comma-separated sheet data while respecting quoted delimiters and embedded line breaks.
    *
-   * @pre Input has the documented primitive, array, or object shape; malformed optional values are handled explicitly.
-   * @post Returns a normalized, escaped, or validated value without mutating unrelated application state.
-   * @sideEffects Normally has no side effects beyond allocation of the returned value.
-   * @throws {Error} Returns null, an empty collection, or a safe default for malformed optional input; throws only for a violated required invariant.
+   * @param {string} text CSV response text.
+   * @pre The input is a string containing CSV data.
+   * @post Returns rows of trimmed field strings; line breaks inside quoted fields are preserved and blank records are omitted.
+   * @sideEffects None.
    */
   function parseCsv(text) {
     if (!text) return [];
     text = text.replace(/^\uFEFF/, '');
     const rows = [];
-    const lines = text.split(/\r?\n/);
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const fields = [];
-      let inQuotes = false;
-      let field = '';
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"') {
-          if (inQuotes && line[i + 1] === '"') { field += '"'; i++; }
-          else { inQuotes = !inQuotes; }
-        } else if (ch === ',' && !inQuotes) {
-          fields.push(field.trim());
-          field = '';
-        } else {
-          field += ch;
-        }
-      }
+    let fields = [];
+    let field = '';
+    let inQuotes = false;
+    let recordStarted = false;
+    const finishRecord = () => {
       fields.push(field.trim());
-      rows.push(fields);
+      if (recordStarted || fields.length > 1) rows.push(fields);
+      fields = [];
+      field = '';
+      recordStarted = false;
+    };
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') {
+        recordStarted = true;
+        if (inQuotes && text[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = !inQuotes; }
+      } else if (ch === ',' && !inQuotes) {
+        fields.push(field.trim());
+        field = '';
+        recordStarted = true;
+      } else if ((ch === '\r' || ch === '\n') && !inQuotes) {
+        finishRecord();
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+      } else {
+        field += ch;
+        if (!/\s/.test(ch)) recordStarted = true;
+      }
     }
+    if (recordStarted || fields.length > 0 || field.length > 0) finishRecord();
     return rows;
   }
 
@@ -8678,12 +8687,7 @@ const ALL_FA_ICONS = [
     const dataRows = rows.slice(1).filter(row => {
       if (!Array.isArray(row)) return false;
       if (fieldTeamMode) {
-        const hasAddress = String(row[addrCol] || '').trim() !== '';
-        const hasLabel = labelCol !== null && labelCol >= 0 &&
-          String(row[labelCol] === null || row[labelCol] === undefined ? '' : row[labelCol]).trim() !== '';
-        const hasAssignment = fieldTeamAssignmentColumn >= 0 &&
-          parseFieldTeamAssignments(row[fieldTeamAssignmentColumn]).length > 0;
-        return hasAddress || hasLabel || hasAssignment;
+        return row.some(value => String(value === null || value === undefined ? '' : value).trim() !== '');
       }
       if (String(row[addrCol] || '').trim()) return true;
       return false;
@@ -8917,6 +8921,17 @@ const ALL_FA_ICONS = [
       const now = new Date().toLocaleTimeString();
       if (fieldTeamMode) {
         fieldTeamIncidents = stats.incidents;
+        if (fieldTeamDetailsIncident && !fieldTeamDetailsBackdrop.classList.contains('hidden')) {
+          const refreshedIncident = fieldTeamIncidents.find(
+            incident => incident.id === fieldTeamDetailsIncident.id
+          );
+          if (refreshedIncident) {
+            fieldTeamDetailsIncident = refreshedIncident;
+            renderFieldTeamIncidentDetails(refreshedIncident);
+          } else {
+            closeFieldTeamIncidentDetails();
+          }
+        }
         renderFieldTeamTeamOptions();
         renderFieldTeamIncidentList();
         updateFieldTeamMarkerVisibility();
@@ -9316,6 +9331,21 @@ const ALL_FA_ICONS = [
     }
     fieldTeamDetailsIncident = incident;
     fieldTeamDetailsReturnFocus = trigger || document.activeElement;
+    renderFieldTeamIncidentDetails(incident);
+    fieldTeamDetailsBackdrop.classList.remove('hidden');
+    fieldTeamDetailsBackdrop.setAttribute('aria-hidden', 'false');
+    fieldTeamDetailsClose.focus();
+  }
+
+  /**
+   * Updates the displayed content for a normalized incident without changing dialog focus or visibility.
+   *
+   * @param {object} incident A normalized incident with `fields` and `fieldTeams` arrays.
+   * @pre The details dialog controls exist and the incident has validated display fields.
+   * @post The title, metadata, source fields, map, and coordinate-dependent actions reflect the incident.
+   * @sideEffects Updates dialog DOM and preview-map state.
+   */
+  function renderFieldTeamIncidentDetails(incident) {
     fieldTeamDetailsTitle.textContent = incident.label || `Incident ${incident.index + 1}`;
     const location = incident.canonical || incident.address || 'Location not provided';
     const assignmentLabel = incident.fieldTeams.length > 0
@@ -9337,10 +9367,7 @@ const ALL_FA_ICONS = [
     });
     const hasCoordinates = Number.isFinite(incident.lat) && Number.isFinite(incident.lon);
     fieldTeamDetailsActions.classList.toggle('hidden', !hasCoordinates);
-    fieldTeamDetailsBackdrop.classList.remove('hidden');
-    fieldTeamDetailsBackdrop.setAttribute('aria-hidden', 'false');
     renderFieldTeamDetailsMap(incident);
-    fieldTeamDetailsClose.focus();
   }
 
   /**
@@ -9393,8 +9420,8 @@ const ALL_FA_ICONS = [
     }
     if (event.key !== 'Tab') return;
     const focusable = Array.from(
-      fieldTeamDetailsDialog.querySelectorAll('button:not(:disabled), [tabindex="0"]')
-    ).filter(element => element.getClientRects().length > 0);
+      fieldTeamDetailsDialog.querySelectorAll('a[href], button:not(:disabled), [tabindex]')
+    ).filter(element => element.tabIndex >= 0 && element.getClientRects().length > 0);
     if (focusable.length === 0) return;
     const currentIndex = focusable.indexOf(document.activeElement);
     const nextIndex = event.shiftKey
