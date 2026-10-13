@@ -2368,7 +2368,7 @@ FORM: A mobile-first Operate surface inside the existing static Leaflet applicat
     <p id="fieldteam-status" class="fieldteam-status" role="status" aria-live="polite">Loading assigned incidents…</p>
     <p id="fieldteam-notice" class="fieldteam-notice hidden" role="status" aria-live="polite"></p>
     <p id="fieldteam-summary" class="fieldteam-summary" aria-live="polite">Select a team to see its assigned incidents.</p>
-    <section id="fieldteam-list-view" class="fieldteam-list-view" aria-label="Assigned incidents">
+    <section id="fieldteam-list-view" class="fieldteam-list-view" aria-label="Field team incidents">
       <ul id="fieldteam-incident-list" class="fieldteam-incident-list"></ul>
     </section>
   </main>
@@ -8799,6 +8799,7 @@ const ALL_FA_ICONS = [
         editDist:    geo ? geo.editDist    : null,
       };
       plottedIncidents.push(incident);
+      const incidentTitle = incident.label || `Incident ${incident.index + 1}`;
       const incidentStyle = getIncidentStyle(sheet, categoryValue, colorMappingValue, severityValue);
 
       const shouldShow = fieldTeamMode
@@ -8818,6 +8819,10 @@ const ALL_FA_ICONS = [
         m._severityValue = severityValue;
         m._row = row;
         m._incident = incident;
+        if (fieldTeamMode) {
+          m.options.title = incidentTitle;
+          m.options.alt = incidentTitle;
+        }
         if (m._incidentLayerGroup !== incidentLayerGroup) {
           if (m._incidentLayerGroup) m._incidentLayerGroup.removeLayer(m);
           m._incidentLayerGroup = incidentLayerGroup;
@@ -8832,16 +8837,24 @@ const ALL_FA_ICONS = [
         m.setIcon(buildDivIcon(isOpen, incidentStyle.icon.fa, markerColor, sheet.closedColor));
         if (!fieldTeamMode) {
           m.setPopupContent(popupHtml(incident, sheet));
-        } else if (m.getPopup()) {
-          m.unbindPopup();
-          m.on('click', function () {
-            openFieldTeamIncidentDetails(m._incident, m.getElement());
-          });
+        } else {
+          const markerElement = m.getElement();
+          if (markerElement) markerElement.setAttribute('aria-label', incidentTitle);
+          if (m.getPopup()) {
+            m.unbindPopup();
+            m.on('click', function () {
+              openFieldTeamIncidentDetails(m._incident, m.getElement());
+            });
+          }
         }
       } else if (geo) {
         const marker = L.marker([lat, lon], {
           icon: buildDivIcon(isOpen, incidentStyle.icon.fa, markerColor, sheet.closedColor)
         });
+        if (fieldTeamMode) {
+          marker.options.title = incidentTitle;
+          marker.options.alt = incidentTitle;
+        }
         if (!fieldTeamMode) marker.bindPopup(popupHtml(incident, sheet));
         marker._isOpen = isOpen;
         marker._sheetId = sheet.id;
@@ -8858,6 +8871,10 @@ const ALL_FA_ICONS = [
           });
         }
         syncIncidentMarkerLayer(marker, shouldShow);
+        if (fieldTeamMode) {
+          const markerElement = marker.getElement();
+          if (markerElement) markerElement.setAttribute('aria-label', incidentTitle);
+        }
         incidentMarkers[key] = marker;
       }
     }
@@ -8920,18 +8937,10 @@ const ALL_FA_ICONS = [
 
       const now = new Date().toLocaleTimeString();
       if (fieldTeamMode) {
-        fieldTeamIncidents = stats.incidents;
-        if (fieldTeamDetailsIncident && !fieldTeamDetailsBackdrop.classList.contains('hidden')) {
-          const refreshedIncident = fieldTeamIncidents.find(
-            incident => incident.id === fieldTeamDetailsIncident.id
-          );
-          if (refreshedIncident) {
-            fieldTeamDetailsIncident = refreshedIncident;
-            renderFieldTeamIncidentDetails(refreshedIncident);
-          } else {
-            closeFieldTeamIncidentDetails();
-          }
+        if (!fieldTeamDetailsBackdrop.classList.contains('hidden')) {
+          closeFieldTeamIncidentDetails();
         }
+        fieldTeamIncidents = stats.incidents;
         renderFieldTeamTeamOptions();
         renderFieldTeamIncidentList();
         updateFieldTeamMarkerVisibility();
