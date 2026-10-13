@@ -58,6 +58,18 @@ publicly accessible Google Sheet.
   signing in separately.
 * **Auto-refresh every 30 seconds** — all configured sheets are polled and re-read;
   markers are added, updated, or removed to match the current sheet contents.
+* **Field-team page** — `/fieldteam` opens a mobile-first, read-only incident
+  queue backed by the first configured preset that contains an **Incidents**
+  sheet. Visitors choose a team, browse its assigned incidents in the default
+  list view, switch to a map, and open full row details with a location map from
+  either view. Details offer a jump to the location preview or open the main map
+  centered on the incident when coordinates are available.
+  Incidents without a team remain visible in a clearly marked unassigned list
+  section and use muted map markers. For team filtering, the incident sheet
+  should have a team-assignment header such as **Team**, **Team Assigned**,
+  **Assigned Team**, or **Field Team**; if the header is missing, incidents are
+  still shown as unassigned. Multiple team names in a cell can be separated by
+  commas, semicolons, pipes, or line breaks.
 * **Every row is a distinct incident** — each data row is plotted as its own marker.
 * **Open / Closed status & Legend** — incidents matching a sheet's configured
   closed status values are rendered faded in that sheet's chosen closed colour

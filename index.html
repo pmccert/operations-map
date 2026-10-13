@@ -1,4 +1,11 @@
 <!DOCTYPE html>
+<!--
+THESIS: A team's assigned incidents are its working queue, not a second map dashboard.
+OWN-WORLD: Extend PMC CERT's white, slate, and blue interface with clear status and compact controls.
+STORY: Choose a team, scan its assignments, and open any incident from either view.
+FIRST VIEWPORT: Product mark and title lead into a team selector, list/map switch, and the list.
+FORM: A mobile-first Operate surface inside the existing static Leaflet application.
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -30,6 +37,341 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; }
+    #fieldteam-app { display: none; }
+    body.field-team-mode {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background: #f4f7fa;
+      color: #1a202c;
+    }
+    body.field-team-mode #fieldteam-app {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+    }
+    body.field-team-mode #map-layout {
+      display: none;
+      width: 100%;
+      height: auto;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+    body.field-team-mode.fieldteam-map-active #map-layout { display: flex; }
+    body.field-team-mode.fieldteam-map-active #fieldteam-list-view { display: none; }
+    body.field-team-mode.fieldteam-map-active #fieldteam-app { flex: 0 0 auto; }
+    body.field-team-mode.fieldteam-map-active .fieldteam-main { flex: 0 0 auto; padding-bottom: 12px; }
+    body.field-team-mode #toolbar,
+    body.field-team-mode #status-bar,
+    body.field-team-mode #pmc-cert-logo,
+    body.field-team-mode #app-update-alert,
+    body.field-team-mode #zoom-alert,
+    body.field-team-mode #shared-map-mode-banner,
+    body.field-team-mode .map-legend,
+    body.field-team-mode .leaflet-control-layers,
+    body.field-team-mode .leaflet-control-zoom,
+    body.field-team-mode .leaflet-draw {
+      display: none !important;
+    }
+    .fieldteam-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: #fff;
+      border-bottom: 1px solid #d0d7de;
+    }
+    .fieldteam-logo { width: 36px; height: 36px; object-fit: contain; flex: 0 0 auto; }
+    .fieldteam-heading { min-width: 0; }
+    .fieldteam-heading h1 { font-size: 1.12rem; line-height: 1.25; color: #1a202c; }
+    .fieldteam-heading p { margin-top: 2px; color: #4b5563; font-size: 0.82rem; line-height: 1.35; }
+    .fieldteam-main {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      width: 100%;
+      max-width: 900px;
+      min-height: 0;
+      margin: 0 auto;
+      padding: 14px 16px 0;
+    }
+    .fieldteam-team-label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #263445;
+    }
+    .fieldteam-team-select {
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 38px 10px 12px;
+      border: 1px solid #8793a0;
+      border-radius: 4px;
+      background: #fff;
+      color: #1a202c;
+      font: inherit;
+      font-size: 1rem;
+    }
+    .fieldteam-team-select:focus-visible,
+    .fieldteam-button:focus-visible,
+    .fieldteam-incident:focus-visible,
+    .fieldteam-close:focus-visible {
+      outline: 3px solid #2c7bb6;
+      outline-offset: 2px;
+    }
+    .fieldteam-controls {
+      display: flex;
+      align-items: stretch;
+      gap: 10px;
+      margin: 12px 0 8px;
+    }
+    .fieldteam-view-switch {
+      display: flex;
+      flex: 1 1 auto;
+      border: 1px solid #2c7bb6;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .fieldteam-button {
+      min-width: 44px;
+      min-height: 44px;
+      padding: 9px 14px;
+      border: 1px solid #2c7bb6;
+      border-radius: 4px;
+      background: #fff;
+      color: #174a70;
+      font: inherit;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .fieldteam-view-switch .fieldteam-button {
+      flex: 1 1 50%;
+      border: 0;
+      border-radius: 0;
+    }
+    .fieldteam-view-switch .fieldteam-button + .fieldteam-button {
+      border-left: 1px solid #2c7bb6;
+    }
+    .fieldteam-view-switch .fieldteam-button[aria-pressed="true"] {
+      background: #2c7bb6;
+      color: #fff;
+    }
+    .fieldteam-button:hover:not(:disabled) { background: #eef6fc; }
+    .fieldteam-view-switch .fieldteam-button[aria-pressed="true"]:hover { background: #246b9d; }
+    .fieldteam-button:disabled { color: #66717d; border-color: #aeb7c0; cursor: not-allowed; }
+    .fieldteam-status {
+      min-height: 24px;
+      margin: 2px 0 8px;
+      color: #364252;
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+    .fieldteam-notice {
+      margin: 0 0 8px;
+      padding: 8px 10px;
+      border-radius: 4px;
+      background: #fff1cc;
+      color: #594000;
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+    .fieldteam-summary {
+      padding: 9px 0;
+      border-bottom: 1px solid #d0d7de;
+      color: #364252;
+      font-size: 0.84rem;
+      font-weight: 700;
+    }
+    .fieldteam-list-view {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      background: #fff;
+      border-top: 1px solid #d0d7de;
+    }
+    .fieldteam-incident-list { list-style: none; }
+    .fieldteam-incident-list li + li { border-top: 1px solid #d0d7de; }
+    .fieldteam-list-section-heading {
+      padding: 10px 14px;
+      background: #eef6fc;
+      color: #263445;
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+    .fieldteam-incident {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 4px 12px;
+      width: 100%;
+      min-height: 76px;
+      padding: 12px 14px;
+      border: 0;
+      background: #fff;
+      color: #1a202c;
+      text-align: left;
+      font: inherit;
+      cursor: pointer;
+    }
+    .fieldteam-incident:hover { background: #f4f9fd; }
+    .fieldteam-incident-title {
+      overflow: hidden;
+      font-size: 0.98rem;
+      font-weight: 700;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+    }
+    .fieldteam-incident-badges {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+    .fieldteam-incident-location {
+      grid-column: 1;
+      overflow-wrap: anywhere;
+      color: #364252;
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+    .fieldteam-incident-status {
+      padding: 4px 8px;
+      border-radius: 3px;
+      background: #fce8e6;
+      color: #8f2017;
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .fieldteam-incident-assignment {
+      padding: 4px 8px;
+      border-radius: 3px;
+      background: #fff1cc;
+      color: #594000;
+      font-size: 0.76rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .fieldteam-incident-status.closed {
+      background: #e8ebee;
+      color: #39434d;
+    }
+    .fieldteam-list-empty {
+      padding: 28px 16px;
+      color: #364252;
+      font-size: 0.94rem;
+      line-height: 1.5;
+      text-align: center;
+    }
+    .fieldteam-details-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1200;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 12px;
+      background: rgba(10, 20, 30, 0.58);
+    }
+    .fieldteam-details-dialog {
+      width: min(720px, 100%);
+      max-height: min(88vh, 760px);
+      max-height: min(88dvh, 760px);
+      overflow-y: auto;
+      padding: 18px;
+      border-radius: 8px 8px 4px 4px;
+      background: #fff;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+    }
+    .fieldteam-details-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .fieldteam-details-header h2 {
+      color: #1a202c;
+      font-size: 1.12rem;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .fieldteam-close {
+      min-width: 44px;
+      min-height: 44px;
+      border: 1px solid #8793a0;
+      border-radius: 4px;
+      background: #fff;
+      color: #1a202c;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .fieldteam-details-meta { margin-bottom: 12px; color: #364252; font-size: 0.9rem; line-height: 1.5; }
+    .fieldteam-details-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 14px;
+    }
+    .fieldteam-details-action {
+      flex: 1 1 145px;
+      padding-right: 10px;
+      padding-left: 10px;
+      font-size: 0.86rem;
+    }
+    .fieldteam-details-fields { width: 100%; border-collapse: collapse; font-size: 0.9rem; line-height: 1.4; }
+    .fieldteam-details-fields th,
+    .fieldteam-details-fields td {
+      padding: 8px 6px;
+      border-top: 1px solid #d0d7de;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    .fieldteam-details-fields th { width: 38%; color: #364252; font-weight: 700; }
+    .fieldteam-details-map-section { margin-top: 16px; }
+    .fieldteam-details-map-heading {
+      margin-bottom: 8px;
+      color: #1a202c;
+      font-size: 0.98rem;
+    }
+    .fieldteam-details-map {
+      width: 100%;
+      height: 220px;
+      border: 1px solid #aeb7c0;
+      border-radius: 4px;
+      background: #eef2f5;
+    }
+    .fieldteam-details-map-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 120px;
+      padding: 16px;
+      border: 1px solid #aeb7c0;
+      border-radius: 4px;
+      background: #f4f7fa;
+      color: #364252;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      text-align: center;
+    }
+    @media (min-width: 700px) {
+      .fieldteam-header { padding: 16px max(24px, calc((100vw - 900px) / 2)); }
+      .fieldteam-main { padding: 18px 24px 0; }
+      .fieldteam-details-backdrop { align-items: center; }
+      .fieldteam-details-dialog { border-radius: 8px; }
+    }
     #map-layout {
       width: 100vw;
       height: 100vh;
@@ -1358,6 +1700,10 @@
     .toolbar-menu-content .toolbar-select {
       min-height: 29px;
     }
+    .toolbar-menu-content a.toolbar-btn {
+      color: #222;
+      text-decoration: none;
+    }
     .toolbar-btn {
       background: rgba(255,255,255,0.92);
       border: 1px solid #aaa;
@@ -1998,6 +2344,36 @@
   </div>
 </div>
 
+<!-- ── Field team incident view ───────────────────────────────── -->
+<div id="fieldteam-app">
+  <header class="fieldteam-header">
+    <img class="fieldteam-logo" src="assets/pmc-cert-logo.png" alt="PMC CERT" />
+    <div class="fieldteam-heading">
+      <h1>Field team incidents</h1>
+      <p id="fieldteam-description">Choose your team to see its assignments.</p>
+    </div>
+  </header>
+  <main class="fieldteam-main">
+    <label class="fieldteam-team-label" for="fieldteam-team-select">Your field team</label>
+    <select id="fieldteam-team-select" class="fieldteam-team-select" disabled>
+      <option value="">Loading teams…</option>
+    </select>
+    <div class="fieldteam-controls">
+      <div class="fieldteam-view-switch" role="group" aria-label="Incident view">
+        <button type="button" id="fieldteam-list-button" class="fieldteam-button" aria-pressed="true">List</button>
+        <button type="button" id="fieldteam-map-button" class="fieldteam-button" aria-pressed="false" disabled>Map</button>
+      </div>
+      <button type="button" id="fieldteam-refresh-button" class="fieldteam-button">Refresh</button>
+    </div>
+    <p id="fieldteam-status" class="fieldteam-status" role="status" aria-live="polite">Loading assigned incidents…</p>
+    <p id="fieldteam-notice" class="fieldteam-notice hidden" role="status" aria-live="polite"></p>
+    <p id="fieldteam-summary" class="fieldteam-summary" aria-live="polite">Select a team to see its assigned incidents.</p>
+    <section id="fieldteam-list-view" class="fieldteam-list-view" aria-label="Assigned incidents">
+      <ul id="fieldteam-incident-list" class="fieldteam-incident-list"></ul>
+    </section>
+  </main>
+</div>
+
 <!-- Map container and shared access mode -->
 <div id="map-layout">
   <div id="shared-map-mode-banner" class="hidden" role="status" aria-live="polite">
@@ -2013,6 +2389,7 @@
     <summary class="toolbar-btn toolbar-menu-trigger" title="Open map actions"><i class="fa-solid fa-bars"></i> Map Actions</summary>
     <div class="toolbar-menu-content">
       <button type="button" class="toolbar-btn" id="btn-change-sheet" title="Change / Manage Sheets"><i class="fa-solid fa-layer-group"></i> Manage Sheets</button>
+      <a href="fieldteam/" class="toolbar-btn" title="Open the mobile field-team incident page"><i class="fa-solid fa-people-group" aria-hidden="true"></i> Field Team View</a>
       <button class="toolbar-btn" id="btn-clear-features" title="Remove all custom features from the map"><i class="fa-solid fa-trash-can"></i> Clear Custom Features</button>
       <button class="toolbar-btn" id="btn-custom-features"><i class="fa-solid fa-draw-polygon"></i> Custom Features</button>
       <button class="toolbar-btn" id="btn-refresh-all" title="Refresh all sheets now"><i class="fa-solid fa-rotate"></i> Refresh All</button>
@@ -2108,6 +2485,34 @@
   <span id="zoom-alert-text">The requested zoom level is not available for this base map.</span>
 </div>
 
+<div id="fieldteam-details-backdrop" class="fieldteam-details-backdrop hidden" aria-hidden="true">
+  <section id="fieldteam-details-dialog" class="fieldteam-details-dialog" role="dialog" aria-modal="true" aria-labelledby="fieldteam-details-title" tabindex="-1">
+    <div class="fieldteam-details-header">
+      <h2 id="fieldteam-details-title"></h2>
+      <button type="button" id="fieldteam-details-close" class="fieldteam-close" aria-label="Close incident details">&times;</button>
+    </div>
+    <p id="fieldteam-details-meta" class="fieldteam-details-meta"></p>
+    <div id="fieldteam-details-actions" class="fieldteam-details-actions hidden">
+      <button type="button" id="fieldteam-details-map-jump" class="fieldteam-button fieldteam-details-action">
+        Jump to location map
+      </button>
+      <button type="button" id="fieldteam-details-open-map" class="fieldteam-button fieldteam-details-action">
+        Open in full map
+      </button>
+    </div>
+    <table class="fieldteam-details-fields" aria-label="Incident details">
+      <tbody id="fieldteam-details-fields"></tbody>
+    </table>
+    <section id="fieldteam-details-map-section" class="fieldteam-details-map-section" aria-labelledby="fieldteam-details-map-heading">
+      <h3 id="fieldteam-details-map-heading" class="fieldteam-details-map-heading">Incident location</h3>
+      <p id="fieldteam-details-map-empty" class="fieldteam-details-map-empty hidden">
+        No mapped location is available for this incident.
+      </p>
+      <div id="fieldteam-details-map" class="fieldteam-details-map" role="region" aria-label="Map showing this incident's location" tabindex="0"></div>
+    </section>
+  </section>
+</div>
+
 <!-- Leaflet JS -->
 <script
   src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -2144,6 +2549,41 @@
   const initialSharedMapFileId = extractDriveFileId(urlParams.get('mapFileId'));
   const openedFromSharedMapUrl = Boolean(initialSharedMapFileId);
   const forcedViewerMode = urlParams.get('mode') === 'view';
+  const fieldTeamMode = urlParams.get('fieldteam') === '1';
+  if (fieldTeamMode) document.body.classList.add('field-team-mode');
+  let fieldTeamSheetId = null;
+  let fieldTeamAssignmentColumn = -1;
+  let fieldTeamAssignmentColumnChecked = false;
+  let fieldTeamSelectedTeam = '';
+  let fieldTeamIncidents = [];
+  let fieldTeamRefreshInFlight = false;
+  const FIELD_TEAM_UNASSIGNED_COLOR = '#59636e'; // Neutral marker color identifies incidents without a team assignment.
+  let fieldTeamDetailsReturnFocus = null;
+  const fieldTeamTeamSelect = document.getElementById('fieldteam-team-select');
+  const fieldTeamListButton = document.getElementById('fieldteam-list-button');
+  const fieldTeamMapButton = document.getElementById('fieldteam-map-button');
+  const fieldTeamRefreshButton = document.getElementById('fieldteam-refresh-button');
+  const fieldTeamStatus = document.getElementById('fieldteam-status');
+  const fieldTeamNotice = document.getElementById('fieldteam-notice');
+  const fieldTeamDescription = document.getElementById('fieldteam-description');
+  const fieldTeamSummary = document.getElementById('fieldteam-summary');
+  const fieldTeamIncidentList = document.getElementById('fieldteam-incident-list');
+  const fieldTeamDetailsBackdrop = document.getElementById('fieldteam-details-backdrop');
+  const fieldTeamDetailsDialog = document.getElementById('fieldteam-details-dialog');
+  const fieldTeamDetailsTitle = document.getElementById('fieldteam-details-title');
+  const fieldTeamDetailsMeta = document.getElementById('fieldteam-details-meta');
+  const fieldTeamDetailsFields = document.getElementById('fieldteam-details-fields');
+  const fieldTeamDetailsMapElement = document.getElementById('fieldteam-details-map');
+  const fieldTeamDetailsMapEmpty = document.getElementById('fieldteam-details-map-empty');
+  const fieldTeamDetailsMapSection = document.getElementById('fieldteam-details-map-section');
+  const fieldTeamDetailsActions = document.getElementById('fieldteam-details-actions');
+  const fieldTeamDetailsMapJump = document.getElementById('fieldteam-details-map-jump');
+  const fieldTeamDetailsOpenMap = document.getElementById('fieldteam-details-open-map');
+  const fieldTeamDetailsClose = document.getElementById('fieldteam-details-close');
+  let fieldTeamDetailsMap = null;
+  let fieldTeamDetailsMapMarker = null;
+  let fieldTeamDetailsIncident = null;
+  const FIELD_TEAM_DETAILS_MAP_ZOOM = 16; // Zoom level 16 shows the incident street and nearby blocks.
 
   /**
    * Report a browser-storage failure without making persistence a hard
@@ -2206,7 +2646,7 @@
     }
   }
 
-  const savedAppState = readAppState();
+  const savedAppState = fieldTeamMode ? null : readAppState();
   let savedGeocoderUrl = '';
   let savedGeocoderOverridden = false;
   let disasterModes = { version: 1, defaultModeId: '', modes: [] };
@@ -2521,6 +2961,9 @@ const ALL_FA_ICONS = [
   // ── Map setup ────────────────────────────────────────────────────────────────
 
   const map = L.map('map', { maxZoom: 24 }).setView([PMC_LAT, PMC_LNG], 13);
+  const OPEN_STREET_MAP_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const OPEN_STREET_MAP_ATTRIBUTION =
+    '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
   /**
    * Create a tile layer that over-zooms the provider's highest-resolution
@@ -2551,9 +2994,9 @@ const ALL_FA_ICONS = [
 
   const baseLayers = {
     'OpenStreetMap': createOverzoomedTileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      OPEN_STREET_MAP_TILE_URL,
       {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        attribution: OPEN_STREET_MAP_ATTRIBUTION,
         maxZoom: 20,
         maxNativeZoom: 19
       }
@@ -3802,7 +4245,7 @@ const ALL_FA_ICONS = [
   let hasLoadedMap = false;
   let customFeatures = [];
   let customFeatureLayers = {};
-  let mapIsReadOnly = forcedViewerMode || openedFromSharedMapUrl;
+  let mapIsReadOnly = fieldTeamMode || forcedViewerMode || openedFromSharedMapUrl;
   let customFeatureDrawControl = null;
   let customFeatureDrawControlAttached = false;
   sharedMapState = {
@@ -4213,14 +4656,15 @@ const ALL_FA_ICONS = [
   }
 
   /**
-   * persist app state.
+   * Persists editor map configuration; the read-only field-team route is never stored.
    *
    * @pre Referenced DOM elements, map layers, and application state are initialized; arguments satisfy the documented shape.
-   * @post Returns the requested value or leaves the UI/map/state consistent with the new operation.
-   * @sideEffects May mutate DOM, Leaflet layers, timers, persisted state, or shared-map synchronization state.
+   * @post Editor state is saved; field-team visits leave the visitor's saved map state unchanged.
+   * @sideEffects Writes browser storage and may synchronize shared-map state unless field-team mode is active.
    * @throws {Error} Throws/rejects on invalid required input or unavailable dependencies; recoverable failures are surfaced through status UI or console diagnostics.
    */
   function persistAppState() {
+    if (fieldTeamMode) return;
     writeAppState({
       disasterModeId: selectedDisasterModeId,
       sheets: sheets.map(sheet => ({
@@ -4375,12 +4819,13 @@ const ALL_FA_ICONS = [
    *
    * @param {string} message Status text to show.
    * @pre statusBar exists and message is a string.
-   * @post The status bar shows only the supplied message.
+   * @post The map status bar and, in field-team mode, its visible status line show the supplied message.
    * @sideEffects Replaces status-bar content and removes unmatched-action styling.
    */
   function setStatus(message) {
     statusBar.classList.remove('status-with-unmatched');
     statusBar.textContent = message;
+    if (fieldTeamMode && fieldTeamStatus) fieldTeamStatus.textContent = message;
   }
 
   /**
@@ -8208,8 +8653,8 @@ const ALL_FA_ICONS = [
    * @param {object} sheet Configured sheet, including its id, name, source URL, and column mapping.
    * @param {Array<Array<*>>} rows Header row followed by sheet data rows.
    * @param {Set<string>} [currentKeys] Optional set that receives keys for rows in this sheet.
-   * @pre The sheet has an address-column mapping and optional string source URL; rows are arrays and map/geocoding state is initialized.
-   * @post Plots geocoded incidents and returns counts plus unmatched addresses with their sheet, JSON lookup, and Google Geocoding diagnostics.
+   * @pre The sheet has an address-column mapping and optional string source URL; rows and map/geocoding state are initialized. A missing assignment column in field-team mode means all rows are unassigned.
+   * @post Plots geocoded incidents and returns counts, unmatched-address diagnostics, and normalized incident records.
    * @sideEffects Updates Leaflet markers, the currentKeys set, map alerts, and console diagnostics.
    * @throws {Error} Rejects if a geocoding/network operation fails or required application state is unavailable.
    */
@@ -8230,17 +8675,30 @@ const ALL_FA_ICONS = [
     const categoryCol = sheet.categoryEnabled === true ? sheet.columnMapping.category : null;
     const severityCol = sheet.columnMapping.severity;
 
-    const dataRows = rows.slice(1).filter(r => (r[addrCol] || '').trim() !== '');
+    const dataRows = rows.slice(1).filter(row => {
+      if (!Array.isArray(row)) return false;
+      if (fieldTeamMode) {
+        const hasAddress = String(row[addrCol] || '').trim() !== '';
+        const hasLabel = labelCol !== null && labelCol >= 0 &&
+          String(row[labelCol] === null || row[labelCol] === undefined ? '' : row[labelCol]).trim() !== '';
+        const hasAssignment = fieldTeamAssignmentColumn >= 0 &&
+          parseFieldTeamAssignments(row[fieldTeamAssignmentColumn]).length > 0;
+        return hasAddress || hasLabel || hasAssignment;
+      }
+      if (String(row[addrCol] || '').trim()) return true;
+      return false;
+    });
     let sheetOpen = 0;
     let sheetClosed = 0;
     const sheetUnmatchedLocations = [];
+    const plottedIncidents = [];
 
     for (let idx = 0; idx < dataRows.length; idx++) {
       const row = dataRows[idx];
       const key = `${sheet.id}__${idx}`;
       if (currentKeys) currentKeys.add(key);
 
-      const address   = (row[addrCol] || '').trim();
+      const address   = String(row[addrCol] || '').trim();
       const statusRaw = (statusCol !== null && statusCol >= 0 &&
         row[statusCol] !== undefined && row[statusCol] !== null)
         ? String(row[statusCol]).toLowerCase().trim()
@@ -8266,9 +8724,9 @@ const ALL_FA_ICONS = [
         sheetClosed++;
       }
 
-      let geo = parseCoordinatePair(address);
+      let geo = address ? parseCoordinatePair(address) : null;
       if (!geo) {
-        geo = decodeOpenLocationCode(address);
+        geo = address ? decodeOpenLocationCode(address) : null;
       }
       let jsonLookup = {
         checked: Boolean(geocoderIndex),
@@ -8276,7 +8734,7 @@ const ALL_FA_ICONS = [
         matchType: null,
         canonical: null
       };
-      if (!geo) {
+      if (!geo && address) {
         const jsonMatch = geocode(address);
         jsonLookup = {
           checked: Boolean(geocoderIndex),
@@ -8297,13 +8755,13 @@ const ALL_FA_ICONS = [
         fromCache: false,
         priorRequestRecorded: false
       };
-      if (!geo) {
+      if (!geo && address) {
         geo = await googleGeocode(address, googleGeocoding);
       }
 
       const lat = geo ? geo.lat : null;
       const lon = geo ? geo.lon : null;
-      if (!geo) {
+      if (!geo && address) {
         sheetUnmatchedLocations.push({
           address,
           sheetId: sheet.id,
@@ -8316,9 +8774,13 @@ const ALL_FA_ICONS = [
       }
 
       const incident = {
+        id: key,
         index: idx,
         address,
         label,
+        fieldTeams: fieldTeamMode
+          ? parseFieldTeamAssignments(row[fieldTeamAssignmentColumn])
+          : [],
         fields: Array.from({ length: Math.max(row.length, sheet.headers ? sheet.headers.length : 0) }, (_, fieldIdx) => ({
           name: (sheet.headers && sheet.headers[fieldIdx]) || `Column ${colLetter(fieldIdx)}`,
           value: row[fieldIdx] || ''
@@ -8332,10 +8794,16 @@ const ALL_FA_ICONS = [
         fuzzyStreet: geo ? geo.fuzzyStreet : null,
         editDist:    geo ? geo.editDist    : null,
       };
+      plottedIncidents.push(incident);
       const incidentStyle = getIncidentStyle(sheet, categoryValue, colorMappingValue, severityValue);
 
-      const shouldShow = shouldShowIncident(sheet, categoryValue, isOpen, Boolean(geo));
+      const shouldShow = fieldTeamMode
+        ? Boolean((incident.fieldTeams.length === 0 || isFieldTeamIncidentSelected(incident)) && geo)
+        : shouldShowIncident(sheet, categoryValue, isOpen, Boolean(geo));
       const incidentLayerGroup = getIncidentLayerGroup(sheet, categoryValue);
+      const markerColor = fieldTeamMode && incident.fieldTeams.length === 0
+        ? FIELD_TEAM_UNASSIGNED_COLOR
+        : incidentStyle.color;
 
       if (incidentMarkers[key]) {
         const m = incidentMarkers[key];
@@ -8357,12 +8825,20 @@ const ALL_FA_ICONS = [
         } else {
           syncIncidentMarkerLayer(m, false);
         }
-        m.setIcon(buildDivIcon(isOpen, incidentStyle.icon.fa, incidentStyle.color, sheet.closedColor));
-        m.setPopupContent(popupHtml(incident, sheet));
+        m.setIcon(buildDivIcon(isOpen, incidentStyle.icon.fa, markerColor, sheet.closedColor));
+        if (!fieldTeamMode) {
+          m.setPopupContent(popupHtml(incident, sheet));
+        } else if (m.getPopup()) {
+          m.unbindPopup();
+          m.on('click', function () {
+            openFieldTeamIncidentDetails(m._incident, m.getElement());
+          });
+        }
       } else if (geo) {
         const marker = L.marker([lat, lon], {
-          icon: buildDivIcon(isOpen, incidentStyle.icon.fa, incidentStyle.color, sheet.closedColor)
-        }).bindPopup(popupHtml(incident, sheet));
+          icon: buildDivIcon(isOpen, incidentStyle.icon.fa, markerColor, sheet.closedColor)
+        });
+        if (!fieldTeamMode) marker.bindPopup(popupHtml(incident, sheet));
         marker._isOpen = isOpen;
         marker._sheetId = sheet.id;
         marker._categoryValue = categoryValue;
@@ -8372,6 +8848,11 @@ const ALL_FA_ICONS = [
         marker._incident = incident;
         marker._incidentLayerGroup = incidentLayerGroup;
         marker._isOutOfRange = isMoreThanOneDegreeFromPmc(lat, lon);
+        if (fieldTeamMode) {
+          marker.on('click', function () {
+            openFieldTeamIncidentDetails(marker._incident, marker.getElement());
+          });
+        }
         syncIncidentMarkerLayer(marker, shouldShow);
         incidentMarkers[key] = marker;
       }
@@ -8383,6 +8864,7 @@ const ALL_FA_ICONS = [
       open: sheetOpen,
       closed: sheetClosed,
       unmatchedLocations: sheetUnmatchedLocations,
+      incidents: plottedIncidents,
       count: dataRows.length
     };
   }
@@ -8392,18 +8874,32 @@ const ALL_FA_ICONS = [
    *
    * @param {string} sheetId Sheet identifier to refresh.
    * @param {Array<Array<*>>} [rowsOverride] Optional already-loaded rows to replot without a network request.
-   * @pre External identifiers, URLs, files, and authentication state are supplied in the documented shape.
-   * @post Returns validated external data or completes the requested synchronization/UI operation.
-   * @sideEffects May perform network or file I/O and update application state, the map, or status UI.
+   * @pre The requested sheet exists; the field-team route refreshes only one sheet at a time.
+   * @post Refreshes sheet markers and status; field-team mode also updates its team selector and filtered incident queue.
+   * @sideEffects May perform network or geocoding I/O and update sheet, map, route UI, and polling state.
    * @throws {Error} Throws/rejects on invalid responses, authentication failures, or unavailable dependencies; no failure is silently discarded.
    */
   async function fetchAndPlotSheet(sheetId, rowsOverride) {
     const sheet = sheets.find(s => s.id === sheetId);
     if (!sheet) return;
+    if (fieldTeamMode && fieldTeamRefreshInFlight) return;
+    if (fieldTeamMode) {
+      fieldTeamRefreshInFlight = true;
+      if (fieldTeamRefreshButton) fieldTeamRefreshButton.disabled = true;
+    }
     try {
       setStatus(`Refreshing "${sheet.name}"…`);
+      if (fieldTeamMode && fieldTeamNotice) {
+        fieldTeamNotice.textContent = '';
+        fieldTeamNotice.classList.add('hidden');
+      }
       const rows = Array.isArray(rowsOverride) ? rowsOverride : await fetchSheetRows(sheet);
       sheet.lastRows = rows;
+      if (fieldTeamMode) {
+        sheet.headers = cleanHeaders(rows[0]);
+        fieldTeamAssignmentColumn = findFieldTeamAssignmentColumn(sheet.headers);
+        fieldTeamAssignmentColumnChecked = true;
+      }
       const sheetKeys = new Set();
       const stats = await plotSheetRows(sheet, rows, sheetKeys);
 
@@ -8419,16 +8915,566 @@ const ALL_FA_ICONS = [
       updateMapAlerts();
 
       const now = new Date().toLocaleTimeString();
-      setStatusWithUnmatchedLocations(
-        `Refreshed "${sheet.name}" at ${now} — ${stats.count} incident(s): ` +
-        `${stats.open} open, ${stats.closed} closed`,
-        stats.unmatchedLocations
-      );
+      if (fieldTeamMode) {
+        fieldTeamIncidents = stats.incidents;
+        renderFieldTeamTeamOptions();
+        renderFieldTeamIncidentList();
+        updateFieldTeamMarkerVisibility();
+        const warnings = [];
+        if (fieldTeamAssignmentColumn < 0) {
+          warnings.push('Team assignment column missing. Add an "Assigned Team" or "Field Team" header to filter by team; incidents are shown as unassigned.');
+        }
+        if (stats.unmatchedLocations.length > 0) {
+          const unmatchedCount = stats.unmatchedLocations.length;
+          warnings.push(
+            `${unmatchedCount} location${unmatchedCount === 1 ? '' : 's'} could not be mapped; ` +
+            `${unmatchedCount === 1 ? 'the incident remains' : 'those incidents remain'} in the list.`
+          );
+        }
+        if (fieldTeamNotice) {
+          fieldTeamNotice.textContent = warnings.join(' ');
+          fieldTeamNotice.classList.toggle('hidden', warnings.length === 0);
+        }
+        const incidentLabel = stats.count === 1 ? 'incident' : 'incidents';
+        setStatus(`Updated ${now} · ${stats.count} ${incidentLabel}`);
+      } else {
+        setStatusWithUnmatchedLocations(
+          `Refreshed "${sheet.name}" at ${now} — ${stats.count} incident(s): ` +
+          `${stats.open} open, ${stats.closed} closed`,
+          stats.unmatchedLocations
+        );
+      }
       syncSharedMapAfterLocalChange('sheet-refresh');
     } catch (err) {
       setStatus(`Error refreshing "${sheet.name}": ${err.message}`);
       console.error(`Error refreshing "${sheet.name}":`, err);
+      if (fieldTeamMode && !fieldTeamAssignmentColumnChecked) {
+        const placeholder = fieldTeamTeamSelect && fieldTeamTeamSelect.options[0];
+        if (placeholder) placeholder.textContent = 'Teams unavailable';
+        if (fieldTeamDescription) fieldTeamDescription.textContent = 'Team assignments could not be loaded.';
+      }
+    } finally {
+      if (fieldTeamMode) {
+        fieldTeamRefreshInFlight = false;
+        if (fieldTeamRefreshButton) fieldTeamRefreshButton.disabled = false;
+      }
     }
+  }
+
+  /**
+   * Finds the most likely team-assignment column using explicit header names.
+   *
+   * @param {Array<*>} headers Incident-sheet header cells.
+   * @pre `headers` is an array of header values.
+   * @post Returns the best matching non-negative column index, or `-1` if no team assignment header is identifiable.
+   * @sideEffects None.
+   */
+  function findFieldTeamAssignmentColumn(headers) {
+    if (!Array.isArray(headers)) return -1;
+    const normalizedHeaders = headers.map(header =>
+      String(header === null || header === undefined ? '' : header)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+    );
+    const exactNames = [
+      'assigned team',
+      'assigned teams',
+      'team assigned',
+      'teams assigned',
+      'field team',
+      'field teams',
+      'responding team',
+      'responding teams',
+      'response team',
+      'response teams',
+      'team',
+      'teams',
+      'assigned to'
+    ];
+    for (const name of exactNames) {
+      const index = normalizedHeaders.indexOf(name);
+      if (index >= 0) return index;
+    }
+    return normalizedHeaders.findIndex(header =>
+      /\bteam(s)?\b/.test(header) && /\b(assign(ed|ment)?|field|responding|response)\b/.test(header)
+    );
+  }
+
+  /**
+   * Splits one incident-sheet assignment cell into its individual team names.
+   *
+   * @param {*} value The formatted cell value from the assigned-team column.
+   * @pre The value is a spreadsheet cell value or an empty value.
+   * @post Returns trimmed, non-empty names split on commas, semicolons, pipes, or line breaks.
+   * @sideEffects None.
+   */
+  function parseFieldTeamAssignments(value) {
+    if (value === null || value === undefined) return [];
+    return String(value)
+      .split(/[,;|\r\n]+/)
+      .map(team => team.trim())
+      .filter(Boolean);
+  }
+
+  /**
+   * Checks whether an incident is assigned to the visitor's selected team.
+   *
+   * @param {object} incident A normalized incident with `fieldTeams`.
+   * @pre The incident has an array of field-team names.
+   * @post Returns true only when a team name matches the selected team case-insensitively.
+   * @sideEffects None.
+   */
+  function isFieldTeamIncidentSelected(incident) {
+    return Boolean(fieldTeamSelectedTeam && incident && Array.isArray(incident.fieldTeams) &&
+      incident.fieldTeams.some(team => team.toLowerCase() === fieldTeamSelectedTeam.toLowerCase()));
+  }
+
+  /**
+   * Refreshes the team selector from the incident records while preserving a still-valid choice.
+   *
+   * @pre The field-team selector exists and incident records have normalized `fieldTeams` arrays.
+   * @post Selector choices are unique case-insensitive team names; the previous selection remains only if still present, and guidance matches the available assignment data.
+   * @sideEffects Updates the selector, page guidance, and map availability.
+   */
+  function renderFieldTeamTeamOptions() {
+    if (!fieldTeamTeamSelect) return;
+    const previousTeam = fieldTeamSelectedTeam;
+    const teamsByName = new Map();
+    fieldTeamIncidents.forEach(incident => {
+      incident.fieldTeams.forEach(team => {
+        const key = team.toLowerCase();
+        if (!teamsByName.has(key)) teamsByName.set(key, team);
+      });
+    });
+    const teams = Array.from(teamsByName.values()).sort((first, second) => first.localeCompare(second));
+    fieldTeamTeamSelect.replaceChildren();
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = teams.length > 0
+      ? 'Choose a team'
+      : !fieldTeamAssignmentColumnChecked
+        ? 'Loading teams…'
+        : fieldTeamAssignmentColumn < 0
+          ? 'Team assignment unavailable'
+          : 'No teams currently assigned';
+    fieldTeamTeamSelect.appendChild(placeholder);
+    teams.forEach(team => {
+      const option = document.createElement('option');
+      option.value = team;
+      option.textContent = team;
+      fieldTeamTeamSelect.appendChild(option);
+    });
+    fieldTeamSelectedTeam = teams.find(team => team.toLowerCase() === previousTeam.toLowerCase()) || '';
+    fieldTeamTeamSelect.value = fieldTeamSelectedTeam;
+    fieldTeamTeamSelect.disabled = !fieldTeamAssignmentColumnChecked || teams.length === 0;
+    const hasUnassignedIncidents = fieldTeamIncidents.some(incident => incident.fieldTeams.length === 0);
+    if (fieldTeamMapButton) fieldTeamMapButton.disabled = !fieldTeamSelectedTeam && !hasUnassignedIncidents;
+    if (fieldTeamDescription && fieldTeamAssignmentColumnChecked) {
+      if (fieldTeamAssignmentColumn < 0) {
+        fieldTeamDescription.textContent = 'Team assignment data is missing; incidents are shown as unassigned.';
+      } else if (teams.length === 0 && hasUnassignedIncidents) {
+        fieldTeamDescription.textContent = 'No teams are currently assigned. Incidents without a team remain listed below.';
+      } else if (teams.length === 0) {
+        fieldTeamDescription.textContent = 'No field teams or incidents are currently available.';
+      } else if (hasUnassignedIncidents) {
+        fieldTeamDescription.textContent = 'Choose a team to see its assignments. Unassigned incidents remain listed below.';
+      } else {
+        fieldTeamDescription.textContent = 'Choose your team to see its assignments.';
+      }
+    }
+    if (!fieldTeamSelectedTeam && !hasUnassignedIncidents &&
+        document.body.classList.contains('fieldteam-map-active')) {
+      showFieldTeamView('list');
+    }
+  }
+
+  /**
+   * Creates a safe, keyboard-accessible incident row for the field-team queue.
+   *
+   * @param {object} incident A normalized incident with display fields and assignment names.
+   * @param {boolean} isUnassigned Whether the row has no field-team assignment.
+   * @pre The incident has a fields array and the details dialog is initialized.
+   * @post Returns a list item button labeled with incident status, assignment state, and location.
+   * @sideEffects Registers an event handler that opens the incident details dialog.
+   */
+  function createFieldTeamIncidentListItem(incident, isUnassigned) {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'fieldteam-incident';
+    const title = document.createElement('span');
+    title.className = 'fieldteam-incident-title';
+    title.textContent = incident.label || `Incident ${incident.index + 1}`;
+    const location = document.createElement('span');
+    location.className = 'fieldteam-incident-location';
+    location.textContent = incident.canonical || incident.address || 'Location not provided';
+    const badges = document.createElement('span');
+    badges.className = 'fieldteam-incident-badges';
+    if (isUnassigned) {
+      const assignment = document.createElement('span');
+      assignment.className = 'fieldteam-incident-assignment';
+      assignment.textContent = 'Unassigned';
+      badges.appendChild(assignment);
+    }
+    const status = document.createElement('span');
+    status.className = `fieldteam-incident-status${incident.isOpen ? '' : ' closed'}`;
+    status.textContent = incident.isOpen ? 'Open' : 'Closed';
+    badges.appendChild(status);
+    const assignmentLabel = isUnassigned
+      ? 'No field team assigned'
+      : `Assigned to ${incident.fieldTeams.join(', ')}`;
+    button.setAttribute('aria-label',
+      `${title.textContent}, ${assignmentLabel}, ${status.textContent}, ${location.textContent}. View details.`);
+    button.appendChild(title);
+    button.appendChild(location);
+    button.appendChild(badges);
+    button.addEventListener('click', function () {
+      openFieldTeamIncidentDetails(incident, button);
+    });
+    item.appendChild(button);
+    return item;
+  }
+
+  /**
+   * Renders the selected team's incident queue and a separate unassigned section.
+   *
+   * @pre The field-team list and summary elements exist; incidents and their field-team names are validated.
+   * @post Shows selected-team incidents plus every unassigned incident, or an actionable empty state.
+   * @sideEffects Replaces list and summary DOM content using text-only values from the sheet.
+   */
+  function renderFieldTeamIncidentList() {
+    if (!fieldTeamIncidentList || !fieldTeamSummary) return;
+    fieldTeamIncidentList.replaceChildren();
+    const assignedIncidents = fieldTeamSelectedTeam
+      ? fieldTeamIncidents.filter(isFieldTeamIncidentSelected)
+      : [];
+    const unassignedIncidents = fieldTeamIncidents.filter(incident => incident.fieldTeams.length === 0);
+    const openCount = assignedIncidents.filter(incident => incident.isOpen).length;
+    const closedCount = assignedIncidents.length - openCount;
+    if (fieldTeamSelectedTeam) {
+      fieldTeamSummary.textContent =
+        `${assignedIncidents.length} assigned · ${openCount} open · ${closedCount} closed · ${unassignedIncidents.length} unassigned`;
+    } else if (fieldTeamAssignmentColumnChecked && fieldTeamAssignmentColumn < 0) {
+      fieldTeamSummary.textContent = 'No team assignment column; incidents are shown as unassigned.';
+    } else if (fieldTeamAssignmentColumnChecked && fieldTeamTeamSelect &&
+        fieldTeamTeamSelect.options.length <= 1) {
+      fieldTeamSummary.textContent = unassignedIncidents.length > 0
+        ? `No teams are currently assigned · ${unassignedIncidents.length} unassigned`
+        : 'No team assignments or incidents are currently available.';
+    } else if (unassignedIncidents.length > 0) {
+      fieldTeamSummary.textContent =
+        `Choose a team to see assignments · ${unassignedIncidents.length} incident(s) unassigned`;
+    } else {
+      fieldTeamSummary.textContent = 'Choose a team to see its assigned incidents.';
+    }
+
+    if (fieldTeamSelectedTeam && assignedIncidents.length > 0) {
+      const heading = document.createElement('li');
+      heading.className = 'fieldteam-list-section-heading';
+      heading.textContent = `Assigned to ${fieldTeamSelectedTeam}`;
+      fieldTeamIncidentList.appendChild(heading);
+      assignedIncidents.forEach(incident => {
+        fieldTeamIncidentList.appendChild(createFieldTeamIncidentListItem(incident, false));
+      });
+    } else if (fieldTeamSelectedTeam) {
+      const empty = document.createElement('li');
+      empty.className = 'fieldteam-list-empty';
+      empty.textContent = `No incidents are assigned to ${fieldTeamSelectedTeam}.`;
+      fieldTeamIncidentList.appendChild(empty);
+    } else if (unassignedIncidents.length === 0) {
+      const empty = document.createElement('li');
+      empty.className = 'fieldteam-list-empty';
+      const hasTeams = fieldTeamTeamSelect && fieldTeamTeamSelect.options.length > 1;
+      empty.textContent = hasTeams
+        ? 'Choose your field team above to view its assigned incidents.'
+        : 'No incidents are currently available.';
+      fieldTeamIncidentList.appendChild(empty);
+    }
+
+    if (unassignedIncidents.length > 0) {
+      const heading = document.createElement('li');
+      heading.className = 'fieldteam-list-section-heading';
+      heading.textContent = 'Unassigned to a field team';
+      fieldTeamIncidentList.appendChild(heading);
+      unassignedIncidents.forEach(incident => {
+        fieldTeamIncidentList.appendChild(createFieldTeamIncidentListItem(incident, true));
+      });
+    }
+  }
+
+  /**
+   * Shows only the selected team's geocoded incidents on the map.
+   *
+   * @pre Leaflet map and incident marker state are initialized.
+   * @post Markers for the selected team and unassigned incidents are visible; other teams remain hidden.
+   * @sideEffects Adds or removes incident markers from their existing Leaflet layer groups.
+   */
+  function updateFieldTeamMarkerVisibility() {
+    Object.values(incidentMarkers).forEach(marker => {
+      if (marker._sheetId !== fieldTeamSheetId) return;
+      const assignedTeams = marker._row && fieldTeamAssignmentColumn >= 0
+        ? parseFieldTeamAssignments(marker._row[fieldTeamAssignmentColumn])
+        : [];
+      const isSelectedTeamOrUnassigned = assignedTeams.length === 0 ||
+        (fieldTeamSelectedTeam && assignedTeams.some(team =>
+          team.toLowerCase() === fieldTeamSelectedTeam.toLowerCase()));
+      const shouldShow = Boolean(isSelectedTeamOrUnassigned && marker._incident &&
+        Number.isFinite(marker._incident.lat) && Number.isFinite(marker._incident.lon) &&
+        (fieldTeamSelectedTeam || assignedTeams.length === 0));
+      syncIncidentMarkerLayer(marker, shouldShow);
+    });
+  }
+
+  /**
+   * Switches the field-team page between its list-first queue and incident map.
+   *
+   * @param {'list'|'map'} viewName The view to display.
+   * @pre The list and map controls exist; a team or unassigned incident is available before map view is requested.
+   * @post Exactly one incident view is active and the controls expose their pressed state.
+   * @sideEffects Updates body classes, button accessibility state, and Leaflet map dimensions.
+   * @throws {TypeError} If the view is not supported.
+   */
+  function showFieldTeamView(viewName) {
+    if (viewName !== 'list' && viewName !== 'map') {
+      throw new TypeError(`Unsupported field-team view: ${viewName}`);
+    }
+    if (viewName === 'map' && !fieldTeamSelectedTeam &&
+        !fieldTeamIncidents.some(incident => incident.fieldTeams.length === 0)) return;
+    document.body.classList.toggle('fieldteam-map-active', viewName === 'map');
+    fieldTeamListButton.setAttribute('aria-pressed', String(viewName === 'list'));
+    fieldTeamMapButton.setAttribute('aria-pressed', String(viewName === 'map'));
+    if (viewName === 'map') {
+      window.requestAnimationFrame(function () {
+        map.invalidateSize();
+      });
+    }
+  }
+
+  /**
+   * Renders a location preview in the incident details overlay.
+   *
+   * @param {object} incident A normalized incident with optional latitude and longitude.
+   * @pre The details map and its empty-state message exist.
+   * @post A marker is centered on the incident when coordinates are valid; otherwise a clear unavailable state is shown.
+   * @sideEffects Lazily creates a Leaflet map, requests OpenStreetMap tiles, and updates map layers and visibility.
+   */
+  function renderFieldTeamDetailsMap(incident) {
+    const hasCoordinates = Number.isFinite(incident.lat) && Number.isFinite(incident.lon);
+    if (!hasCoordinates) {
+      fieldTeamDetailsMapElement.classList.add('hidden');
+      fieldTeamDetailsMapEmpty.classList.remove('hidden');
+      return;
+    }
+
+    fieldTeamDetailsMapEmpty.classList.add('hidden');
+    fieldTeamDetailsMapElement.classList.remove('hidden');
+    if (!fieldTeamDetailsMap) {
+      fieldTeamDetailsMap = L.map(fieldTeamDetailsMapElement, {
+        zoomControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        touchZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false
+      });
+      L.tileLayer(OPEN_STREET_MAP_TILE_URL, {
+        attribution: OPEN_STREET_MAP_ATTRIBUTION
+      }).addTo(fieldTeamDetailsMap);
+    }
+    const coordinates = [incident.lat, incident.lon];
+    fieldTeamDetailsMap.setView(coordinates, FIELD_TEAM_DETAILS_MAP_ZOOM);
+    if (fieldTeamDetailsMapMarker) fieldTeamDetailsMap.removeLayer(fieldTeamDetailsMapMarker);
+    // A 9-pixel radius keeps the selected location easy to spot at a phone-sized map preview.
+    fieldTeamDetailsMapMarker = L.circleMarker(coordinates, {
+      radius: 9,
+      color: '#ffffff',
+      weight: 2,
+      fillColor: '#2c7bb6',
+      fillOpacity: 1
+    }).addTo(fieldTeamDetailsMap);
+    window.requestAnimationFrame(function () {
+      fieldTeamDetailsMap.invalidateSize();
+    });
+  }
+
+  /**
+   * Opens complete incident details from either the list or map marker.
+   *
+   * @param {object} incident A normalized incident with `fields` and `fieldTeams` arrays.
+   * @param {Element|null} trigger The list button or map marker that opened the details.
+   * @pre The details dialog and navigation controls exist and the incident has validated display fields.
+   * @post Shows all source fields, a location map or unavailable state, coordinate-dependent map actions, and moves keyboard focus into the dialog.
+   * @sideEffects Updates dialog DOM, visibility, and focus state.
+   * @throws {TypeError} If the incident does not include a fields array.
+   */
+  function openFieldTeamIncidentDetails(incident, trigger) {
+    if (!incident || !Array.isArray(incident.fields) || !Array.isArray(incident.fieldTeams)) {
+      throw new TypeError('Field-team incident details require a normalized incident.');
+    }
+    fieldTeamDetailsIncident = incident;
+    fieldTeamDetailsReturnFocus = trigger || document.activeElement;
+    fieldTeamDetailsTitle.textContent = incident.label || `Incident ${incident.index + 1}`;
+    const location = incident.canonical || incident.address || 'Location not provided';
+    const assignmentLabel = incident.fieldTeams.length > 0
+      ? `Assigned to ${incident.fieldTeams.join(', ')}`
+      : 'No field team assigned';
+    fieldTeamDetailsMeta.textContent =
+      `${incident.isOpen ? 'Open' : 'Closed'} · ${location} · ${assignmentLabel}`;
+    fieldTeamDetailsFields.replaceChildren();
+    incident.fields.forEach(field => {
+      const row = document.createElement('tr');
+      const name = document.createElement('th');
+      name.scope = 'row';
+      name.textContent = field.name;
+      const value = document.createElement('td');
+      value.textContent = field.value;
+      row.appendChild(name);
+      row.appendChild(value);
+      fieldTeamDetailsFields.appendChild(row);
+    });
+    const hasCoordinates = Number.isFinite(incident.lat) && Number.isFinite(incident.lon);
+    fieldTeamDetailsActions.classList.toggle('hidden', !hasCoordinates);
+    fieldTeamDetailsBackdrop.classList.remove('hidden');
+    fieldTeamDetailsBackdrop.setAttribute('aria-hidden', 'false');
+    renderFieldTeamDetailsMap(incident);
+    fieldTeamDetailsClose.focus();
+  }
+
+  /**
+   * Closes incident details and returns focus to the control that opened them.
+   *
+   * @pre The details backdrop exists.
+   * @post The dialog is hidden and focus returns to its trigger when that element remains in the document.
+   * @sideEffects Updates dialog visibility and keyboard focus.
+   */
+  function closeFieldTeamIncidentDetails() {
+    if (!fieldTeamDetailsBackdrop || fieldTeamDetailsBackdrop.classList.contains('hidden')) return;
+    fieldTeamDetailsBackdrop.classList.add('hidden');
+    fieldTeamDetailsBackdrop.setAttribute('aria-hidden', 'true');
+    if (fieldTeamDetailsReturnFocus && document.contains(fieldTeamDetailsReturnFocus)) {
+      fieldTeamDetailsReturnFocus.focus();
+    }
+    fieldTeamDetailsReturnFocus = null;
+    fieldTeamDetailsIncident = null;
+  }
+
+  /**
+   * Opens the main field-team map centered on the incident currently in the details overlay.
+   *
+   * @pre The active details incident has valid coordinates and the main map is initialized.
+   * @post The details overlay closes and the full map shows the incident at a useful street-level zoom.
+   * @sideEffects Changes the active view, map center and zoom, and keyboard focus.
+   */
+  function openFieldTeamIncidentOnMap() {
+    const incident = fieldTeamDetailsIncident;
+    if (!incident || !Number.isFinite(incident.lat) || !Number.isFinite(incident.lon)) return;
+    closeFieldTeamIncidentDetails();
+    showFieldTeamView('map');
+    map.setView([incident.lat, incident.lon], Math.max(map.getZoom(), FIELD_TEAM_DETAILS_MAP_ZOOM));
+    fieldTeamMapButton.focus();
+  }
+
+  /**
+   * Handles Escape and traps keyboard focus within the field-team incident dialog.
+   *
+   * @param {KeyboardEvent} event Keyboard event dispatched while the details dialog is open.
+   * @pre The dialog and its focusable controls are initialized.
+   * @post Escape closes the dialog; Tab and Shift+Tab cycle through visible dialog controls.
+   * @sideEffects May prevent default Tab navigation, move focus, or close the dialog.
+   */
+  function handleFieldTeamDetailsKeydown(event) {
+    if (fieldTeamDetailsBackdrop.classList.contains('hidden')) return;
+    if (event.key === 'Escape') {
+      closeFieldTeamIncidentDetails();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(
+      fieldTeamDetailsDialog.querySelectorAll('button:not(:disabled), [tabindex="0"]')
+    ).filter(element => element.getClientRects().length > 0);
+    if (focusable.length === 0) return;
+    const currentIndex = focusable.indexOf(document.activeElement);
+    const nextIndex = event.shiftKey
+      ? (currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1)
+      : (currentIndex < 0 || currentIndex === focusable.length - 1 ? 0 : currentIndex + 1);
+    event.preventDefault();
+    focusable[nextIndex].focus();
+  }
+
+  /**
+   * Loads the preset Incidents sheet and initializes the mobile field-team workflow.
+   *
+   * @pre Disaster modes are loaded and normalized; the field-team page markup and map are initialized.
+   * @post The first preset containing an Incidents sheet feeds a read-only team selector, incident list, map, and refresh timer.
+   * @sideEffects Fetches the preset sheet and geocoder data, plots incidents, installs page controls, and starts polling.
+   * @throws {Error} If no preset Incidents sheet exists or required route markup is unavailable.
+   */
+  async function initializeFieldTeamPage() {
+    if (!fieldTeamTeamSelect || !fieldTeamListButton || !fieldTeamMapButton ||
+        !fieldTeamRefreshButton || !fieldTeamStatus || !fieldTeamIncidentList ||
+        !fieldTeamDetailsBackdrop || !fieldTeamDetailsDialog || !fieldTeamDetailsTitle ||
+        !fieldTeamDetailsMeta || !fieldTeamDetailsFields || !fieldTeamDetailsClose ||
+        !fieldTeamDetailsMapElement || !fieldTeamDetailsMapEmpty || !fieldTeamDetailsActions ||
+        !fieldTeamDetailsMapSection || !fieldTeamDetailsMapJump || !fieldTeamDetailsOpenMap) {
+      throw new Error('Field-team page controls are unavailable.');
+    }
+    const sourceMode = disasterModes.modes.find(mode =>
+      mode.preset && Array.isArray(mode.preset.sheets) &&
+      mode.preset.sheets.some(sheet => String(sheet.name || '').trim().toLowerCase() === 'incidents')
+    );
+    const incidentPreset = sourceMode && sourceMode.preset.sheets.find(sheet =>
+      String(sheet.name || '').trim().toLowerCase() === 'incidents'
+    );
+    if (!incidentPreset) {
+      throw new Error('No Incidents sheet is configured in the disaster-mode presets.');
+    }
+
+    selectedDisasterModeId = sourceMode.id;
+    sheets = [normalizePresetSheet(incidentPreset, 0)];
+    fieldTeamSheetId = sheets[0].id;
+    if (localAddressesData && !geocoderIndex) {
+      geocoderIndex = buildGeocoderIndex(localAddressesData);
+    }
+    hasLoadedMap = true;
+    sheetModal.classList.add('hidden');
+    fieldTeamTeamSelect.addEventListener('change', function () {
+      fieldTeamSelectedTeam = fieldTeamTeamSelect.value;
+      const hasUnassignedIncidents = fieldTeamIncidents.some(incident => incident.fieldTeams.length === 0);
+      if (fieldTeamMapButton) fieldTeamMapButton.disabled = !fieldTeamSelectedTeam && !hasUnassignedIncidents;
+      renderFieldTeamIncidentList();
+      updateFieldTeamMarkerVisibility();
+      showFieldTeamView('list');
+    });
+    fieldTeamListButton.addEventListener('click', function () {
+      showFieldTeamView('list');
+    });
+    fieldTeamMapButton.addEventListener('click', function () {
+      showFieldTeamView('map');
+    });
+    fieldTeamRefreshButton.addEventListener('click', function () {
+      fetchAndPlotSheet(fieldTeamSheetId);
+    });
+    fieldTeamDetailsClose.addEventListener('click', closeFieldTeamIncidentDetails);
+    fieldTeamDetailsMapJump.addEventListener('click', function () {
+      fieldTeamDetailsMapSection.scrollIntoView();
+      fieldTeamDetailsMapElement.focus();
+    });
+    fieldTeamDetailsOpenMap.addEventListener('click', openFieldTeamIncidentOnMap);
+    fieldTeamDetailsBackdrop.addEventListener('click', function (event) {
+      if (event.target === fieldTeamDetailsBackdrop) closeFieldTeamIncidentDetails();
+    });
+    document.addEventListener('keydown', handleFieldTeamDetailsKeydown);
+    renderFieldTeamTeamOptions();
+    renderFieldTeamIncidentList();
+    showFieldTeamView('list');
+    await fetchAndPlotSheet(fieldTeamSheetId);
+    if (pollTimer !== null) clearInterval(pollTimer);
+    pollTimer = setInterval(function () {
+      fetchAndPlotSheet(fieldTeamSheetId);
+    }, DEFAULT_POLL_INTERVAL_MS);
   }
 
   /**
@@ -10546,7 +11592,7 @@ const ALL_FA_ICONS = [
     Boolean(savedAppState && (sheets.length === 0 || sheets.some(sheet => sheet.rawUrl)));
 
   renderSheetsModal();
-  if (!shouldAutoLoadSavedMapState && !openedFromSharedMapUrl) {
+  if (!fieldTeamMode && !shouldAutoLoadSavedMapState && !openedFromSharedMapUrl) {
     openSheetModal();
   }
   if (savedAppState && savedAppState.geocoderOverridden && typeof savedAppState.geocoderUrl === 'string') {
@@ -10565,7 +11611,9 @@ const ALL_FA_ICONS = [
   }
   const startupInitializationPromise = loadDisasterModes()
     .then(function () {
-      if (!hasSavedSheetsState) {
+      if (fieldTeamMode) {
+        renderDisasterModePicker();
+      } else if (!hasSavedSheetsState) {
         applyDisasterModeSelection(selectedDisasterModeId);
       } else {
         renderDisasterModePicker();
@@ -10573,14 +11621,20 @@ const ALL_FA_ICONS = [
     })
     .then(checkLocalAddresses)
     .then(function () {
+      if (fieldTeamMode) return initializeFieldTeamPage();
       if (shouldAutoLoadSavedMapState) {
-        handleSubmit();
+        return handleSubmit();
       }
+      return undefined;
     })
     .catch(function (err) {
       disasterModesLoadError = `Could not load disaster modes from ${DISASTER_MODES_URL}: ${err.message}`;
-      renderDisasterModePicker();
-      showError(disasterModesLoadError);
+      if (fieldTeamMode) {
+        setStatus(`Could not start the field-team page: ${err.message}`);
+      } else {
+        renderDisasterModePicker();
+        showError(disasterModesLoadError);
+      }
     })
     .finally(function () {
       disasterModesLoadPending = false;
@@ -10857,8 +11911,10 @@ const ALL_FA_ICONS = [
     customFeatures.push(feature);
     openCustomFeatureEditor(feature.id, layer);
   });
-  loadCustomFeatures();
-  renderAllCustomFeatures();
+  if (!fieldTeamMode) {
+    loadCustomFeatures();
+    renderAllCustomFeatures();
+  }
 
   // ── FontAwesome Icon Picker Modal State & Helpers ───────────────────────────
 
